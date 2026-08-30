@@ -1,0 +1,75 @@
+# CI: build di ogni app in apps/ con pebble-tool 5.0.40 + SDK 4.33.1 (artefatti .pbw) e test host di Galleria.
+# Prima esecuzione al primo push su GitHub (30/08/2026). Vedi PIANO-SVILUPPO-PEBBLE.md §5.7.
+name: build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PEBBLE_TOOL_VERSION: "5.0.40"
+  PEBBLE_SDK_VERSION: "4.33.1"
+  PYTHONWARNINGS: ignore
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [galleria, hello-emery, heapprobe]   # aggiungere ogni nuova app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v6
+      - name: Librerie runtime per l'emulatore QEMU
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0 libglib2.0-0t64 libpixman-1-0 zlib1g libsndio7.0
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pebble-sdk
+          key: pebble-sdk-${{ env.PEBBLE_SDK_VERSION }}-${{ runner.os }}
+      - name: pebble-tool (pinnato)
+        run: |
+          uv tool install "pebble-tool==${PEBBLE_TOOL_VERSION}" --python 3.13
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: SDK
+        run: pebble sdk list | grep -q "${PEBBLE_SDK_VERSION} (active)" || pebble sdk install "${PEBBLE_SDK_VERSION}"
+      - name: Build
+        working-directory: apps/${{ matrix.app }}
+        run: pebble build 2>&1 | tee build.log && grep -A4 "APP MEMORY USAGE" build.log
+      - name: Screenshot emery (headless, best effort)
+        working-directory: apps/${{ matrix.app }}
+        continue-on-error: true
+        run: |
+          pebble install --emulator emery --vnc
+          pebble screenshot --emulator emery --vnc --no-open emery.png
+          pebble kill
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/build/*.pbw
+            apps/${{ matrix.app }}/build.log
+            apps/${{ matrix.app }}/emery.png
+          if-no-files-found: warn
+
+  galleria-host-tests:
+    # Test host di apps/galleria/test: C (gcc), node (PKJS, config page), Python (tool, dev server, dbm.dumb),
+    # più i controlli dei file generati (config_page.js, fixture, anteprime font). Nessun SDK necessario.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Pillow (photo_prep.py, dev server, anteprime font)
+        run: python3 -m pip install --quiet pillow
+      - name: make -C apps/galleria/test
+        run: make -C apps/galleria/test

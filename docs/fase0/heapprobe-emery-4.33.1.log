@@ -1,0 +1,19 @@
+Installing app...
+App install succeeded.
+[main entry] heap free=129680 used=24
+[window_load] heap free=129396 used=308
+[after init] heap free=129396 used=308
+[first render] heap free=129396 used=308
+malloc(8 KiB) -> OK (free after=121200)
+malloc(16 KiB) -> OK (free after=113008)
+malloc(32 KiB) -> OK (free after=96624)
+malloc(64 KiB) -> OK (free after=63856)
+malloc(96 KiB) -> OK (free after=31088)
+malloc(112 KiB) -> OK (free after=14704)
+malloc(120 KiB) -> OK (free after=6512)
+malloc(124 KiB) -> OK (free after=2416)
+malloc(128 KiB) -> NULL (free after=129396)
+8 KiB blocks alive at once: 15 (free=6456)
+full-screen GBitmap 200x228 -> OK (free=83756)
+[after probe] heap free=129396 used=308
+PROBE DONE platform=color

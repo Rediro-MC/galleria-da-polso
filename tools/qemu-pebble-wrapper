@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Wrapper per qemu-pebble (Fase 0): aggiunge le librerie runtime estratte dai .deb
+# (libSDL2, libXss, libsndio) senza inquinare l'ambiente globale, poi esegue il QEMU dell'SDK attivo.
+# pebble-tool lo usa se PEBBLE_QEMU_PATH punta a questo file (vedi tools/pebble-env.sh).
+# Punto di aggancio futuro per l'iniezione touch via QMP (docs/ricerca/gap-3-emulatore-touch.md).
+DEPS="$HOME/.local/lib/pebble-deps/root/usr/lib/x86_64-linux-gnu"
+export LD_LIBRARY_PATH="$DEPS:$DEPS/sdl2-classic${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+REAL="${PEBBLE_QEMU_REAL:-$HOME/.local/share/pebble-sdk/SDKs/current/toolchain/bin/qemu-pebble}"
+exec "$REAL" "$@"

@@ -1,0 +1,124 @@
+{
+  "name": "galleria",
+  "author": "Marco",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app",
+    "pebble-watchface"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Galleria",
+    "uuid": "6f2dd646-a76a-44ff-8719-b012d04c79a4",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery",
+      "flint"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": [
+      "configurable",
+      "health"
+    ],
+    "messageKeys": [
+      "MSG",
+      "PROTO",
+      "MAX_CHUNK",
+      "SLOTS",
+      "COUNT",
+      "SLOT",
+      "PHOTO_ID",
+      "FORMAT",
+      "LENGTH",
+      "CRC",
+      "OFFSET",
+      "DATA",
+      "CODE",
+      "ORDER",
+      "SETTINGS",
+      "REPLY_TO"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "raw",
+          "name": "DEMO_1_RAW6",
+          "file": "photos/demo_1.raw6",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "DEMO_1_RAW1",
+          "file": "photos/demo_1.raw1",
+          "targetPlatforms": [
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "DEMO_2_RAW6",
+          "file": "photos/demo_2.raw6",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "DEMO_2_RAW1",
+          "file": "photos/demo_2.raw1",
+          "targetPlatforms": [
+            "flint"
+          ]
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_ANTON_A",
+          "file": "digits/anton_a.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_ANTON_B",
+          "file": "digits/anton_b.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_BEBAS_A",
+          "file": "digits/bebas_a.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_BEBAS_B",
+          "file": "digits/bebas_b.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_BARLOW_A",
+          "file": "digits/barlow_a.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_BARLOW_B",
+          "file": "digits/barlow_b.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        }
+      ]
+    }
+  }
+}

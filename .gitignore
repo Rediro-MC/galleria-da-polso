@@ -1,0 +1,26 @@
+# Build Pebble (per app)
+apps/*/build/
+apps/*/node_modules/
+apps/*/.lock-waf*
+apps/*/*.log
+apps/*/*.pbw
+apps/*/test/build/
+
+# Screenshot di lavoro (quelli da conservare vanno in docs/)
+apps/*/shot_*.png
+
+# Repo clonati come riferimento (vedi tools/README.md per riclonarli)
+tools/sdk-docs/
+tools/pebble-watchface-agent-skill/
+
+# Python / editor
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+compile_commands.json
+
+# Runtime / sessione
+apps/*/serve.pid
+apps/*/run_*.log
+.claude/settings.local.json

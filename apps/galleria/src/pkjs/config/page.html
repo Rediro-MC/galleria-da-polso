@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galleria</title>
+<link rel="stylesheet" href="page.css">
+</head>
+<body>
+<header id="head">
+  <h1>Galleria</h1>
+  <p id="watch"></p>
+  <p id="kb" class="kb"></p>
+  <p id="status" class="warn" style="display:none"></p>
+</header>
+
+<section id="photos">
+  <h2>Foto</h2>
+  <div id="tiles"></div>
+  <p class="row">
+    <label id="add" class="btn" for="file">Aggiungi foto</label>
+    <input type="file" id="file" accept="image/*">
+    <span id="addHelp" class="help">scegli dalla Libreria</span>
+  </p>
+</section>
+
+<section id="editor" style="display:none">
+  <h2>Ritaglio</h2>
+  <p id="editName" class="help"></p>
+  <div id="cropWrap"><canvas id="crop"></canvas></div>
+  <p class="help">Trascina per spostare, due dita o rotellina per ingrandire.</p>
+  <p class="row"><label for="zoom" class="rlab">Zoom</label> <input type="range" id="zoom" min="1" max="4" step="0.01" value="1"> <button type="button" id="fit" class="btn small">Adatta</button></p>
+  <p class="row"><label for="gamma" class="rlab">Luminosità (gamma)</label> <input type="range" id="gamma" min="0.5" max="2" step="0.05" value="1"> <span id="gammaVal" class="val">1,00</span></p>
+  <p class="row"><label for="lift" class="rlab">Schiarisci le ombre (lift)</label> <input type="range" id="lift" min="0" max="0.3" step="0.01" value="0"> <span id="liftVal" class="val">0,00</span></p>
+  <p class="row"><label for="dither" class="rlab">Dithering</label> <select id="dither"></select></p>
+  <p class="row" id="sunlightRow"><label><input type="checkbox" id="sunlight"> Ottimizza per il vetro</label></p>
+  <p class="row" id="previewModeRow"><label for="previewMode" class="rlab">Anteprima</label> <select id="previewMode"><option value="sun">come sul vetro</option><option value="nominal">colori nominali</option></select></p>
+  <div class="prevwrap"><canvas id="preview"></canvas></div>
+  <p id="etime" class="help"></p>
+  <p class="row"><button type="button" id="addOk" class="btn primary">Aggiungi all'album</button> <button type="button" id="addCancel" class="btn">Annulla ritaglio</button></p>
+</section>
+
+<section id="settings">
+  <h2>Impostazioni</h2>
+  <p id="settingsNote" class="warn" style="display:none">Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi.</p>
+  <p class="row"><label for="s_layout" class="rlab">Layout</label> <select id="s_layout"></select></p>
+  <p class="row"><label for="s_font" class="rlab">Font</label> <select id="s_font"></select> <img id="fontPreview" class="fontprev" alt="" style="display:none"></p>
+  <p class="row"><label for="s_clock_mode" class="rlab">Formato ora</label> <select id="s_clock_mode"></select></p>
+  <p class="row"><label for="s_leading_zero" class="rlab">Zero iniziale</label> <select id="s_leading_zero"></select></p>
+  <p class="row"><label for="s_interval_min" class="rlab">Intervallo foto</label> <select id="s_interval_min"></select></p>
+  <p class="row"><label for="s_order" class="rlab">Ordine</label> <select id="s_order"></select></p>
+  <p class="row"><label><input type="checkbox" id="s_shake_next"> Scossa = foto successiva</label></p>
+  <p class="row"><label for="s_text_color" class="rlab">Colore testo</label> <select id="s_text_color"></select></p>
+  <p class="row"><label for="s_outline" class="rlab">Contorno</label> <select id="s_outline"></select></p>
+  <p class="row"><span class="rlab">Riga info:</span>
+    <span class="opts">
+      <label><input type="checkbox" id="s_info_row_b0"> passi</label>
+      <label><input type="checkbox" id="s_info_row_b1"> batteria</label>
+      <label><input type="checkbox" id="s_info_row_b2"> data</label>
+      <label><input type="checkbox" id="s_info_row_b3"> Bluetooth</label>
+    </span>
+    <input type="hidden" id="s_info_row" value="15">
+  </p>
+</section>
+
+<footer id="footer">
+  <button type="button" id="save" class="btn primary">Salva</button>
+  <button type="button" id="cancel" class="btn">Esci senza salvare</button>
+  <p id="msg"></p>
+</footer>
+
+<script src="pipeline.js"></script>
+<script src="page_core.js"></script>
+<script src="previews.js" data-optional="1"></script>
+<script src="page.js"></script>
+</body>
+</html>

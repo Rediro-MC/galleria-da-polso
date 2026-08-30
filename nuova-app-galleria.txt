@@ -1,0 +1,11 @@
+Vorrei sviluppare una watchface per pebble time 2 con funzione di galleria a rotazione minimale.
+Vorrei idealmente avere la possibilità di creare una galleria di foto caricate dal telefono e poi scegliere di poter farle vedere a rotazione e con quali intervalli.
+L'ora vorrei che sia ben leggibile con due opzioni magari: la prima dove il font dei numeri dell'ora occupano circa 1/3 dello schermo in verticale (tipo Tempest Time, con i numeri ben visibili e con quale riga di info aggiuntive: passi, batteria ...), mentre con l'altra opzione i numeri dell'orario occupano tutto lo schermo (tipo watchface TimeStyle). Questi valori considerali indicativi l'importante è il concetto e cercare di rispettare le caratteristiche del display per rendere il testo sempre più crisp possibile.
+Come su TimeStyle mi piacerebbe che si potesse scegliere tra qualche font se possibile.
+Una funzione che mi piacerebbe ci fosse è una impostazione per gestire il colore de testo (orario, passi ...) in funzione alla foto caricata. In base alla tipologia della foto in automatico l'applicazione deve passare a testo NERO o a testo BIANCO (o ad altri colori se più funzionali).
+Precisazione le foto caricate devono sempre occupare tutto lo schermo e quindi fare da sfondo a tutto.
+La gestione della foto deve essere pensata apposta per il pebble time 2: in base alla risoluzione dell'orologio bisogna comprimere la foto in maniera intelligeten per gestire più informazioni possibili di risoluzione e colori ma poi visti i limiti del display e dell'orologio comprimere l'immagine per avere solo le informazioni necessarie per mostrarla. Sempre dall'applicazione del telefono bisogna poter croppare la foto dall'app per fare vedere all'utente cosa poi il telefono andr a mostrare.
+
+Cose da valutare: rendere la wathface molto efficiente una volta sull'orologio quindi minor consumo di batteria possibile. Non pensare mai di gestire di mostrare i secondi sull'orologio.
+
+Deve esserci la possibilità nelle impostaizoni di avere le 24h o le 12h (per i vari mercati dove è più comune) e fare vedere gli 0 tipo 04:15 o 4:15.

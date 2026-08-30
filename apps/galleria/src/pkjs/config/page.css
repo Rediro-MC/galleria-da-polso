@@ -1,0 +1,47 @@
+/* page.css — Galleria S6: una colonna, max 480 px, usabile a 360–400 px. */
+* { box-sizing: border-box; }
+body { margin: 0 auto; max-width: 480px; padding: 0 12px 96px; font: 15px/1.4 -apple-system, Roboto, "Segoe UI", sans-serif; color: #222; background: #f4f4f6; }
+h1 { font-size: 22px; margin: 14px 0 2px; }
+h2 { font-size: 17px; margin: 18px 0 8px; border-bottom: 1px solid #ccd; }
+p { margin: 6px 0; }
+label { font-size: 15px; }
+.help { color: #666; font-size: 14px; }
+.val { display: inline-block; min-width: 3em; text-align: right; }
+.kb { font-weight: bold; }
+.warn { background: #fff3cd; border: 1px solid #e0c060; color: #533; padding: 6px 8px; border-radius: 4px; font-size: 14px; }
+.err { background: #f8d7da; border-color: #d99; }
+.okmsg { background: #d4edda; border-color: #8c8; color: #253; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.row > .rlab { min-width: 9.5em; }
+.opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1 1 150px; }
+select, input[type=range] { font-size: 15px; min-height: 40px; }
+select { padding: 4px 8px; background: #fff; border: 1px solid #bbc; border-radius: 4px; }
+input[type=range] { flex: 1 1 120px; min-width: 100px; }
+input[type=checkbox] { width: 22px; height: 22px; vertical-align: middle; margin: 0 4px 0 0; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.btn { display: inline-block; min-height: 40px; line-height: 38px; padding: 0 16px; border: 1px solid #889; border-radius: 6px; background: #fff; color: #222; font-size: 15px; cursor: pointer; text-align: center; }
+.btn.primary { background: #2a6fd6; border-color: #2a6fd6; color: #fff; font-weight: bold; }
+.btn.small { padding: 0 12px; font-size: 14px; }
+/* S7 #41: disabilitato = grigio spento ma leggibile. Con opacity 0.75 il testo #444 su #ddd
+ * composto sul fondo (#fff del footer/tessere o #f4f4f6 del body) resta a ~3,8:1, sopra il 3:1
+ * chiesto da WCAG per i controlli; .btn[disabled] (0,2,0) viene dopo .btn.primary e la batte.
+ * .tbtns button[disabled] (0,2,1) serve perche' .tbtns button (0,1,1, piu' sotto nel file)
+ * batterebbe button[disabled] (0,1,1) e rimetterebbe il fondo bianco alle frecce spente. */
+.btn.off, .btn[disabled], button[disabled], .tbtns button[disabled] { opacity: 0.75; cursor: default; background: #ddd; border-color: #99a; color: #444; }
+#tiles { display: flex; flex-direction: column; gap: 8px; }
+.tile { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #ccd; border-radius: 6px; padding: 6px; }
+.thumb { width: 100px; height: 114px; flex: 0 0 100px; image-rendering: pixelated; background: #ddd; border-radius: 3px; }
+.thumb.empty { display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; }
+.meta { flex: 1 1 auto; min-width: 0; }
+.name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-block; font-size: 14px; padding: 2px 8px; border-radius: 10px; background: #e5e7ee; color: #334; margin: 2px 4px 2px 0; }
+.badge.warnb { background: #fff3cd; color: #633; }
+.badge.newb { background: #d6e6fb; color: #134; }
+.tbtns { display: flex; flex-direction: column; gap: 8px; }
+.tbtns button { min-width: 40px; min-height: 40px; line-height: 38px; padding: 0; font-size: 16px; border: 1px solid #99a; border-radius: 4px; background: #fff; }
+#crop { display: block; margin: 0 auto; border: 1px solid #889; touch-action: none; -webkit-user-select: none; user-select: none; cursor: move; }
+.prevwrap { text-align: center; }
+#preview { width: 100%; max-width: 400px; image-rendering: pixelated; border: 1px solid #889; }
+.fontprev { box-sizing: content-box; height: 28px; image-rendering: pixelated; vertical-align: middle; background: #fff; border: 1px solid #ccd; }
+#footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #ccd; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#footer p { flex: 1 1 100%; margin: 0; font-size: 14px; min-height: 1.2em; max-height: 4.3em; overflow-y: auto; }
