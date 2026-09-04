@@ -269,6 +269,7 @@ AppMessageResult app_message_outbox_send(void);
 #define MESSAGE_KEY_ORDER      10013u
 #define MESSAGE_KEY_SETTINGS   10014u
 #define MESSAGE_KEY_REPLY_TO   10015u
+#define MESSAGE_KEY_OPEN_MS    10016u   /* v1.9 (perf 04/09): HELLO.OPEN_MS */
 
 /* ================= hook di test (non fanno parte dell'SDK) ================= */
 

@@ -38,11 +38,12 @@ bool settings_validate(const GalSettings *s) {
   }
   return s->schema == GAL_SETTINGS_SCHEMA
       && s->layout <= GAL_LAYOUT_B
-      && s->font <= GAL_FONT_LECO
+      && s->font < GAL_FONT_COUNT
       && s->clock_mode <= GAL_CLOCK_24H
       && s->leading_zero <= GAL_LZ_OFF
       && s->text_color <= GAL_TEXT_OXFORD
       && s->outline <= GAL_OUTLINE_NEVER
+      && s->digit_style <= GAL_STYLE_FILL_3D
       && prv_interval_valid(s->interval_min)
       && s->order <= GAL_ORDER_RANDOM
       && s->shake_next <= 1
@@ -51,15 +52,18 @@ bool settings_validate(const GalSettings *s) {
 
 /* Hook di test (wscript GALLERIA_DEFINES): forzano i valori DOPO la lettura da persist, così gli
  * screenshot dei gate sono riproducibili qualunque cosa sia salvata. Nessun effetto nelle build
- * normali. GALLERIA_DEBUG_SETTINGS_SAVE=1 salva in persist i valori così ottenuti (percorso di
- * settings_apply, come dal telefono); GALLERIA_DEBUG_INTERVAL=1 (minuti, anche fuori dalla lista
+ * normali. GALLERIA_DEBUG_SETTINGS_SAVE=1 salva in persist i valori così ottenuti (chiamata diretta a
+ * storage_settings_changed dopo la validazione: settings_apply non scriverebbe, vedendoli identici alla RAM); GALLERIA_DEBUG_INTERVAL=1 (minuti, anche fuori dalla lista
  * ammessa) e GALLERIA_DEBUG_ORDER=1 (casuale) valgono solo in RAM e vengono applicati per ultimi. */
 static void prv_debug_overrides(void) {
 #ifdef GALLERIA_DEBUG_LAYOUT
   s_settings.layout = GALLERIA_DEBUG_LAYOUT;             /* 0 A, 1 B */
 #endif
 #ifdef GALLERIA_DEBUG_FONT
-  s_settings.font = GALLERIA_DEBUG_FONT;                 /* 0 Anton, 1 Bebas, 2 Barlow, 3 LECO */
+  s_settings.font = GALLERIA_DEBUG_FONT;                 /* 0 Anton, 1 Bebas, 2 Barlow, 3 LECO, 4 Francois One, 5 Staatliches */
+#endif
+#ifdef GALLERIA_DEBUG_STYLE
+  s_settings.digit_style = GALLERIA_DEBUG_STYLE;         /* 0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D */
 #endif
 #ifdef GALLERIA_DEBUG_TEXT_COLOR
   s_settings.text_color = GALLERIA_DEBUG_TEXT_COLOR;
@@ -68,11 +72,13 @@ static void prv_debug_overrides(void) {
   s_settings.outline = GALLERIA_DEBUG_OUTLINE;
 #endif
 #ifdef GALLERIA_DEBUG_SETTINGS_SAVE
-  {
-    GalSettings copy = s_settings;
-    const bool applied = settings_apply(&copy);
-    LOGV("settings: debug save -> apply=%d", (int)applied);
-    (void)applied;
+  /* Salva in persist i valori degli hook (revisione S8-stile, C1): non passa da settings_apply, che dalla
+   * v1.9 confronta con la RAM e con una copia identica non scrive nulla (l'hook era diventato inerte). */
+  if (settings_validate(&s_settings)) {
+    storage_settings_changed(&s_settings);
+    LOGV("settings: debug save -> scheduled");
+  } else {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "settings: debug save skipped (invalid)");
   }
 #endif
 #ifdef GALLERIA_DEBUG_INTERVAL
@@ -90,9 +96,10 @@ void settings_init(void) {
   if (from_persist) {
     s_settings = loaded;
   }
-  APP_LOG(APP_LOG_LEVEL_INFO, "settings: %s layout=%u font=%u interval=%u order=%u shake=%u",
+  APP_LOG(APP_LOG_LEVEL_INFO, "settings: %s layout=%u font=%u sty=%u interval=%u order=%u shake=%u",
           from_persist ? "persist" : "defaults", (unsigned)s_settings.layout, (unsigned)s_settings.font,
-          (unsigned)s_settings.interval_min, (unsigned)s_settings.order, (unsigned)s_settings.shake_next);
+          (unsigned)s_settings.digit_style, (unsigned)s_settings.interval_min, (unsigned)s_settings.order,
+          (unsigned)s_settings.shake_next);
   prv_debug_overrides();
 }
 
@@ -105,6 +112,9 @@ bool settings_apply(const GalSettings *s) {
     APP_LOG(APP_LOG_LEVEL_WARNING, "settings: rejected (schema %u interval %u)",
             s ? (unsigned)s->schema : 0u, s ? (unsigned)s->interval_min : 0u);
     return false;
+  }
+  if (memcmp(&s_settings, s, sizeof(GalSettings) - 2) == 0) {
+    return true;                           /* identiche (crc16 escluso): nessuna scrittura, nessun record morto */
   }
   s_settings = *s;
   storage_settings_changed(&s_settings);   /* debounce 10 s; flush in deinit */

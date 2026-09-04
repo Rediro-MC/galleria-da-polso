@@ -1,0 +1,23 @@
+Installing app...
+App install succeeded.
+[10:49:15] main.c:14> heap main: used=24 free=105752
+[10:49:15] storage.c:140> storage: quota=1048576 album=1 schema=1 manifest=persist valid=2
+[10:49:15] settings.c:93> settings: defaults layout=0 font=0 interval=30 order=0 shake=1
+[10:49:15] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 9 ms heap 45664/60112
+[10:49:15] model.c:108> rot(init): t=29801449 int=30 ord=0 shk=0 slot=1 demo=255 valid=2 bad=0
+[10:49:15] ui_time.c:715> ui_time: cs=2 bt=1 loc=en_US 200x228 unob=228 lay=1 font=0 mode=2 band=109
+[10:49:15] ui_time.c:665> luma(photo): m=2 b=119+109 h=228 ph=1 w=0 bad=1(98/1) mean=228 fg=c0 halo=0
+[10:49:15] main.c:14> heap window_load: used=61780 free=43996
+[10:49:15] main.c:98> heap services: used=61780 free=43996
+[10:49:15] sync.c:437> sync: open(4153/110) -> 0 chunk=4096 heap 66144/39632 (cost 4364)
+[10:49:15] main.c:14> heap init: used=66144 free=39632
+[10:49:15] ui_time.c:625> heap after first render: used=66144 free=39632
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [album] pronto (dev server http://localhost:8765): 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [album] payload completo: ok, cambiato false, nuove [] aggiornate [] eliminate []
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [album] 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [sync] JS_READY
+[10:49:15] sync.c:343> sync: msg=1 f=0 -> act=1 out=2 code=0 off=0 st=0 heap 39712
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [sync] HELLO proto=1 maxChunk=4096 slots=1016b83c,f23a62,-,-,-,-,-,-,-,-,-,-
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [album] piano: 0 foto, 0 eliminazioni, ordine no, impostazioni mai impostate
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [sync] fine: {"photosOk":0,"photosFailed":0,"settings":null,"order":null,"deletes":[],"photoCodes":[]}
+[10:49:15] pkjs> ./src/pkjs/index.js:97:0 [album] 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7

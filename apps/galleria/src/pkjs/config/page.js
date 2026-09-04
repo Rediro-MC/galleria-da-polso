@@ -40,7 +40,11 @@
   /* -- impostazioni (#settings, id s_<campo>) -- */
   var OPTS = {
     layout: [[0, 'Un terzo con riga info'], [1, 'Tutto schermo']],
-    font: [[0, 'Anton'], [1, 'Bebas Neue'], [2, 'Barlow Condensed'], [3, 'LECO (sistema, solo layout Un terzo)', 's_font_leco']],
+    font: [[0, 'Anton'], [1, 'Bebas Neue'], [2, 'Barlow Condensed'], [3, 'LECO (sistema, solo layout Un terzo)', 's_font_leco'],
+           [4, 'Francois One'], [5, 'Staatliches']],
+    digit_style: [[0, 'pieno'], [1, 'trasparente (solo contorno)'],
+                  [2, 'trasparente 3D (contorno + ombra)', 's_digit_style_3d1'],
+                  [3, 'pieno 3D (con ombra)', 's_digit_style_3d2']],
     clock_mode: [[0, 'auto'], [1, '12 h'], [2, '24 h']],
     leading_zero: [[0, 'auto'], [1, 'sì'], [2, 'no']],
     interval_min: [[0, 'mai'], [5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 h'], [180, '3 h'], [1440, '1 giorno']],
@@ -48,22 +52,48 @@
     text_color: [[0, 'auto'], [1, 'bianco'], [2, 'nero'], [3, 'giallo pastello'], [4, 'blu Oxford']],
     outline: [[0, 'auto'], [1, 'sempre'], [2, 'mai']]
   };
-  var SELECTS = ['layout', 'font', 'clock_mode', 'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
-  function applyLeco() {                                  /* LECO solo in layout A; anteprima PNG del font */
-    var layout = +el('s_layout').value, font = el('s_font'), leco = el('s_font_leco'), img = el('fontPreview'), pv = root.GalPreviews, key;
+  var SELECTS = ['layout', 'font', 'digit_style', 'clock_mode', 'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
+  /* chiave dell'anteprima per indice del font ('' = nessuna: il 3 e' LECO, font di sistema).
+   * Le chiavi arrivano da previews.js (GalPreviews) e sono le stesse di gen_font_previews.py
+   * e gen_digits.py (S8-stile §2: 4 = Francois One, 5 = Staatliches). */
+  var PREV_KEYS = ['anton', 'bebas', 'barlow', '', 'francois', 'staatliches'];
+  /* D26: su Pebble 2 Duo (flint) la strip ha 3 colori e l'ombra 3D non esiste. Le due opzioni con
+   * ombra restano spente (id stabili nell'HTML) e il valore scende allo stile equivalente senza
+   * ombra: 2 -> 1, 3 -> 0. Su emery e su orologio sconosciuto non cambia nulla.
+   * [valore, valore su flint, id dell'option]; l'indice in OPTS.digit_style coincide col valore. */
+  var NO_3D = [[2, '1', 's_digit_style_3d1'], [3, '0', 's_digit_style_3d2']];
+  function applyNo3d(style) {
+    var i, o;
+    if (!G.state || G.state.platform !== 'flint') { return; }
+    for (i = 0; i < NO_3D.length; i++) {
+      o = el(NO_3D[i][2]);
+      if (o) { o.disabled = true; o.textContent = OPTS.digit_style[NO_3D[i][0]][1] + ' (non su Pebble 2 Duo)'; }
+      if (style.value === String(NO_3D[i][0])) { style.value = NO_3D[i][1]; }
+    }
+  }
+  function applyRules() {            /* LECO solo in layout A; stile cifre (D21, D26); anteprima PNG del font */
+    var layout = +el('s_layout').value, font = el('s_font'), leco = el('s_font_leco'), style = el('s_digit_style'),
+        img = el('fontPreview'), pv = root.GalPreviews, key, sv;
     if (leco) { leco.disabled = (layout === 1); }
     if (layout === 1 && font.value === '3') { font.value = '0'; }
-    key = ['anton', 'bebas', 'barlow'][+font.value];
+    /* LECO non ha sprite: lo stile non si applica e vale 0 (come normalizeSettings) */
+    style.disabled = (font.value === '3');
+    if (style.disabled) { style.value = '0'; }
+    applyNo3d(style);
+    sv = +style.value;
+    /* stili trasparenti: l'anello c'e' sempre, "Contorno" non ha effetto (valore conservato) */
+    el('s_outline').disabled = (sv === 1 || sv === 2);
+    key = PREV_KEYS[+font.value];
     if (pv && key && typeof pv[key] === 'string') { img.src = pv[key]; show(img, true); } else { show(img, false); }
   }
-  function settingsChanged() { applyLeco(); updateKb(); }  /* contatore KB e tetto anche sulle impostazioni */
+  function settingsChanged() { applyRules(); updateKb(); }  /* contatore KB e tetto anche sulle impostazioni */
   function writeSettings(s) {
     var i;
     for (i = 0; i < SELECTS.length; i++) { fill(el('s_' + SELECTS[i]), OPTS[SELECTS[i]]); el('s_' + SELECTS[i]).value = String(s[SELECTS[i]]); }
     el('s_shake_next').checked = s.shake_next === 1;
     for (i = 0; i < 4; i++) { el('s_info_row_b' + i).checked = !!(s.info_row & (1 << i)); }
     el('s_info_row').value = String(s.info_row);
-    applyLeco();
+    applyRules();
   }
   function readSettings() {
     var s = {}, i, bits = 0;
@@ -485,6 +515,38 @@
     } catch (e) { setMsg('Errore: ' + errText(e), 'err'); }
   }
 
+  /* -- avvio lento del persist (v1.9, perf 04/09) -- */
+  /* Stessa procedura in due posti: l'avviso #slow (solo se l'orologio ha misurato un'apertura del
+   * file persist oltre C.SLOW_OPEN_MS) e la sezione #help, sempre disponibile. Il testo sta qui una
+   * volta sola e viene costruito nel DOM: nessuna duplicazione nell'HTML inlinato (tetto 64 KB). */
+  var FIX_STEPS = ['apri l\'app Pebble sul telefono', 'tocca Galleria nell\'elenco delle app',
+                   'scegli Rimuovi (non Aggiorna)', 'reinstalla Galleria'];
+  var FIX_TAIL = 'Le tue foto sono al sicuro nel telefono e torneranno da sole sull\'orologio in circa un minuto.';
+  var HELP_WHY = 'Succede perché l\'orologio tiene da parte anche i dati vecchi (le foto sostituite) finché la sua memoria non è piena, e la watchface deve rileggerli tutti a ogni avvio. Con questa versione capita molto più di rado.';
+  function fixProcedure(box) {
+    var ol = mk('ol'), i;
+    box.textContent = '';
+    box.appendChild(mk('p', null, 'Per sistemare:'));
+    for (i = 0; i < FIX_STEPS.length; i++) { ol.appendChild(mk('li', null, FIX_STEPS[i])); }
+    box.appendChild(ol);
+    box.appendChild(mk('p', null, FIX_TAIL));
+  }
+  function initHelp(watch) {
+    var sec = C.slowSeconds(watch), body = el('helpBody'), btn = el('helpBtn');
+    if (sec) {
+      el('slowLead').textContent = 'Galleria si avvia lentamente (' + sec + ' s). Non è un guasto: la memoria dell\'orologio si è riempita di vecchi dati.';
+      fixProcedure(el('slowFix'));
+    }
+    show(el('slow'), !!sec);
+    el('helpWhy').textContent = HELP_WHY;
+    fixProcedure(el('helpFix'));
+    on(btn, 'click', function () {
+      var open = body.style.display === 'none';
+      show(body, open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
   /* -- avvio -- */
   function init() {
     var s = G.state = C.decodeState(String(loc().hash || '')), i, nv = root.navigator;
@@ -493,6 +555,7 @@
     G.tiles = C.buildTiles(s);
     el('watch').textContent = (s.platform === 'emery') ? 'Pebble Time 2 · 200×228 a colori' : (s.platform === 'flint') ? 'Pebble 2 Duo · 144×168 bianco e nero'
                               : 'orologio sconosciuto: preparo foto ' + (fmt === 2 ? 'in bianco e nero' : 'a colori');
+    initHelp(s.watch);
     if (!s.ok) { el('status').textContent = 'Stato non ricevuto: modalità prova (' + s.error + '). Salva è disabilitato: riapri le impostazioni dall\'app Pebble.'; show(el('status'), true); }
     show(el('settingsNote'), !s.settingsSet);
     writeSettings(s.settings);

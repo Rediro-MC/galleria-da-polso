@@ -81,6 +81,7 @@ static SyncAction prv_hello(SyncOut *out) {
   /* S5b: CRC delle impostazioni correnti (tutto tranne il campo crc16): sync stateless anche per
    * SETTINGS (dopo un wipe il CRC torna quello dei default e il telefono rimanda le sue). */
   out->settings_crc = crc16_ccitt((const uint8_t *)settings_get(), (uint32_t)(sizeof(GalSettings) - 2));
+  out->open_ms = storage_open_ms();               /* v1.9: la config page avvisa se il file persist è gonfio */
   out->slots = s_slots_buf;
   out->slots_len = SYNC_SLOTS_BYTES;
   return SYNC_ACT_SEND;

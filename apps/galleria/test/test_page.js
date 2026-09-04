@@ -35,6 +35,9 @@
  * tocchi; 3h #23 aria-label; 3i #24 classe rlab; 3j #27 ed.last dopo un resample fallito;
  * 3k #33 return_to solo http(s)/relativo; 3l #35 scratch azzerati; 3m #42 padding del body;
  * 3n #28 badge 14 px.
+ * Parte 4 — S7 (4a-4e), v1.9: 4f avviso di avvio lento #slow (soglia openMs) e sezione Aiuto
+ * #help; S8-stile: 4g campo «Stile cifre» (digit_style), font 0..5 con le anteprime vere di
+ * previews.js e regola D26 (su flint le due opzioni 3D sono spente e il valore scende a 1/0).
  *
  * DUE GIRI (revisione S6, finding #8: nessun test eseguiva l'artefatto davvero spedito). Le
  * sezioni si registrano e girano identiche su due varianti:
@@ -113,9 +116,10 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function hashOf(state) { return b64.encodeUtf8(JSON.stringify(state)); }
 
 var DEFAULT_SETTINGS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
-                         outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15 };
+                         outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
+                         digit_style: 0 };
 var SETTINGS_KEYS = ['layout', 'font', 'clock_mode', 'leading_zero', 'text_color', 'outline',
-                     'interval_min', 'order', 'shake_next', 'info_row'];
+                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style'];
 
 /* ============================================================ 1. page_core.js (puro) ==== */
 
@@ -244,7 +248,7 @@ section('1c. normalizeSettings', function () {
   eqJson(C.normalizeSettings({}), DEFAULT_SETTINGS, 'normalizeSettings({}) = default');
   eqJson(C.normalizeSettings(null), DEFAULT_SETTINGS, 'normalizeSettings(null) = default');
   eqJson(C.normalizeSettings(undefined), DEFAULT_SETTINGS, 'normalizeSettings(undefined) = default');
-  eqJson(Object.keys(C.normalizeSettings({})), SETTINGS_KEYS, 'normalizeSettings: le 10 chiavi nell\'ordine di album.js');
+  eqJson(Object.keys(C.normalizeSettings({})), SETTINGS_KEYS, 'normalizeSettings: le 11 chiavi nell\'ordine di album.js');
   eq(C.normalizeSettings({ layout: 5 }).layout, 0, 'layout fuori intervallo: default');
   eq(C.normalizeSettings({ text_color: 4 }).text_color, 4, 'text_color 4 ammesso');
   eq(C.normalizeSettings({ text_color: 5 }).text_color, 0, 'text_color 5: default');
@@ -262,7 +266,28 @@ section('1c. normalizeSettings', function () {
   eq(C.normalizeSettings({ font: 3, layout: 0 }).font, 3, 'LECO ammesso con layout 0');
   eq(C.normalizeSettings({ font: 3, layout: 1 }).font, 0, 'LECO con layout 1 (tutto schermo): torna ad Anton');
   eq(C.normalizeSettings({ font: 2, layout: 1 }).font, 2, 'font 2 con layout 1 resta');
+  /* S8-stile (D22): i due font nuovi sono 4 e 5, il 6 non esiste */
+  eq(C.normalizeSettings({ font: 4 }).font, 4, 'font 4 (nuovo) ammesso');
+  eq(C.normalizeSettings({ font: 5 }).font, 5, 'font 5 (nuovo) ammesso');
+  eq(C.normalizeSettings({ font: 6 }).font, 0, 'font 6: default');
+  eq(C.normalizeSettings({ font: -1 }).font, 0, 'font negativo: default');
+  eq(C.normalizeSettings({ font: 5, layout: 1 }).font, 5, 'font 5 con layout 1 resta (solo il 3 e\' vincolato)');
+  /* S8-stile (D21): digit_style 0..3, con LECO sempre 0 */
+  eq(C.normalizeSettings({}).digit_style, 0, 'digit_style: default 0 (pieno)');
+  eq(C.normalizeSettings({ digit_style: 3 }).digit_style, 3, 'digit_style 3 ammesso');
+  eq(C.normalizeSettings({ digit_style: 4 }).digit_style, 0, 'digit_style 4: default');
+  eq(C.normalizeSettings({ digit_style: -1 }).digit_style, 0, 'digit_style negativo: default');
+  eq(C.normalizeSettings({ digit_style: '2' }).digit_style, 2, 'digit_style: stringa numerica convertita');
+  eq(C.normalizeSettings({ digit_style: 1.5 }).digit_style, 0, 'digit_style non intero: default');
+  eq(C.normalizeSettings({ font: 3, digit_style: 2 }).digit_style, 0, 'LECO (font 3): digit_style forzato a 0');
+  eq(C.normalizeSettings({ font: 3, layout: 1, digit_style: 2 }).digit_style, 2,
+     'LECO con layout 1 diventa font 0: lo stile resta quello scelto');
+  eq(C.normalizeSettings({ font: 4, digit_style: 2 }).digit_style, 2, 'font 4: stile conservato');
+  eqJson(C.SETTINGS_FIELDS[C.SETTINGS_FIELDS.length - 1], ['digit_style', 0, 3, 0],
+         'SETTINGS_FIELDS: digit_style in coda (0..3, default 0)');
+  eqJson(C.SETTINGS_FIELDS[1], ['font', 0, 5, 0], 'SETTINGS_FIELDS: font 0..5');
   eqJson(C.SETTINGS_FIELDS.map(function (f) { return f[0]; }), SETTINGS_KEYS, 'SETTINGS_FIELDS: nomi e ordine');
+  eq(C.SETTINGS_FIELDS.length, 11, 'SETTINGS_FIELDS: 11 campi');
   eqJson(C.INTERVALS, [0, 5, 15, 30, 60, 180, 1440], 'INTERVALS');
   eq(C.MAX_SLOTS, 12, 'MAX_SLOTS 12');
   eq(C.MAX_THUMB_CHARS, 6000, 'MAX_THUMB_CHARS 6000');
@@ -351,7 +376,8 @@ section('1f. buildPayload, payloadKb, capMessage, truncateName, thumbFits', func
   eq(p.v, 1, 'buildPayload: v 1');
   eq(p.settings.font, 0, 'buildPayload: impostazioni normalizzate (LECO con layout 1)');
   eq(p.settings.interval_min, 30, 'buildPayload: intervallo non ammesso -> 30');
-  eq(Object.keys(p.settings).length, 10, 'buildPayload: 10 impostazioni');
+  eq(Object.keys(p.settings).length, 11, 'buildPayload: 11 impostazioni');
+  eq(p.settings.digit_style, 0, 'buildPayload: digit_style di default nel payload');
   eqJson(p.order, [4, 0, 7], 'buildPayload: order dalle tessere (senza duplicati/slot non validi) + le nuove');
   eqJson(p.deleted, [2], 'buildPayload: deleted normalizzato');
   eq(p.photos.length, 2, 'buildPayload: solo le foto nuove');
@@ -791,8 +817,9 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
              'dither', 'sunlight', 'sunlightRow', 'previewMode', 'previewModeRow', 'preview', 'etime',
              'addOk', 'addCancel', 'settings', 'settingsNote', 's_layout', 's_font', 'fontPreview',
              's_clock_mode', 's_leading_zero', 's_interval_min', 's_order', 's_shake_next',
-             's_text_color', 's_outline', 's_info_row', 's_info_row_b0', 's_info_row_b1',
-             's_info_row_b2', 's_info_row_b3', 'footer', 'save', 'cancel', 'msg'], i;
+             's_text_color', 's_outline', 's_digit_style', 's_info_row', 's_info_row_b0', 's_info_row_b1',
+             's_info_row_b2', 's_info_row_b3', 'slow', 'slowLead', 'slowFix', 'help', 'helpBtn',
+             'helpBody', 'helpWhy', 'helpFix', 'footer', 'save', 'cancel', 'msg'], i;
   for (i = 0; i < ids.length; i++) { check(get(ids[i]) !== null, 'markup: esiste #' + ids[i]); }
   eq(get('crop').tagName, 'CANVAS', 'markup: #crop e\' un canvas');
   eq(get('preview').tagName, 'CANVAS', 'markup: #preview e\' un canvas');
@@ -809,6 +836,15 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('fit').type, 'button', 'markup: #fit type=button');
   eq(get('s_font').tagName, 'SELECT', 'markup: #s_font e\' una select');
   eq(get('s_font').children.length, 0, 'markup: #s_font vuota (la riempie page.js)');
+  /* S8-stile: la riga "Stile cifre" sta subito dopo la riga Font */
+  eq(get('s_digit_style').tagName, 'SELECT', 'markup: #s_digit_style e\' una select');
+  eq(get('s_digit_style').children.length, 0, 'markup: #s_digit_style vuota (la riempie page.js)');
+  check(PAGE_HTML.indexOf('id="s_digit_style"') > PAGE_HTML.indexOf('id="s_font"'),
+        'markup: Stile cifre dopo Font');
+  check(PAGE_HTML.indexOf('id="s_digit_style"') < PAGE_HTML.indexOf('id="s_clock_mode"'),
+        'markup: Stile cifre prima di Formato ora');
+  contains(PAGE_HTML, '<label for="s_digit_style" class="rlab">Stile cifre</label>',
+           'markup: etichetta "Stile cifre" con for e classe rlab');
   eq(get('dither').children.length, 0, 'markup: #dither vuota (dipende dal formato)');
   eq(get('previewMode').options().length, 2, 'markup: #previewMode con 2 opzioni');
   eqJson(get('previewMode').options().map(function (o) { return o._value; }), ['sun', 'nominal'],
@@ -827,6 +863,20 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('editor').style.display, 'none', 'markup: editor nascosto all\'inizio');
   eq(get('status').style.display, 'none', 'markup: avviso di stato nascosto');
   eq(get('settingsNote').style.display, 'none', 'markup: nota impostazioni nascosta');
+  /* v1.9: avviso di avvio lento e sezione Aiuto */
+  eq(get('slow').style.display, 'none', 'markup: avviso di avvio lento nascosto');
+  eq(get('slow').className, 'warn', 'markup: #slow ha la classe warn');
+  eq(get('helpBody').style.display, 'none', 'markup: corpo dell\'Aiuto ripiegato');
+  eq(get('help').style.display, undefined, 'markup: la sezione Aiuto e\' sempre visibile');
+  eq(get('helpBtn').tagName, 'BUTTON', 'markup: #helpBtn e\' un button');
+  eq(get('helpBtn').type, 'button', 'markup: #helpBtn type=button');
+  eq(get('helpBtn').attrs['aria-expanded'], 'false', 'markup: #helpBtn aria-expanded=false');
+  eq(get('helpBtn').attrs['aria-controls'], 'helpBody', 'markup: #helpBtn aria-controls=helpBody');
+  eq(get('helpBtn').textContent, 'Galleria si avvia lentamente?', 'markup: titolo dell\'Aiuto');
+  check(PAGE_HTML.indexOf('<section id="help">') > PAGE_HTML.indexOf('<section id="settings">'),
+        'markup: la sezione Aiuto sta in fondo (dopo le impostazioni)');
+  check(PAGE_HTML.indexOf('id="slow"') < PAGE_HTML.indexOf('<section id="photos">'),
+        'markup: l\'avviso #slow sta in cima (prima delle foto)');
   check(/lang="it"/.test(PAGE_HTML), 'markup: lang="it"');
   check(/<meta name="viewport"/.test(PAGE_HTML), 'markup: meta viewport');
   check(/charset="utf-8"/.test(PAGE_HTML), 'markup: charset utf-8');
@@ -890,9 +940,18 @@ section('2b. avvio con stato completo (emery, dev)', function () {
   eq(h.el('s_layout').value, '0', 'campo layout');
   eq(h.el('s_layout').options().length, 2, 'layout: 2 opzioni');
   eq(h.el('s_font').value, '2', 'campo font');
-  eq(h.el('s_font').options().length, 4, 'font: 4 opzioni');
+  eq(h.el('s_font').options().length, 6, 'font: 6 opzioni (S8-stile: 4 e 5 sono i font nuovi)');
+  eqJson(h.el('s_font').options().map(function (o) { return +o._value; }), [0, 1, 2, 3, 4, 5],
+         'font: valori 0..5 in ordine');
   eq(h.el('s_font').options()[3].id, 's_font_leco', 'font: l\'opzione LECO ha id s_font_leco');
   eq(h.el('s_font_leco').disabled, false, 'LECO attivo con layout 0');
+  eq(h.el('s_digit_style').value, '0', 'campo stile cifre');
+  eq(h.el('s_digit_style').options().length, 4, 'stile cifre: 4 opzioni');
+  eqJson(h.el('s_digit_style').options().map(function (o) { return +o._value; }), [0, 1, 2, 3],
+         'stile cifre: valori 0..3 in ordine');
+  eq(h.el('s_digit_style').options()[0].textContent, 'pieno', 'stile cifre: la prima opzione e\' "pieno"');
+  eq(h.el('s_digit_style').disabled, false, 'font Barlow: stile cifre attivo');
+  eq(h.el('s_outline').disabled, false, 'stile pieno: "Contorno" attivo');
   eq(h.el('s_clock_mode').value, '1', 'campo formato ora');
   eq(h.el('s_leading_zero').value, '2', 'campo zero iniziale');
   eq(h.el('s_interval_min').value, '60', 'campo intervallo');
@@ -1287,10 +1346,12 @@ section('2i. impostazioni: LECO e layout, riga info, lettura nel payload', funct
   h.select('s_clock_mode', '2');
   h.select('s_leading_zero', '1');
   h.select('s_order', '1');
+  h.select('s_digit_style', '3');
   eqJson(G.buildPayload().settings,
          { layout: 0, font: 1, clock_mode: 2, leading_zero: 1, text_color: 4, outline: 2,
-           interval_min: 5, order: 1, shake_next: 1, info_row: 10 },
-         'payload: le 10 impostazioni lette dai campi');
+           interval_min: 5, order: 1, shake_next: 1, info_row: 10, digit_style: 3 },
+         'payload: le 11 impostazioni lette dai campi');
+  h.select('s_digit_style', '0');
 
   /* senza previews.js la pagina funziona lo stesso (script data-optional) */
   var h2 = loadPage({ state: mkState({ settingsSet: true }), previews: false });
@@ -1344,7 +1405,7 @@ section('2j. Salva in modalita\' dev (POST /save + token di ritorno)', function 
   var body = JSON.parse(h.net.posts[0].body);
   eqJson(Object.keys(body), ['v', 'settings', 'order', 'deleted', 'photos'], 'corpo: chiavi del payload');
   eq(body.v, 1, 'corpo: v 1');
-  eq(Object.keys(body.settings).length, 10, 'corpo: 10 impostazioni');
+  eq(Object.keys(body.settings).length, 11, 'corpo: 11 impostazioni');
   check(Object.keys(body.settings).every(function (k) { return body.settings[k] === (body.settings[k] | 0); }),
         'corpo: impostazioni tutte intere');
   eqJson(body.order, [3, 0, 1, 9], 'corpo: order (senza la 5 eliminata, la nuova dopo l\'album, l\'estranea in coda)');
@@ -2000,7 +2061,7 @@ section('3i. #24 etichette-guida con classe rlab; le label delle caselle no', fu
     else { cbLabels++; if (/\brlab\b/.test(lab.className)) { bad.push('checkbox:' + (lab.children[0] && lab.children[0].id)); } }
   }
   eq(bad.join(','), '', '#24 le label con for=… hanno rlab, quelle delle caselle no');
-  eq(forLabels, 13, '#24 etichette-guida (label con for=…): ' + forLabels);
+  eq(forLabels, 14, '#24 etichette-guida (label con for=…): ' + forLabels);
   eq(cbLabels, 6, '#24 label delle caselle: ' + cbLabels);
   opts = findById(root, 's_info_row_b0').parentNode.parentNode;
   rigaRow = opts.parentNode;
@@ -2400,6 +2461,7 @@ function nd(tag, cls, id, attrs) {
 function inFooter(el) { return [nd('body'), nd('footer', null, 'footer'), el]; }
 function inEditor(el) { return [nd('body'), nd('section', null, 'editor'), nd('p', 'row'), el]; }
 function inPhotos(el) { return [nd('body'), nd('section', null, 'photos'), nd('p', 'row'), el]; }
+function inHelp(el) { return [nd('body'), nd('section', null, 'help'), nd('p', 'row'), el]; }
 function inTile(el) {
   return [nd('body'), nd('section', null, 'photos'), nd('div', null, 'tiles'),
           nd('div', 'tile'), nd('div', 'tbtns'), el];
@@ -2414,6 +2476,11 @@ var FAM_BTN = [
     off: inEditor(nd('button', 'btn small', 'fit', { disabled: '' })) },
   { nome: 'Aggiungi foto (label .btn -> .btn.off)', on: inPhotos(nd('label', 'btn', 'add')),
     off: inPhotos(nd('label', 'btn off', 'add')) },
+  /* v1.9: il pulsante che apre/chiude la sezione Aiuto; non si disabilita mai, ma la famiglia
+   * deve reggere lo stesso la regola dei disabilitati (§4e: un pulsante nuovo = una voce qui).
+   * Le frecce restano ULTIME: il caso 4e legge FAM_BTN[length - 1]. */
+  { nome: 'Aiuto (.btn.small in #help)', on: inHelp(nd('button', 'btn small', 'helpBtn')),
+    off: inHelp(nd('button', 'btn small', 'helpBtn', { disabled: '' })) },
   { nome: 'frecce della tessera (.tbtns button)', on: inTile(nd('button')),
     off: inTile(nd('button', null, null, { disabled: '' })) }
 ];
@@ -2540,6 +2607,272 @@ section('4e. #41 pulsanti disabilitati: contrasto >= 3:1 in cima alla cascata', 
   eq(up.tagName, 'BUTTON', '#41 la freccia e\' un <button> (l\'attributo disabled vale davvero)');
   var full = loadPage({ state: fullState(), search: DEV_SEARCH });
   eq(full.el('add').className, 'btn off', '#41 album pieno: "Aggiungi foto" prende la classe off');
+});
+
+/* v1.9 (perf 04/09): stato di prova con un OPEN_MS scelto ('via' = campo assente, orologio vecchio) */
+function pageOpenMs(ms) {
+  var st = stateEmery();
+  if (ms === 'via') { delete st.watch.openMs; } else { st.watch.openMs = ms; }
+  return loadPage({ state: st, search: DEV_SEARCH });
+}
+function liTexts(el) {
+  var out = [], k;
+  for (k = 0; k < el.children.length; k++) {
+    if (el.children[k].tagName === 'LI') { out.push(el.children[k].textContent); }
+    else { out = out.concat(liTexts(el.children[k])); }
+  }
+  return out;
+}
+
+section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', function () {
+  /* --- soglia, in page_core (logica pura) --- */
+  eq(C.SLOW_OPEN_MS, 1000, 'soglia dell\'avviso: 1000 ms');
+  eq(C.secondsText(2150), '2,2', 'secondsText: 2150 ms -> "2,2"');
+  eq(C.secondsText(1001), '1,0', 'secondsText: 1001 ms -> "1,0" (mai "1")');
+  eq(C.secondsText(0), '0,0', 'secondsText: 0');
+  eq(C.slowSeconds(null), null, 'slowSeconds: nessuno snapshot -> null');
+  eq(C.slowSeconds({ openMs: null }), null, 'slowSeconds: openMs null (orologio vecchio) -> null');
+  eq(C.slowSeconds({}), null, 'slowSeconds: openMs assente -> null');
+  eq(C.slowSeconds({ openMs: 0 }), null, 'slowSeconds: 0 (non misurato/istantaneo) -> null');
+  eq(C.slowSeconds({ openMs: 1000 }), null, 'slowSeconds: sulla soglia -> nessun avviso');
+  eq(C.slowSeconds({ openMs: 1001 }), '1,0', 'slowSeconds: appena sopra la soglia');
+  eq(C.slowSeconds({ openMs: 2150 }), '2,2', 'slowSeconds: file gonfio');
+  /* normWatch: il campo arriva dallo stato dell'hash, con i valori strani neutralizzati */
+  eq(C.decodeState('#' + hashOf(stateEmery())).watch.openMs, null, 'normWatch: snapshot senza openMs -> null');
+  (function () {
+    var st = stateEmery(); st.watch.openMs = 2150;
+    eq(C.decodeState('#' + hashOf(st)).watch.openMs, 2150, 'normWatch: openMs letto dall\'hash');
+    st.watch.openMs = -5;
+    eq(C.decodeState('#' + hashOf(st)).watch.openMs, null, 'normWatch: openMs negativo -> null');
+    st.watch.openMs = 'x';
+    eq(C.decodeState('#' + hashOf(st)).watch.openMs, null, 'normWatch: openMs non numerico -> null');
+  })();
+
+  /* --- avviso nascosto: file sano, campo assente, orologio vecchio, sotto soglia --- */
+  [[0, 'openMs 0'], ['via', 'campo assente'], [null, 'openMs null'], [900, 'openMs 900'],
+   [1000, 'openMs 1000 (sulla soglia)']].forEach(function (c) {
+    var h = pageOpenMs(c[0]);
+    eq(h.disp('slow'), 'none', 'avviso nascosto con ' + c[1]);
+    eq(h.txt('slowLead'), '', 'nessun testo dell\'avviso con ' + c[1]);
+    eq(h.txt('slowFix'), '', 'nessuna procedura nell\'avviso con ' + c[1]);
+  });
+  (function () {                                     /* hash assente: nessuno snapshot, nessun avviso */
+    var h = loadPage({ hash: '' });
+    eq(h.disp('slow'), 'none', 'stato non ricevuto: avviso nascosto');
+    check(h.disp('help') !== 'none', 'stato non ricevuto: l\'Aiuto resta disponibile');
+  })();
+
+  /* --- avviso visibile: 1001 ms e 2150 ms --- */
+  (function () {
+    var h = pageOpenMs(1001), lead = h.txt('slowLead');
+    eq(h.disp('slow'), '', 'openMs 1001: avviso visibile');
+    check(lead.indexOf('(1,0 s)') >= 0, 'openMs 1001: l\'avviso dice "1,0 s" (' + lead + ')');
+  })();
+  (function () {
+    var h = pageOpenMs(2150), lead = h.txt('slowLead'), fix = h.txt('slowFix'), passi = liTexts(h.el('slowFix'));
+    eq(h.disp('slow'), '', 'openMs 2150: avviso visibile');
+    eq(h.el('slow').className, 'warn', 'l\'avviso usa la classe warn');
+    check(lead.indexOf('Galleria si avvia lentamente (2,2 s)') === 0, 'testo dell\'avviso con i secondi: ' + lead);
+    check(lead.indexOf('Non è un guasto') > 0, 'l\'avviso rassicura ("Non è un guasto")');
+    eq(passi.length, 4, 'procedura in 4 passi');
+    check(passi[0].indexOf('app Pebble') >= 0, '1) apri l\'app Pebble');
+    check(passi[1].indexOf('Galleria') >= 0, '2) tocca Galleria nell\'elenco');
+    check(passi[2].indexOf('Rimuovi') >= 0, '3) scegli Rimuovi');
+    check(passi[3].indexOf('reinstalla') >= 0, '4) reinstalla Galleria');
+    check(fix.indexOf('al sicuro nel telefono') >= 0, 'le foto restano al sicuro nel telefono');
+    check(fix.indexOf('un minuto') >= 0, 'tornano da sole in circa un minuto');
+    /* l'avviso non tocca il resto della pagina */
+    eq(h.disp('status'), 'none', 'avviso di stato ancora nascosto');
+    check(h.kbNum() >= 0, 'contatore KB calcolato lo stesso');
+  })();
+
+  /* --- sezione Aiuto: sempre presente, ripiegabile, stesso rimedio --- */
+  (function () {
+    var h = pageOpenMs(0), passi;
+    check(h.disp('help') !== 'none', 'la sezione Aiuto è sempre visibile');
+    eq(h.disp('helpBody'), 'none', 'il corpo dell\'Aiuto parte ripiegato');
+    eq(h.el('helpBtn').textContent, 'Galleria si avvia lentamente?', 'titolo/pulsante dell\'Aiuto');
+    h.click('helpBtn');
+    eq(h.disp('helpBody'), '', 'un tocco apre l\'Aiuto');
+    eq(h.el('helpBtn').attrs['aria-expanded'], 'true', 'aria-expanded true da aperto');
+    passi = liTexts(h.el('helpFix'));
+    eq(passi.length, 4, 'Aiuto: la stessa procedura in 4 passi');
+    check(passi[2].indexOf('Rimuovi') >= 0, 'Aiuto: il passo "Rimuovi"');
+    check(h.txt('helpFix').indexOf('al sicuro nel telefono') >= 0, 'Aiuto: foto al sicuro nel telefono');
+    check(h.txt('helpWhy').indexOf('più di rado') > 0, 'Aiuto: spiega che con questa versione capita più di rado');
+    check(h.txt('helpWhy').length > 60, 'Aiuto: spiegazione del perché succede');
+    h.click('helpBtn');
+    eq(h.disp('helpBody'), 'none', 'un secondo tocco lo richiude');
+    eq(h.el('helpBtn').attrs['aria-expanded'], 'false', 'aria-expanded false da chiuso');
+    h.click('helpBtn');
+    eq(h.disp('helpBody'), '', 'si riapre (nessuno stato bloccato)');
+  })();
+});
+
+/* S8-stile (docs/design/galleria-s8-stile.md §5, D21/D22): il campo «Stile cifre» e i 6 font.
+ * Le regole della UI stanno in applyRules() di page.js: LECO senza stile, stili trasparenti
+ * senza «Contorno», anteprima PNG solo per i font che hanno una chiave in GalPreviews. */
+section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
+  var h = loadPage({ state: mkState({ settingsSet: true, settings: { layout: 0, font: 0, outline: 2 } }),
+                     search: DEV_SEARCH }), G = h.G;
+  /* --- opzioni ed etichette --- */
+  eqJson(h.el('s_digit_style').options().map(function (o) { return o.textContent; }),
+         ['pieno', 'trasparente (solo contorno)', 'trasparente 3D (contorno + ombra)', 'pieno 3D (con ombra)'],
+         'stile cifre: le 4 etichette in italiano');
+  eqJson(h.el('s_font').options().map(function (o) { return o.textContent; }),
+         ['Anton', 'Bebas Neue', 'Barlow Condensed', 'LECO (sistema, solo layout Un terzo)',
+          'Francois One', 'Staatliches'],
+         'font: i 6 nomi veri (S8-stile §2: 4 Francois One, 5 Staatliches; nessun segnaposto)');
+  check(h.el('s_font').options().every(function (o) { return o.id !== 's_font_leco' || +o._value === 3; }),
+        'font: l\'id s_font_leco resta solo sull\'opzione 3');
+
+  /* --- stile pieno: niente disabilitato --- */
+  eq(h.el('s_digit_style').value, '0', 'partenza: stile pieno');
+  eq(h.el('s_outline').disabled, false, 'stile pieno: "Contorno" attivo');
+  eq(h.el('s_outline').value, '2', 'partenza: contorno "mai"');
+
+  /* --- stili trasparenti: "Contorno" disabilitato, valore CONSERVATO --- */
+  h.select('s_digit_style', '1');
+  eq(h.el('s_outline').disabled, true, 'stile trasparente: "Contorno" disabilitato (l\'anello c\'e\' sempre)');
+  eq(h.el('s_outline').value, '2', 'stile trasparente: il valore di "Contorno" resta');
+  eq(G.buildPayload().settings.outline, 2, 'payload: "Contorno" conservato anche da disabilitato');
+  eq(G.buildPayload().settings.digit_style, 1, 'payload: digit_style 1');
+  eq(fire(h.el('s_outline'), 'change'), false, '"Contorno" disabilitato non manda change');
+  h.select('s_digit_style', '2');
+  eq(h.el('s_outline').disabled, true, 'stile trasparente 3D: "Contorno" disabilitato');
+  eq(G.buildPayload().settings.digit_style, 2, 'payload: digit_style 2');
+  h.select('s_digit_style', '3');
+  eq(h.el('s_outline').disabled, false, 'stile pieno 3D: "Contorno" torna attivo');
+  eq(G.buildPayload().settings.digit_style, 3, 'payload: digit_style 3');
+
+  /* --- LECO: nessuno sprite, quindi nessuno stile (D21) --- */
+  h.select('s_font', '3');
+  eq(h.el('s_digit_style').disabled, true, 'LECO: stile cifre disabilitato');
+  eq(h.el('s_digit_style').value, '0', 'LECO: stile cifre riportato a pieno');
+  eq(h.el('s_outline').disabled, false, 'LECO: "Contorno" attivo (lo stile vale 0)');
+  eq(h.disp('fontPreview'), 'none', 'LECO: nessuna anteprima');
+  eq(G.buildPayload().settings.digit_style, 0, 'payload: con LECO lo stile e\' 0');
+  eq(fire(h.el('s_digit_style'), 'change'), false, 'stile cifre disabilitato non manda change');
+  h.select('s_font', '0');
+  eq(h.el('s_digit_style').disabled, false, 'via da LECO: stile cifre riattivato');
+  eq(h.el('s_digit_style').value, '0', 'via da LECO: lo stile resta pieno');
+  /* anche il layout Tutto schermo, che scaccia LECO, lascia lo stile utilizzabile */
+  h.select('s_digit_style', '2');
+  h.select('s_layout', '1');
+  eq(h.el('s_digit_style').disabled, false, 'layout Tutto schermo: stile cifre attivo');
+  eq(h.el('s_digit_style').value, '2', 'layout Tutto schermo: lo stile scelto resta');
+
+  /* --- font nuovi: valore nel payload e anteprima dalle chiavi vere di previews.js --- */
+  /* le chiavi sono quelle di gen_font_previews.py / gen_digits.py, non un indice (S8-stile §2);
+   * da quando previews.js ha anche i due font nuovi l'anteprima si vede davvero (5 chiavi) */
+  eqJson(['anton', 'bebas', 'barlow', 'francois', 'staatliches'].map(function (k) {
+    return /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(h.sb.GalPreviews[k]));
+  }), [true, true, true, true, true], 'previews.js: 5 anteprime PNG (una per font, LECO escluso)');
+  h.select('s_font', '4');
+  eq(h.el('fontPreview').src, h.sb.GalPreviews.francois, 'font 4: anteprima dalla chiave francois');
+  eq(h.disp('fontPreview'), '', 'font 4: anteprima visibile');
+  eqJson([G.buildPayload().settings.font, G.buildPayload().settings.digit_style], [4, 2],
+         'payload: font 4 con stile trasparente 3D');
+  h.select('s_font', '5');
+  eq(h.el('fontPreview').src, h.sb.GalPreviews.staatliches, 'font 5: anteprima dalla chiave staatliches');
+  eq(G.buildPayload().settings.font, 5, 'payload: font 5');
+  h.sb.GalPreviews.f4 = 'data:image/png;base64,ZA==';           /* chiavi vecchie: non devono servire */
+  h.sb.GalPreviews.f5 = 'data:image/png;base64,ZQ==';
+  h.select('s_font', '4');
+  eq(h.el('fontPreview').src, h.sb.GalPreviews.francois, 'font 4: la chiave vecchia f4 resta inutilizzata');
+  /* le tre chiavi vecchie restano legate ai loro font: nessuno scambio di indice */
+  h.select('s_font', '2');
+  eq(h.el('fontPreview').src, h.sb.GalPreviews.barlow, 'font 2: anteprima Barlow (indici invariati)');
+
+  /* --- le impostazioni ricevute dall'orologio si rileggono nei campi --- */
+  var h2 = loadPage({ state: mkState({ settingsSet: true, settings: { font: 5, digit_style: 2, outline: 1 } }),
+                      search: DEV_SEARCH });
+  eq(h2.el('s_font').value, '5', 'stato con font 5: campo scritto');
+  eq(h2.el('s_digit_style').value, '2', 'stato con digit_style 2: campo scritto');
+  eq(h2.el('s_outline').disabled, true, 'stato con stile trasparente: "Contorno" gia\' disabilitato all\'avvio');
+  eq(h2.el('s_outline').value, '1', 'stato con stile trasparente: valore di "Contorno" conservato');
+  eqJson([h2.G.buildPayload().settings.font, h2.G.buildPayload().settings.digit_style,
+          h2.G.buildPayload().settings.outline], [5, 2, 1], 'payload: font 5, stile 2, contorno 1');
+  /* uno stato con LECO e uno stile: normalizeSettings lo azzera prima ancora della UI */
+  var h3 = loadPage({ state: mkState({ settingsSet: true, settings: { font: 3, digit_style: 3 } }),
+                      search: DEV_SEARCH });
+  eq(h3.el('s_digit_style').value, '0', 'stato LECO + stile: il campo parte da 0');
+  eq(h3.el('s_digit_style').disabled, true, 'stato LECO: campo disabilitato all\'avvio');
+  eq(h3.G.buildPayload().settings.digit_style, 0, 'stato LECO: payload con stile 0');
+
+  /* --- D26: su Pebble 2 Duo (flint) non c'e' l'ombra 3D --- */
+  /* le due opzioni con ombra hanno un id stabile, come l'opzione LECO del font (le altre no) */
+  eqJson(h.el('s_digit_style').options().map(function (o) { return o.id; }),
+         ['', '', 's_digit_style_3d1', 's_digit_style_3d2'],
+         'stile cifre: id stabili sulle due opzioni 3D');
+  /* emery: niente disabilitato, niente normalizzazione, etichette invariate */
+  var he = loadPage({ state: mkState({ settingsSet: true, settings: { font: 0, digit_style: 2 } }),
+                      search: DEV_SEARCH });
+  eq(he.el('s_digit_style').value, '2', 'emery: lo stile trasparente 3D resta 2');
+  eq(he.el('s_digit_style_3d1').disabled, false, 'emery: opzione trasparente 3D attiva');
+  eq(he.el('s_digit_style_3d2').disabled, false, 'emery: opzione pieno 3D attiva');
+  eq(he.el('s_digit_style_3d1').textContent, 'trasparente 3D (contorno + ombra)',
+     'emery: etichetta senza avvertenza');
+  eq(he.G.buildPayload().settings.digit_style, 2, 'emery: payload con stile 2');
+  he.select('s_digit_style', '3');
+  eq(he.el('s_digit_style').value, '3', 'emery: anche lo stile pieno 3D resta scegliibile');
+
+  /* flint: le due opzioni 3D spente e il valore che scende (2 -> 1) gia' al caricamento */
+  var hf = loadPage({ state: mkState({ platform: 'flint', fmt: 2, settingsSet: true,
+                                       settings: { font: 0, digit_style: 2, outline: 1 } }),
+                      search: DEV_SEARCH });
+  eq(hf.G.state.platform, 'flint', 'stato flint');
+  eq(hf.el('s_digit_style').value, '1', 'flint: stile 2 normalizzato a 1 (trasparente senza ombra)');
+  eq(hf.el('s_digit_style_3d1').disabled, true, 'flint: opzione trasparente 3D disabilitata');
+  eq(hf.el('s_digit_style_3d2').disabled, true, 'flint: opzione pieno 3D disabilitata');
+  eq(hf.el('s_digit_style').options()[0].disabled, false, 'flint: "pieno" resta scegliibile');
+  eq(hf.el('s_digit_style').options()[1].disabled, false, 'flint: "trasparente" resta scegliibile');
+  eq(hf.el('s_digit_style').disabled, false, 'flint: la select resta usabile');
+  contains(hf.el('s_digit_style_3d1').textContent, '(non su Pebble 2 Duo)',
+           'flint: l\'etichetta dice perche\' l\'opzione e\' spenta');
+  contains(hf.el('s_digit_style_3d2').textContent, '(non su Pebble 2 Duo)',
+           'flint: avvertenza anche su "pieno 3D"');
+  eq(hf.G.buildPayload().settings.digit_style, 1, 'flint: payload con lo stile normalizzato');
+  eq(fire(hf.el('s_digit_style_3d1'), 'click'), false, 'flint: l\'opzione spenta non riceve eventi');
+  /* la regola degli stili trasparenti (D21) vale sul valore normalizzato */
+  eq(hf.el('s_outline').disabled, true, 'flint: stile 1 -> "Contorno" disabilitato');
+  eq(hf.el('s_outline').value, '1', 'flint: valore di "Contorno" conservato');
+
+  /* change su flint: 3 -> 0 (pieno senza ombra), 2 -> 1 */
+  hf.select('s_digit_style', '3');
+  eq(hf.el('s_digit_style').value, '0', 'flint: al change lo stile 3 diventa 0 (pieno)');
+  eq(hf.G.buildPayload().settings.digit_style, 0, 'flint: payload con stile 0 dopo il change');
+  eq(hf.el('s_outline').disabled, false, 'flint: con lo stile pieno "Contorno" torna attivo');
+  hf.select('s_digit_style', '2');
+  eq(hf.el('s_digit_style').value, '1', 'flint: al change anche lo stile 2 diventa 1');
+  eq(hf.G.buildPayload().settings.digit_style, 1, 'flint: payload 1 dopo il change');
+  hf.select('s_digit_style', '1');
+  eq(hf.el('s_digit_style').value, '1', 'flint: lo stile trasparente si sceglie normalmente');
+
+  /* su flint le altre regole non cambiano: LECO azzera lo stile, l'anteprima segue il font */
+  hf.select('s_font', '3');
+  eq(hf.el('s_digit_style').disabled, true, 'flint + LECO: stile cifre disabilitato (D21)');
+  eq(hf.el('s_digit_style').value, '0', 'flint + LECO: stile 0');
+  eq(hf.disp('fontPreview'), 'none', 'flint + LECO: nessuna anteprima');
+  hf.select('s_font', '5');
+  eq(hf.el('s_digit_style').disabled, false, 'flint: via da LECO lo stile torna scegliibile');
+  eq(hf.el('s_digit_style').value, '0', 'flint: lo stile resta pieno');
+  eq(hf.el('fontPreview').src, hf.sb.GalPreviews.staatliches, 'flint: anteprima Staatliches');
+  hf.select('s_layout', '1');
+  eq(hf.el('s_font_leco').disabled, true, 'flint: layout Tutto schermo disabilita LECO (regola invariata)');
+  eq(hf.el('s_digit_style_3d1').disabled, true, 'flint: le opzioni 3D restano spente dopo altri cambi');
+
+  /* orologio sconosciuto: la regola vale solo per flint */
+  var hu = loadPage({ state: mkState({ platform: 'sconosciuta', fmt: 2, settingsSet: true,
+                                       settings: { font: 0, digit_style: 2 } }),
+                      search: DEV_SEARCH });
+  eq(hu.G.state.platform, 'unknown', 'piattaforma sconosciuta: platform "unknown"');
+  eq(hu.el('s_digit_style').value, '2', 'piattaforma sconosciuta: stile 2 conservato');
+  eq(hu.el('s_digit_style_3d1').disabled, false, 'piattaforma sconosciuta: opzioni 3D attive');
+  eq(hu.el('s_digit_style_3d2').disabled, false, 'piattaforma sconosciuta: nessuna disabilitazione');
+  eq(hu.el('s_digit_style_3d2').textContent, 'pieno 3D (con ombra)',
+     'piattaforma sconosciuta: etichetta invariata');
+  eq(hu.G.buildPayload().settings.digit_style, 2, 'piattaforma sconosciuta: payload con stile 2');
 });
 
 /* ==================================== varianti: sorgenti e artefatto inlinato =========== */

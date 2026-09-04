@@ -31,6 +31,7 @@
  *  10  caricamento pigro: errore, lunghezza sbagliata, load lento, bytes liberati, cb doppia,
  *      bytes diretti di lunghezza sbagliata
  *  11  parseSlots / parseHello (settingsCrc assente o presente), PROTO diverso
+ *  11b parseHello: OPEN_MS (v1.9) = 0, valore, oltre 16 bit, assente (orologio vecchio)
  *  12  STATUS non pertinenti (OK{offset<LENGTH} in attesa dell'END, SEQ_ERR in attesa del BEGIN,
  *      OK in attesa del SYNC_READY, NO_SPACE durante i dati, MSG ignoti, SYNC_READY ripetuto)
  *  13  watchdog: orologio muto -> sync chiusa, running false, un HELLO successivo riparte
@@ -1456,6 +1457,48 @@ testcase('11 parseSlots e parseHello (settingsCrc, PROTO)', function (next) {
         checkNoTimers();
         next();
       }, 120);
+    });
+  });
+});
+
+/* ---- 11b. OPEN_MS (v1.9, perf 04/09) ------------------------------------------------------- */
+
+testcase('11b parseHello: OPEN_MS (0, valore, oltre 16 bit, assente)', function (next) {
+  var en = env({}), pr = mkProvider({});
+  eq(en.watch.openMs, 0, 'fakewatch: OPEN_MS 0 di default (file persist sano)');
+  startSync(en, pr);
+  waitIdle(function (err) {
+    check(!err, 'sync terminata');
+    eq(pr.hellos[0].openMs, 0, 'hello.openMs 0 (misurato e trascurabile)');
+    /* orologio con il file persist gonfio */
+    sync._reset();
+    var en2 = env({}), pr2 = mkProvider({});
+    en2.watch.openMs = 2150;
+    startSync(en2, pr2);
+    waitIdle(function (err2) {
+      check(!err2, 'seconda sync terminata');
+      eq(pr2.hellos[0].openMs, 2150, 'hello.openMs = OPEN_MS del HELLO');
+      check(hasLog(en2, /HELLO .*open=2150ms/), 'log del HELLO con open=2150ms');
+      /* valore oltre i 16 bit (runtime che consegna un int32): mascherato */
+      sync._reset();
+      var en3 = env({}), pr3 = mkProvider({});
+      startSync(en3, pr3);
+      var hb = en3.watch._hello(); hb[keys.OPEN_MS] = 0x12345;
+      en3.pebble.fire('appmessage', { payload: hb });
+      eq(pr3.hellos.length, 1, 'un solo HELLO per un fire');
+      eq(pr3.hellos[0].openMs, 0x2345, 'openMs mascherato a 16 bit');
+      /* orologio vecchio: il campo non c'e' proprio -> null (nessun avviso nella config page) */
+      sync._reset();
+      var en4 = env({}), pr4 = mkProvider({});
+      en4.watch.noOpenMs = true;
+      startSync(en4, pr4);
+      waitIdle(function (err4) {
+        check(!err4, 'quarta sync terminata');
+        eq(pr4.hellos[0].openMs, null, 'OPEN_MS assente -> openMs null');
+        check(hasLog(en4, /HELLO .*open=- /), 'log del HELLO con open=-');
+        checkNoTimers();
+        next();
+      });
     });
   });
 });

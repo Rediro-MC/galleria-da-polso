@@ -10,7 +10,13 @@
 #define GAL_SETTINGS_SCHEMA 1
 
 enum GalLayout      { GAL_LAYOUT_A = 0, GAL_LAYOUT_B = 1 };
-enum GalFont        { GAL_FONT_ANTON = 0, GAL_FONT_BEBAS = 1, GAL_FONT_BARLOW = 2, GAL_FONT_LECO = 3 };
+/* S8-stile (D22): enum stabile — 3 = LECO (sistema, solo layout A) resta al suo posto, i font sprite nuovi seguono.
+ * Indice della strip = gal_font_strip(): 0 Anton, 1 Bebas, 2 Barlow, 3 Francois One, 4 Staatliches (LECO nessuna strip). */
+enum GalFont        { GAL_FONT_ANTON = 0, GAL_FONT_BEBAS = 1, GAL_FONT_BARLOW = 2, GAL_FONT_LECO = 3,
+                      GAL_FONT_FRANCOIS = 4, GAL_FONT_STAATLICHES = 5, GAL_FONT_COUNT = 6 };
+/* S8-stile (D21): stile delle cifre sprite. 0 = riempimento pieno (com'era); 1 = solo anello (la foto si vede dentro);
+ * 2 = anello + ombra 3D nel colore opposto; 3 = pieno + ombra 3D. Con LECO l'orologio lo ignora. */
+enum GalDigitStyle  { GAL_STYLE_FILL = 0, GAL_STYLE_OUTLINE = 1, GAL_STYLE_OUTLINE_3D = 2, GAL_STYLE_FILL_3D = 3 };
 enum GalClockMode   { GAL_CLOCK_AUTO = 0, GAL_CLOCK_12H = 1, GAL_CLOCK_24H = 2 };
 enum GalLeadingZero { GAL_LZ_AUTO = 0, GAL_LZ_ON = 1, GAL_LZ_OFF = 2 };
 enum GalTextColor   { GAL_TEXT_AUTO = 0, GAL_TEXT_WHITE = 1, GAL_TEXT_BLACK = 2, GAL_TEXT_YELLOW = 3, GAL_TEXT_OXFORD = 4 };
@@ -30,9 +36,27 @@ typedef struct __attribute__((packed)) {
   uint8_t  order;         /* GalOrder */
   uint8_t  shake_next;    /* 0/1 */
   uint8_t  info_row;      /* GalInfoRowBits */
-  uint8_t  reserved[6];   /* il design §4.1 diceva [4] ma contava 20 B: allineato a 20 B (S1) */
+  uint8_t  digit_style;   /* GalDigitStyle (S8-stile: era reserved[0], quindi 0 = pieno nei blob vecchi) */
+  uint8_t  reserved[5];   /* il design §4.1 diceva [4] ma contava 20 B: allineato a 20 B (S1); S8-stile: 6 → 5 */
   uint16_t crc16;         /* CRC-16/CCITT-FALSE dei 18 B precedenti (storage.c) */
 } GalSettings;            /* 20 B */
+
+/* Indice della strip sprite per un font (D22): 0..GAL_FONT_COUNT-2; -1 per LECO o valori fuori intervallo. */
+static inline int8_t gal_font_strip(uint8_t font) {
+  if (font == GAL_FONT_LECO || font >= GAL_FONT_COUNT) {
+    return -1;
+  }
+  return (int8_t)(font < GAL_FONT_LECO ? font : font - 1);
+}
+
+/* Lo stile lascia il riempimento trasparente (1, 2)? */
+static inline bool gal_style_transparent(uint8_t style) {
+  return style == GAL_STYLE_OUTLINE || style == GAL_STYLE_OUTLINE_3D;
+}
+/* Lo stile ha l'ombra 3D (2, 3)? */
+static inline bool gal_style_shadow(uint8_t style) {
+  return style == GAL_STYLE_OUTLINE_3D || style == GAL_STYLE_FILL_3D;
+}
 
 /* Default in RAM, poi persist (se valido), poi gli hook di debug GALLERIA_DEBUG_* (wscript). */
 void settings_init(void);

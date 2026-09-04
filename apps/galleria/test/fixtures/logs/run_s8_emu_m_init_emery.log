@@ -1,0 +1,33 @@
+Installing app...
+App install succeeded.
+[19:56:14] main.c:15> heap main: used=24 free=103472
+[19:56:14] main.c:84> watch: fw 4.33.2 model=11
+[19:56:14] main.c:23> batt: 100% chg=0 plug=0 up 0 min
+[19:56:14] storage.c:160> storage: manifest schema 1 -> 2 migrated (settings 1 shake 1)
+[19:56:14] storage.c:264> storage: quota=1048576 album=1 schema=1 manifest=persist valid=2
+[19:56:14] settings.c:93> settings: persist layout=0 font=1 interval=30 order=0 shake=1
+[19:56:14] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 6 ms heap 45664/57832
+[19:56:14] model.c:108> rot(init): t=29809196 int=30 ord=0 shk=1 slot=0 demo=255 valid=2 bad=0
+[19:56:14] ui_time.c:732> ui_time: cs=2 bt=1 loc=en_US 200x228 unob=228 lay=0 font=1 mode=1 band=106
+[19:56:14] ui_time.c:682> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[19:56:14] main.c:15> heap window_load: used=52100 free=51396
+[19:56:14] ui_time.c:801> tick: 3 ms
+[19:56:14] main.c:133> heap services: used=54152 free=49344
+[19:56:14] sync.c:475> sync: open(4153/110) -> 0 chunk=4096 heap 58516/44980 (cost 4364)
+[19:56:14] main.c:15> heap init: used=58516 free=44980
+[19:56:14] main.c:141> init: open=10 man=4 sto=15 set=0 mod=8 win=8 syn=1 tot=35 ms
+[19:56:14] ui_time.c:642> heap after first render: used=58516 free=44980
+[19:56:14] ui_time.c:646> draw: mode=1 full=1 3 ms info 1
+[19:56:14] pkjs> pebble-js-app.js:193 [album] pronto (dev server http://localhost:8765): 0 foto [] ordine [] eliminazioni [] settings crc 0x7ee7
+[19:56:14] pkjs> pebble-js-app.js:193 [dev] dev server non raggiungibile (HTTP 0 HTTPConnectionPool(host='localhost', port=8765): Max retries exceeded with url: /state.json (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8765): Failed to establish a new connection: [Errno 111] Connection refused"))): parto con l'album locale
+[19:56:14] pkjs> pebble-js-app.js:193 [sync] JS_READY
+[19:56:14] sync.c:381> sync: msg=1 f=0 -> act=1 out=2 code=0 off=0 st=0 heap 45060
+[19:56:14] pkjs> pebble-js-app.js:193 [sync] HELLO proto=1 maxChunk=4096 slots=3556ee89,bac180d1,-,-,-,-,-,-,-,-,-,-
+[19:56:14] pkjs> pebble-js-app.js:193 [album] piano: 0 foto, 0 eliminazioni, ordine no, impostazioni mai impostate, estranei [0,1]
+[19:56:14] pkjs> pebble-js-app.js:193 [sync] fine: {"photosOk":0,"photosFailed":0,"settings":null,"order":null,"deletes":[],"photoCodes":[]}
+[19:56:14] pkjs> pebble-js-app.js:193 [album] 0 foto [] ordine [] eliminazioni [] settings crc 0x7ee7
+[19:56:14] ui_time.c:646> draw: mode=1 full=0 1 ms info 0
+[19:56:14] ui_time.c:646> draw: mode=1 full=1 2 ms info 0
+[19:56:15] ui_time.c:801> tick: 1 ms
+[19:56:15] main.c:32> heap tick: used=58436 free=45060
+[19:56:15] ui_time.c:646> draw: mode=1 full=0 1 ms info 0

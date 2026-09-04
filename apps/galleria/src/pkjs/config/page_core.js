@@ -6,11 +6,17 @@
 }(this, function () {
   'use strict';
   var MAX_SLOTS = 12, MAX_THUMB_CHARS = 6000, MAX_NAME = 64, INTERVALS = [0, 5, 15, 30, 60, 180, 1440];
+  /* v1.9 (perf 04/09): sopra questa soglia l'apertura del file persist dell'orologio (HELLO.OPEN_MS)
+   * e' abbastanza lenta da farsi notare all'avvio della watchface -> la pagina mostra l'avviso #slow.
+   * Riferimenti misurati sul Pebble Time 2: ~90 ms con 4 foto e file sano, ~400-800 ms con 12 foto
+   * sane, ~2.150 ms con il file pieno di record morti. */
+  var SLOW_OPEN_MS = 1000;
   var FMT_LEN = { 1: 34200, 2: 3024 };
-  /* [nome, min, max, default] = album.js / settings_validate() */
-  var SETTINGS_FIELDS = [['layout', 0, 1, 0], ['font', 0, 3, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
+  /* [nome, min, max, default] = album.js / settings_validate(); S8-stile: font fino a 5 (4 e 5 = i due
+   * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21) */
+  var SETTINGS_FIELDS = [['layout', 0, 1, 0], ['font', 0, 5, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
     ['text_color', 0, 4, 0], ['outline', 0, 2, 0], ['interval_min', 0, 1440, 30], ['order', 0, 1, 0],
-    ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15]];
+    ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15], ['digit_style', 0, 3, 0]];
   var ENC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   var DEC = (function () {
     var t = [], i;
@@ -72,6 +78,7 @@
     }
     if (!has(INTERVALS, s.interval_min)) { s.interval_min = 30; }
     if (s.font === 3 && s.layout === 1) { s.font = 0; }         /* LECO solo in layout A */
+    if (s.font === 3) { s.digit_style = 0; }                    /* LECO: font di sistema, nessuno sprite (D21) */
     return s;
   }
 
@@ -95,7 +102,10 @@
   function normWatch(w) {
     var out, k, s;
     if (!w || typeof w !== 'object') { return null; }
-    out = { at: w.at, format: w.format, maxChunk: w.maxChunk, settingsCrc: w.settingsCrc, slots: [], foreign: slotList(w.foreign) };
+    /* openMs: uno snapshot di prima della v1.9 (o un orologio che non manda OPEN_MS) vale null =
+     * "non misurato", mai un avviso. 0 = misurato e trascurabile. */
+    out = { at: w.at, format: w.format, maxChunk: w.maxChunk, settingsCrc: w.settingsCrc,
+            openMs: (isInt(w.openMs) && w.openMs >= 0) ? w.openMs : null, slots: [], foreign: slotList(w.foreign) };
     for (k = 0; k < MAX_SLOTS; k++) {
       s = isArray(w.slots) ? w.slots[k] : null;
       out.slots.push({ state: (s && s.state === 1) ? 1 : 0, crc: (s && isInt(s.crc)) ? (s.crc >>> 0) : 0 });
@@ -180,6 +190,17 @@
     }
     return { v: 1, settings: normalizeSettings(model.settings), order: order, deleted: slotList(model.deleted), photos: photos };
   }
+  /* "2150" -> "2,2" (un decimale, virgola italiana): il numero dell'avviso di avvio lento. */
+  function secondsText(ms) {
+    var d = Math.round((isInt(ms) && ms > 0 ? ms : 0) / 100);
+    return Math.floor(d / 10) + ',' + (d % 10);
+  }
+  /* openMs dello snapshot -> secondi da mostrare, oppure null se non c'e' niente da segnalare
+   * (campo assente/null = orologio che non lo manda, 0 = non misurato, sotto soglia = normale). */
+  function slowSeconds(watch) {
+    var ms = watch && watch.openMs;
+    return (isInt(ms) && ms > SLOW_OPEN_MS) ? secondsText(ms) : null;
+  }
   function payloadKb(payload) { return Math.ceil(JSON.stringify(payload).length / 1024); }
   function capMessage(kb, capKb, nAdded) {
     var k;
@@ -193,5 +214,6 @@
     MAX_NAME: MAX_NAME, FMT_LEN: FMT_LEN, decodeState: decodeState, b64urlToBytes: b64urlToBytes, utf8Decode: utf8Decode,
     defaultSettings: defaultSettings, normalizeSettings: normalizeSettings, defaultState: defaultState, buildTiles: buildTiles,
     freeSlot: freeSlot, buildPayload: buildPayload, payloadKb: payloadKb, capMessage: capMessage, thumbFits: thumbFits,
-    truncateName: truncateName, capForUa: capForUa };
+    truncateName: truncateName, capForUa: capForUa, SLOW_OPEN_MS: SLOW_OPEN_MS, secondsText: secondsText,
+    slowSeconds: slowSeconds };
 }));

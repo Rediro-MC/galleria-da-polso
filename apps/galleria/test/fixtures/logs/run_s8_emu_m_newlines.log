@@ -1,0 +1,93 @@
+Installing app...
+App install succeeded.
+[18:57:28] main.c:15> heap main: used=24 free=104768
+[18:57:28] main.c:83> watch: fw 4.33.2 model=11
+[18:57:28] main.c:23> batt: 100% chg=0 plug=0 up 0 min
+[18:57:28] storage.c:140> storage: quota=1048576 album=1 schema=0 manifest=default valid=0
+[18:57:28] settings.c:93> settings: defaults layout=0 font=0 interval=30 order=0 shake=1
+[18:57:28] model.c:108> rot(init): t=29801937 int=30 ord=0 shk=0 slot=255 demo=1 valid=0 bad=0
+[18:57:28] ui_time.c:732> ui_time: cs=2 bt=1 loc=en_US 200x228 unob=228 lay=0 font=0 mode=1 band=106
+[18:57:28] ui_time.c:682> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[18:57:28] main.c:15> heap window_load: used=52576 free=52216
+[18:57:28] ui_time.c:801> tick: 5 ms
+[18:57:28] main.c:116> heap services: used=54628 free=50164
+[18:57:28] sync.c:470> sync: open(4153/110) -> 0 chunk=4096 heap 58992/45800 (cost 4364)
+[18:57:28] main.c:15> heap init: used=58992 free=45800
+[18:57:28] ui_time.c:642> heap after first render: used=58992 free=45800
+[18:57:28] ui_time.c:646> draw: mode=1 full=1 5 ms info 2
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [album] pronto (dev server http://localhost:8765): 0 foto [] ordine [] eliminazioni [] settings crc 0x7ee7
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [album] payload completo: ok, cambiato true, nuove [0,1] aggiornate [] eliminate []
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [album] 2 foto [0:61 1:61] ordine [0,1]* eliminazioni [] settings crc 0x7ee7
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] JS_READY
+[18:57:28] sync.c:376> sync: msg=1 f=0 -> act=1 out=2 code=0 off=0 st=0 heap 45880
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] HELLO proto=1 maxChunk=4096 slots=-,-,-,-,-,-,-,-,-,-,-,-
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [album] piano: 2 foto, 0 eliminazioni, ordine sì, impostazioni mai impostate
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] ALBUM_ORDER [0,1,255,255,255,255,255,255,255,255,255,255]
+[18:57:28] sync.c:376> sync: msg=11 f=100 -> act=1 out=8 code=0 off=0 st=0 heap 45880
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] STATUS OK slot=255 offset=0 re=11
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] ALBUM_ORDER -> OK
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] SYNC_REQUEST count=2 from=0
+[18:57:28] sync.c:376> sync: msg=3 f=41 -> act=1 out=4 code=0 off=0 st=1 heap 45880
+[18:57:28] ui_time.c:646> draw: mode=1 full=0 1 ms info 0
+[18:57:28] ui_time.c:646> draw: mode=1 full=1 1 ms info 0
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] SYNC_READY chunk=4096
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] foto 1/2: slot 0 id 0x848ff2f fmt 1 len 34200 crc 0x8848ff2f
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] foto slot 0 caricata: 34200 B in 5 ms
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] PHOTO_BEGIN slot 0 offset 0
+[18:57:28] sync.c:376> sync: msg=5 f=7e -> act=1 out=8 code=0 off=0 st=1 heap 45880
+[18:57:28] ui_time.c:646> draw: mode=1 full=0 1 ms info 0
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] STATUS OK slot=0 offset=0 re=5
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=0 n=4096 ack 68 ms
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=4096 n=4096 ack 79 ms
+[18:57:28] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=8192 n=4096 ack 65 ms
+[18:57:28] ui_time.c:801> tick: 0 ms
+[18:57:28] main.c:32> heap tick: used=58912 free=45880
+[18:57:29] ui_time.c:646> draw: mode=1 full=0 6 ms info 1
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=12288 n=4096 ack 48 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=16384 n=4096 ack 104 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=20480 n=4096 ack 63 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=24576 n=4096 ack 76 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=28672 n=4096 ack 79 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=32768 n=1432 ack 19 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] PHOTO_END slot 0
+[18:57:29] sync.c:367> sync: gap n=8 max 1082 avg 187
+[18:57:29] sync.c:370> sync: end s=0 c=0 n=9 commit 2 photo 651 ch max 51 avg 21 heap 45880
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] STATUS OK slot=0 offset=34200 re=7
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] foto slot 0 OK: 34200 B in 9 messaggi, 733 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [album] foto slot 0: OK
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] foto 2/2: slot 1 id 0x16248299 fmt 1 len 34200 crc 0x16248299
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] foto slot 1 caricata: 34200 B in 3 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] PHOTO_BEGIN slot 1 offset 0
+[18:57:29] sync.c:376> sync: msg=5 f=7e -> act=1 out=8 code=0 off=0 st=1 heap 45880
+[18:57:29] ui_time.c:646> draw: mode=1 full=0 1 ms info 0
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] STATUS OK slot=1 offset=0 re=5
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=0 n=4096 ack 92 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=4096 n=4096 ack 146 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=8192 n=4096 ack 61 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=12288 n=4096 ack 67 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=16384 n=4096 ack 72 ms
+[18:57:29] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=20480 n=4096 ack 76 ms
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=24576 n=4096 ack 83 ms
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=28672 n=4096 ack 90 ms
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] chunk off=32768 n=1432 ack 36 ms
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] PHOTO_END slot 1
+[18:57:30] sync.c:367> sync: gap n=8 max 124 avg 79
+[18:57:30] sync.c:370> sync: end s=1 c=0 n=9 commit 5 photo 771 ch max 103 avg 48 heap 45880
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] STATUS OK slot=1 offset=34200 re=7
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] foto slot 1 OK: 34200 B in 9 messaggi, 852 ms
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [album] foto slot 1: OK
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] SYNC_DONE
+[18:57:30] sync.c:376> sync: msg=9 f=0 -> act=0 out=0 code=0 off=0 st=0 heap 45880
+[18:57:30] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 58912/45880
+[18:57:30] ui_time.c:682> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=13(13/79) mean=28 fg=ff halo=0
+[18:57:30] model.c:108> rot(album): t=29801937 int=30 ord=0 shk=0 slot=1 demo=255 valid=2 bad=0
+[18:57:30] sync.c:220> heap sync_end: used=58912 free=45880
+[18:57:30] ui_time.c:646> draw: mode=1 full=1 2 ms info 0
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [sync] fine: {"photosOk":2,"photosFailed":0,"settings":null,"order":"OK","deletes":[],"photoCodes":[]}
+[18:57:30] pkjs> ./src/pkjs/index.js:97:0 [album] 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7
+[18:58:00] ui_time.c:801> tick: 0 ms
+[18:58:00] main.c:32> heap tick: used=58912 free=45880
+[18:58:00] ui_time.c:646> draw: mode=1 full=0 2 ms info 1
+[18:59:00] ui_time.c:801> tick: 1 ms
+[18:59:00] main.c:32> heap tick: used=58912 free=45880
+[18:59:00] ui_time.c:646> draw: mode=1 full=0 2 ms info 1

@@ -10,6 +10,10 @@ label { font-size: 15px; }
 .kb { font-weight: bold; }
 .warn { background: #fff3cd; border: 1px solid #e0c060; color: #533; padding: 6px 8px; border-radius: 4px; font-size: 14px; }
 .err { background: #f8d7da; border-color: #d99; }
+/* v1.9: avviso di avvio lento (#slow, .warn) e sezione Aiuto: la procedura e' un elenco numerato. */
+#slow p, #helpBody p { margin: 4px 0; }
+#slow ol, #helpBody ol { margin: 4px 0; padding-left: 22px; }
+#slow li, #helpBody li { margin: 2px 0; }
 .okmsg { background: #d4edda; border-color: #8c8; color: #253; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .row > .rlab { min-width: 9.5em; }

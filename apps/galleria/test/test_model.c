@@ -16,9 +16,14 @@
  * senza hold → no-op; (f) album vuoto → demo, con la stessa regola; (g) unico slot svuotato sotto
  * hold → niente demo; (h) bitmap assente; (i) model_album_changed azzera s_bad_mask e rilascia l'hold.
  *
- * Isolamento: model.c ha stato static senza reset (s_shake resta se manca la chiave 2, s_bad_mask e
- * s_tap_subscribed non vengono azzerati da model_init): ogni caso scrive rotstate 0 prima di
- * model_init, chiama model_album_changed subito dopo (hold e bad_mask a zero) e chiude con
+ * Revisione perf 04/09/2026 (schema persist 2): lo shake vive SOLO in RAM (D10 rivista: ogni record
+ * persist rallenta ogni avvio). model_shake() non chiama piu' storage_write_rotstate, che
+ * aggiorna solo la RAM e programma il debounce da 10 s; model_deinit() NON scrive piu' nulla in
+ * persist (solo la disiscrizione dal tap service). Caso (j) test_shake_debounce.
+ *
+ * Isolamento: model.c ha stato static senza reset (s_shake resta se il manifest non e' leggibile,
+ * s_bad_mask e s_tap_subscribed non vengono azzerati da model_init): ogni caso scrive rotstate 0
+ * prima di model_init, chiama model_album_changed subito dopo (hold e bad_mask a zero) e chiude con
  * model_deinit (tap service disiscritto). */
 #include <stdio.h>
 #include <stdlib.h>
@@ -377,12 +382,23 @@ static void test_hold_shake_focus_settings(void) {
   model_shake();                             /* shake_next = 0: ignorata */
   model_sync_hold(false);
   CHECK_EQ(shim_ui_total_calls(), 0);        /* stesso slot 3 */
+  const int w_before = shim_write_count();
   shutdown();
   CHECK_EQ(shim_accel_tap_unsubscribes(), 1);   /* gia' disiscritto: deinit non lo rifa' */
-  CHECK(shim_key_exists(GAL_KEY_ROTSTATE));  /* shake cambiato (3): salvato in deinit */
+  /* revisione perf 04/09: model_deinit() non scrive piu' in persist (l'uscita non paga una
+   * scansione del file) e lo shake NON viene persistito da nessuna parte (ogni record in piu'
+   * rallenta ogni avvio): il manifest in flash porta shake_offset 0 anche dopo 3 scosse */
+  CHECK_EQ(shim_write_count(), w_before);
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));    /* schema 2: la chiave 2 non esiste piu' */
   GalRotState rs;
   CHECK(storage_read_rotstate(&rs));
-  CHECK_EQ(rs.shake_offset, 3);
+  CHECK_EQ(rs.shake_offset, 0);
+  CHECK_EQ(storage_manifest()->shake_offset, 0);
+  {
+    GalManifest onflash;
+    CHECK_EQ(persist_read_data(GAL_KEY_MANIFEST, &onflash, sizeof(onflash)), (int)sizeof(onflash));
+    CHECK_EQ(onflash.shake_offset, 0);          /* mai in persist: solo RAM */
+  }
 }
 
 /* (d) hold senza cambi di manifest: se il confine non e' stato superato il rilascio non fa nulla e non
@@ -557,6 +573,58 @@ static void test_bad_slot_and_album_changed(void) {
   shutdown();
 }
 
+/* (j) revisione perf 04/09/2026: ogni scossa aggiorna la RAM e programma il debounce di storage.c;
+ * model_deinit() non scrive nulla; il record (chiave 1, con lo shake dentro) lo scrive il timer. */
+static void test_shake_debounce(void) {
+  /* Perf 04/09/2026 (D10 rivista): lo shake vive SOLO in RAM. Nessun timer, nessuna scrittura,
+   * nessun record in piu' nel file persist; al riavvio la rotazione torna al programma. */
+  fresh(4);
+  boot(10, 0);
+  AccelTapHandler tap = shim_accel_tap_handler();
+  CHECK(tap != NULL);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK_EQ(storage_manifest()->shake_offset, 0);
+  const int reg0 = shim_timer_registrations();
+  shim_ui_reset_counters();
+
+  tap(ACCEL_AXIS_X, 1);                      /* scossa: s_shake = 1, foto successiva subito */
+  CHECK_EQ(shim_write_count(), 0);           /* mai una scrittura nel gestore dello shake */
+  CHECK(!shim_timer_pending());              /* e nemmeno un timer: niente da salvare */
+  CHECK_EQ(shim_timer_registrations(), reg0);
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+  CHECK_EQ(storage_manifest()->shake_offset, 0);       /* il manifest non lo porta piu' */
+  CHECK(shim_ui_total_calls() > 0);
+  CHECK_EQ(shim_ui_last_slot(), expect_slot(lmin(10, 0), INTERVAL, 1));
+
+  /* tre scosse in fila: sempre solo RAM */
+  tap(ACCEL_AXIS_Y, -1);
+  tap(ACCEL_AXIS_Z, 1);
+  CHECK_EQ(shim_timer_registrations(), reg0);
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK_EQ(model_current_slot(), expect_slot(lmin(10, 0), INTERVAL, 3));
+
+  /* deinit: solo tap service, nessuna scrittura persist, nessun timer */
+  const int unsub = shim_accel_tap_unsubscribes();
+  model_deinit();
+  storage_flush();                                     /* come main.c in deinit */
+  CHECK_EQ(shim_accel_tap_unsubscribes(), unsub + 1);
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK(!shim_timer_pending());
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+
+  /* riavvio: l'offset riparte da 0 e la rotazione torna al programma (slot atteso con shake 0) */
+  CHECK(storage_init());
+  settings_init();
+  model_init();
+  model_album_changed();
+  shim_ui_reset_counters();
+  model_tick(at(10, 0));
+  CHECK_EQ(storage_manifest()->shake_offset, 0);       /* mai arrivato in flash */
+  CHECK_EQ(model_current_slot(), expect_slot(lmin(10, 0), INTERVAL, 0));
+  shutdown();
+}
+
 /* ================================ main ================================ */
 
 static void run(const char *name, void (*fn)(void)) {
@@ -578,6 +646,7 @@ int main(void) {
   run("hold_single_slot",         test_hold_single_slot);
   run("no_bitmap",                test_no_bitmap);
   run("bad_slot_album_changed",   test_bad_slot_and_album_changed);
+  run("shake_debounce",           test_shake_debounce);
   printf("test_model: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

@@ -11,8 +11,9 @@
  * dell'arrivo di pool/stato) e registra i POST.
  *
  * Copre: caricamento senza `settings` in state.json (F13: campi dai default di
- * pool.json.settings_defaults, #head lo dice) e con; 10 campi s_<chiave> + dataset.built;
- * <select id=scenario> con 6 opzioni; Salva → un solo POST /save {settings (10 int), order,
+ * pool.json.settings_defaults, #head lo dice) e con; i campi s_<chiave> di SETTINGS_SPEC
+ * (S8: 11, con `digit_style`) + dataset.built;
+ * <select id=scenario> con 6 opzioni; Salva → un solo POST /save {settings (tutti interi), order,
  * photos, scenario} e redirect a return_to + token; Salva senza return_to → #msg e re-render;
  * Annulla → href = return_to oppure reload(); errori (POST fallito, campo non numerico, clic
  * prima del caricamento, GET falliti); render() ripetuto senza campi doppi; interazioni su
@@ -30,13 +31,16 @@ var vm = require('vm');
 var cp = require('child_process');
 
 var DEVSERVER = path.join(__dirname, '..', '..', '..', 'tools', 'galleria_devserver.py');
+/* S8 (D21/D22): + `digit_style` in coda (byte 12 del blob) e font fino a 5. */
 var SETTINGS_KEYS = ['layout', 'font', 'clock_mode', 'leading_zero', 'text_color', 'outline',
-                     'interval_min', 'order', 'shake_next', 'info_row'];
+                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style'];
+var NKEYS = SETTINGS_KEYS.length;                 /* campi resi dalla pagina = SETTINGS_SPEC */
 var SETTINGS_DEFAULTS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
-                          outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15 };
+                          outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
+                          digit_style: 0 };
 /* opzioni attese per campo (settings.c: settings_validate(); info_row è un <input number>) */
-var OPTION_COUNT = { layout: 2, font: 4, clock_mode: 3, leading_zero: 3, text_color: 5,
-                     outline: 3, interval_min: 7, order: 2, shake_next: 2 };
+var OPTION_COUNT = { layout: 2, font: 6, clock_mode: 3, leading_zero: 3, text_color: 5,
+                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4 };
 var SCENARIOS = ['photo', 'seq', 'dup', 'crc', 'interrupt', 'none'];
 var RT = 'http://127.0.0.1:5555/close?';
 var TOKEN2 = '%7B%22v%22%3A1%2C%22dev%22%3Atrue%2C%22seq%22%3A2%7D';
@@ -119,7 +123,7 @@ section('0. pagina e JSON reali', function () {
   eq(REAL_POOL.slots_max, 12, 'pool.json reale: slots_max 12');
   eqJson(REAL_POOL.pool, [], 'pool.json reale senza --album: pool vuoto');
   eqJson(Object.keys(REAL_POOL.settings_defaults), SETTINGS_KEYS,
-         'pool.json reale: settings_defaults con le 10 chiavi nell\'ordine di SETTINGS_SPEC');
+         'pool.json reale: settings_defaults con le ' + NKEYS + ' chiavi nell\'ordine di SETTINGS_SPEC');
   eqJson(REAL_POOL.settings_defaults, SETTINGS_DEFAULTS,
          'pool.json reale: settings_defaults = settings_set_defaults() (interval 30, shake 1, info_row 15)');
 
@@ -128,8 +132,8 @@ section('0. pagina e JSON reali', function () {
          'state.json reale: chiavi del payload full');
   eq(REAL_STATE.seq, 1, 'state.json reale: seq 1');
   eq(REAL_STATE.hooks.scenario, 'photo', 'state.json reale: scenario photo');
-  check(REAL_STATE_SET.settings && Object.keys(REAL_STATE_SET.settings).length === 10,
-        'state.json reale con --settings: 10 impostazioni');
+  check(REAL_STATE_SET.settings && Object.keys(REAL_STATE_SET.settings).length === NKEYS,
+        'state.json reale con --settings: ' + NKEYS + ' impostazioni');
   eq(REAL_STATE_SET.settings.layout, 1, 'state.json reale con --settings: layout 1');
   eq(REAL_STATE_SET.settings.info_row, 7, 'state.json reale con --settings: info_row 7');
   eq(REAL_STATE_SET.settings.interval_min, 30, 'state.json reale con --settings: il resto ai default');
@@ -437,7 +441,7 @@ section('2. senza settings + Salva/Annulla', function () {
   eqJson(sb.SCENARIOS, SCENARIOS, 'globali: SCENARIOS = photo, seq, dup, crc, interrupt, none');
   eq(sb.MAX_SLOTS, 12, 'globali: MAX_SLOTS = pool.slots_max');
   eqJson(sb.SETTINGS_FIELDS.map(function (x) { return x.key; }), SETTINGS_KEYS,
-         'globali: SETTINGS_FIELDS con le 10 chiavi nell\'ordine di GalSettings');
+         'globali: SETTINGS_FIELDS con le ' + NKEYS + ' chiavi nell\'ordine di GalSettings');
   eqJson(sb.POOL.settings_defaults, SETTINGS_DEFAULTS, 'globali: POOL = pool.json (settings_defaults)');
   check(sb.MODEL !== null && typeof sb.MODEL === 'object', 'MODEL costruito');
   eq(sb.MODEL.settingsSet, false, 'MODEL.settingsSet false senza `settings` in state.json');
@@ -448,10 +452,10 @@ section('2. senza settings + Salva/Annulla', function () {
   eqJson(sb.MODEL.order, [0, 1], 'MODEL.order = state.order');
 
   box = doc.getElementById('settings');
-  eq(box.children.length, 10, '#settings: 10 campi');
+  eq(box.children.length, NKEYS, '#settings: ' + NKEYS + ' campi');
   eq(box.dataset.built, '1', '#settings: dataset.built = "1"');
   f = fields(doc);
-  eqJson(Object.keys(f), SETTINGS_KEYS, '#settings: input s_<chiave> nell\'ordine delle 10 chiavi');
+  eqJson(Object.keys(f), SETTINGS_KEYS, '#settings: input s_<chiave> nell\'ordine delle ' + NKEYS + ' chiavi');
   for (k = 0; k < box.children.length; k++) {
     check(box.children[k].tagName === 'LABEL', '#settings: figlio ' + k + ' è una <label>');
   }
@@ -472,7 +476,13 @@ section('2. senza settings + Salva/Annulla', function () {
   eqJson(f.interval_min.children.map(function (o) { return o.value; }),
          ['0', '5', '15', '30', '60', '180', '1440'], 's_interval_min: valori 0/5/15/30/60/180/1440 (settings.c)');
   eqJson(f.font.children.map(function (o) { return o.textContent; }),
-         ['Anton', 'Bebas', 'Barlow', 'LECO'], 's_font: etichette Anton, Bebas, Barlow, LECO');
+         ['Anton', 'Bebas', 'Barlow', 'LECO', 'Francois One', 'Staatliches'],
+         's_font: etichette Anton, Bebas, Barlow, LECO, Francois One, Staatliches (S8/D22, valori 0..5)');
+  eqJson(f.font.children.map(function (o) { return o.value; }), ['0', '1', '2', '3', '4', '5'],
+         's_font: valori 0..5');
+  eqJson(f.digit_style.children.map(function (o) { return o.value; }), ['0', '1', '2', '3'],
+         's_digit_style: valori 0..3 (S8/D21)');
+  eq(f.digit_style.value, '0', 's_digit_style: default 0 (pieno)');
 
   sc = doc.getElementById('scenario');
   eq(sc.children.length, 6, '#scenario: 6 opzioni');
@@ -497,7 +507,7 @@ section('2. senza settings + Salva/Annulla', function () {
   var err2 = null;
   try { sb.render(); } catch (e) { err2 = errText(e); }
   eq(err2, null, 'secondo render(): nessuna eccezione');
-  eq(box.children.length, 10, 'secondo render(): ancora 10 campi (nessun doppione)');
+  eq(box.children.length, NKEYS, 'secondo render(): ancora ' + NKEYS + ' campi (nessun doppione)');
   eq(doc.getElementById('s_font'), f.font, 'secondo render(): stesso <select> s_font (non ricostruito)');
   eq(f.font.value, '2', 'secondo render(): valore modificato tenuto');
   eq(sc.children.length, 6, 'secondo render(): #scenario ancora 6 opzioni');
@@ -505,12 +515,12 @@ section('2. senza settings + Salva/Annulla', function () {
   var err3 = null;
   try { sb.renderSettings(); sb.renderSettings(); } catch (e) { err3 = errText(e); }
   eq(err3, null, 'renderSettings() ripetuta: nessuna eccezione');
-  eq(box.children.length, 10, 'renderSettings() ripetuta: ancora 10 campi');
+  eq(box.children.length, NKEYS, 'renderSettings() ripetuta: ancora ' + NKEYS + ' campi');
   eq(doc.getElementById('pool').children.length, 2, 'secondo render(): #pool ricostruito, 2 righe');
   eq(doc.getElementById('order').children.length, 2, 'secondo render(): #order ricostruito, 2 righe');
 
   var rs = sb.readSettings();
-  eqJson(Object.keys(rs), SETTINGS_KEYS, 'readSettings(): 10 chiavi nell\'ordine');
+  eqJson(Object.keys(rs), SETTINGS_KEYS, 'readSettings(): ' + NKEYS + ' chiavi nell\'ordine');
   check(allInt(rs), 'readSettings(): tutti interi');
   eq(rs.font, 2, 'readSettings(): font 2 (modificato)');
   eq(rs.info_row, 7, 'readSettings(): info_row 7 (modificato)');
@@ -525,7 +535,7 @@ section('2. senza settings + Salva/Annulla', function () {
   var body = lastPostBody(p);
   check(body !== null, 'Salva: corpo JSON valido');
   eqJson(Object.keys(body), ['settings', 'order', 'photos', 'scenario'], 'Salva: chiavi settings, order, photos, scenario');
-  eqJson(Object.keys(body.settings), SETTINGS_KEYS, 'Salva: settings con le 10 chiavi');
+  eqJson(Object.keys(body.settings), SETTINGS_KEYS, 'Salva: settings con le ' + NKEYS + ' chiavi');
   check(allInt(body.settings), 'Salva: settings tutti interi');
   var want = clone(SETTINGS_DEFAULTS); want.font = 2; want.info_row = 7;
   eqJson(body.settings, want, 'Salva: settings = default + font 2 + info_row 7');
@@ -556,7 +566,7 @@ section('3. con settings', function () {
   var sb = p.sb, doc = p.doc, f, k, key, exp;
   eq(p.error, null, 'con settings: nessuna eccezione al caricamento');
   eq(sb.MODEL.settingsSet, true, 'con settings: MODEL.settingsSet true');
-  eq(doc.getElementById('settings').children.length, 10, 'con settings: 10 campi');
+  eq(doc.getElementById('settings').children.length, NKEYS, 'con settings: ' + NKEYS + ' campi');
   eq(doc.getElementById('settings').dataset.built, '1', 'con settings: dataset.built');
   f = fields(doc);
   for (k = 0; k < SETTINGS_KEYS.length; k++) {
@@ -596,7 +606,7 @@ section('4. senza return_to', function () {
   eq(doc.getElementById('order').children.length, 1, 'ordine vuoto: una riga di avviso');
   eq(doc.getElementById('order').children[0].className, 'empty', 'ordine vuoto: classe empty');
   contains(doc.getElementById('order').children[0].textContent, 'album vuoto', 'ordine vuoto: "album vuoto"');
-  eq(doc.getElementById('settings').children.length, 10, 'pool vuoto: 10 campi lo stesso (F13)');
+  eq(doc.getElementById('settings').children.length, NKEYS, 'pool vuoto: ' + NKEYS + ' campi lo stesso (F13)');
   eq(fields(doc).interval_min.value, '30', 'pool vuoto: s_interval_min = default 30');
   eq(fields(doc).shake_next.value, '1', 'pool vuoto: s_shake_next = default 1');
   eq(fields(doc).info_row.value, '15', 'pool vuoto: s_info_row = default 15');
@@ -604,7 +614,7 @@ section('4. senza return_to', function () {
   eq(clickSave(p), null, 'senza return_to, Salva: nessuna eccezione');
   eq(p.net.posts.length, 1, 'senza return_to, Salva: un POST');
   var body = lastPostBody(p);
-  eqJson(body.settings, SETTINGS_DEFAULTS, 'senza return_to, Salva: settings = i 10 default');
+  eqJson(body.settings, SETTINGS_DEFAULTS, 'senza return_to, Salva: settings = i ' + NKEYS + ' default');
   eqJson(body.order, [], 'senza return_to, Salva: order []');
   eqJson(body.photos, [], 'senza return_to, Salva: photos []');
   eq(body.scenario, 'photo', 'senza return_to, Salva: scenario photo');
@@ -612,7 +622,7 @@ section('4. senza return_to', function () {
   eq(doc.getElementById('msg').textContent, 'salvato (seq 2)', 'senza return_to, Salva: #msg "salvato (seq 2)"');
   eq(doc.getElementById('head').textContent, 'seq 2 · 0 foto in album · 0 nel pool · nessun return_to',
      'senza return_to, Salva: render() con seq 2 e senza "default" (settingsSet ora true)');
-  eq(doc.getElementById('settings').children.length, 10, 'senza return_to, Salva: il render() non duplica i campi');
+  eq(doc.getElementById('settings').children.length, NKEYS, 'senza return_to, Salva: il render() non duplica i campi');
   eq(doc.getElementById('err').textContent, '', 'senza return_to, Salva: #err vuoto');
 
   eq(clickCancel(p), null, 'senza return_to, Annulla: nessuna eccezione');
@@ -673,7 +683,7 @@ section('5. errori', function () {
   var errLate = null;
   try { p.net.flush(); } catch (e) { errLate = errText(e); }
   eq(errLate, null, 'poi arrivano pool e stato: nessuna eccezione');
-  eq(p.doc.getElementById('settings').children.length, 10, 'poi arrivano pool e stato: 10 campi');
+  eq(p.doc.getElementById('settings').children.length, NKEYS, 'poi arrivano pool e stato: ' + NKEYS + ' campi');
   eq(p.net.posts.length, 0, 'poi arrivano pool e stato: ancora nessun POST');
   eq(clickSave(p), null, 'poi Salva: nessuna eccezione');
   eq(p.net.posts.length, 1, 'poi Salva: un POST');
@@ -735,7 +745,7 @@ section('7. interazioni', function () {
   eqJson(sb.MODEL.order, [1, 0], 'ordine: ↓ scambia → [1,0]');
   eq(doc.getElementById('order').children.length, 2, 'ordine: render() dopo ↓, 2 righe');
   contains(doc.getElementById('order').children[0].textContent, 'slot 1', 'ordine: prima riga ora slot 1');
-  eq(doc.getElementById('settings').children.length, 10, 'ordine: render() dopo ↓ non duplica i campi');
+  eq(doc.getElementById('settings').children.length, NKEYS, 'ordine: render() dopo ↓ non duplica i campi');
 
   /* checkbox: togli la foto 1 dall'album */
   row = doc.getElementById('pool').children[1];

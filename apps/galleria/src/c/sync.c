@@ -42,6 +42,14 @@ static uint16_t  s_photo_ms0;
 static uint8_t   s_photo_msgs;       /* PHOTO_DATA ricevuti per la foto corrente */
 static int32_t   s_chunk_ms_max;     /* S7: ms del PHOTO_DATA più lento / somma, azzerati al PHOTO_BEGIN */
 static int32_t   s_chunk_ms_sum;     /*     (riga END: "ch max %d avg %d", nessun log per chunk) */
+#ifdef GALLERIA_DEBUG_TIMING
+static time_t    s_gap_s0;           /* S8: arrivo dell'ultimo PHOTO_DATA → "sync: gap n= max avg" al PHOTO_END */
+static uint16_t  s_gap_ms0;
+static bool      s_gap_have;
+static uint8_t   s_gap_n;
+static int32_t   s_gap_max;
+static int32_t   s_gap_sum;
+#endif
 #ifdef GALLERIA_DEBUG_HEAP
 static bool      s_was_syncing;      /* LOGH("sync_end") solo al passaggio SYNCING → riposo */
 #endif
@@ -134,11 +142,12 @@ static void prv_pump_one(void) {
    * scartata in silenzio da dict_write_* (PebbleOS dict.c) e il messaggio partirebbe tronco. */
   DictionaryResult dr = dict_write_uint8(it, MESSAGE_KEY_MSG, o->msg);
   switch (o->msg) {
-    case SYNC_MSG_HELLO:                       /* 1 + 6·7 + SYNC_HELLO_VALUE_BYTES = 110 B = outbox esatto */
+    case SYNC_MSG_HELLO:                       /* 1 + 7·7 + SYNC_HELLO_VALUE_BYTES = 119 B = outbox esatto */
       dr |= dict_write_uint8(it, MESSAGE_KEY_PROTO, o->proto);
       dr |= dict_write_uint8(it, MESSAGE_KEY_FORMAT, o->format);
       dr |= dict_write_uint16(it, MESSAGE_KEY_MAX_CHUNK, o->max_chunk);
       dr |= dict_write_uint16(it, MESSAGE_KEY_CRC, o->settings_crc);    /* S5b */
+      dr |= dict_write_uint16(it, MESSAGE_KEY_OPEN_MS, o->open_ms);     /* v1.9 (perf 04/09) */
       if (o->slots && o->slots_len) {
         dr |= dict_write_data(it, MESSAGE_KEY_SLOTS, o->slots, o->slots_len);
       }
@@ -319,7 +328,31 @@ static void prv_inbox_received(DictionaryIterator *it, void *ctx) {
     s_photo_msgs = 0;
     s_chunk_ms_max = 0;
     s_chunk_ms_sum = 0;
+#ifdef GALLERIA_DEBUG_TIMING
+    s_gap_n = 0;
+    s_gap_max = 0;
+    s_gap_sum = 0;
+    s_gap_have = false;
+#endif
   }
+#ifdef GALLERIA_DEBUG_TIMING
+  if (s_in.msg == SYNC_MSG_PHOTO_DATA) {         /* S8: intervallo fra arrivi consecutivi di PHOTO_DATA
+                                                    (= BLE + telefono + le scritture persist del chunk precedente) */
+    if (s_gap_have) {
+      const int32_t gap = prv_elapsed_ms(s_gap_s0, s_gap_ms0);
+      if (gap >= 0) {                            /* -1 = nessun riferimento: fuori dalla statistica */
+        s_gap_n++;
+        s_gap_sum += gap;
+        if (gap > s_gap_max) {
+          s_gap_max = gap;
+        }
+      }
+    }
+    s_gap_s0 = s0;
+    s_gap_ms0 = ms0;
+    s_gap_have = true;
+  }
+#endif
   SyncOut out;
   const SyncAction act = sync_proto_handle(&s_in, &out);
   const int32_t dt = prv_elapsed_ms(s0, ms0);   /* ms spesi in sync_proto_handle (chunk: scrittura persist) */
@@ -333,12 +366,18 @@ static void prv_inbox_received(DictionaryIterator *it, void *ctx) {
       LOGV("sync: data slot=%u off=%u n=%u -> act=%d code=%u %d ms", (unsigned)s_in.slot,
            (unsigned)s_in.offset, (unsigned)s_in.data_len, (int)act, (unsigned)out.code, (int)dt);
       break;
-    case SYNC_MSG_PHOTO_END:                 /* una riga per foto: s=slot c=code n=PHOTO_DATA, ms del commit, della foto, per chunk */
+    case SYNC_MSG_PHOTO_END: {               /* una riga per foto: s=slot c=code n=PHOTO_DATA, ms del commit, della foto, per chunk */
+      const int32_t photo_ms = prv_elapsed_ms(s_photo_s0, s_photo_ms0);   /* PRIMA della riga gap: il suo APP_LOG non entra nel totale */
+#ifdef GALLERIA_DEBUG_TIMING
+      APP_LOG(APP_LOG_LEVEL_INFO, "sync: gap n=%u max %d avg %d", (unsigned)s_gap_n, (int)s_gap_max,
+              (int)(s_gap_n ? s_gap_sum / (int32_t)s_gap_n : 0));
+#endif
       APP_LOG(APP_LOG_LEVEL_INFO, "sync: end s=%u c=%u n=%u commit %d photo %d ch max %d avg %d heap %u",
               (unsigned)s_in.slot, (unsigned)out.code, (unsigned)s_photo_msgs, (int)dt,
-              (int)prv_elapsed_ms(s_photo_s0, s_photo_ms0), (int)s_chunk_ms_max,
+              (int)photo_ms, (int)s_chunk_ms_max,
               (int)(s_photo_msgs ? s_chunk_ms_sum / s_photo_msgs : 0), (unsigned)heap_bytes_free());
       break;
+    }
     default:                                 /* un rigo per messaggio di controllo (f = campi presenti, st = stato) */
       APP_LOG(APP_LOG_LEVEL_INFO, "sync: msg=%u f=%x -> act=%d out=%u code=%u off=%u st=%u heap %u",
               (unsigned)s_in.msg, (unsigned)s_in.fields, (int)act, (unsigned)out.msg, (unsigned)out.code,
@@ -391,8 +430,8 @@ void sync_env_settings_changed(const GalSettings *b) {
   }
   if (b->layout != n->layout || b->font != n->font) {
     ui_time_layout_changed();                /* strip e griglia; include colore e redraw completo */
-  } else if (b->text_color != n->text_color || b->outline != n->outline) {
-    ui_time_style_changed();
+  } else if (b->text_color != n->text_color || b->outline != n->outline || b->digit_style != n->digit_style) {
+    ui_time_style_changed();                 /* palette delle strip + redraw (S8-stile: anche lo stile delle cifre) */
   } else {
     ui_time_request_full_redraw();           /* p.es. 12/24 h nel layout B: la riga HH sta fuori fascia */
   }
@@ -417,11 +456,11 @@ void sync_init(void) {
   prv_queue_clear();
   s_overhead = dict_calc_buffer_size(4, (size_t)4, (size_t)4, (size_t)4, (size_t)0) + SYNC_INBOX_SLACK;
   s_inbox_size = s_overhead + prv_platform_chunk();
-  /* Outbox esatto (regola 7, F4): HELLO {PROTO u8, FORMAT u8, MAX_CHUNK u16, CRC u16, SLOTS 60 B} =
-   * 1 + 6·7 + SYNC_HELLO_VALUE_BYTES = 110 B è per costruzione il messaggio più grande (STATUS 44 B,
+  /* Outbox esatto (regola 7, F4): HELLO {PROTO u8, FORMAT u8, MAX_CHUNK u16, CRC u16, OPEN_MS u16,
+   * SLOTS 60 B} = 1 + 7·7 + SYNC_HELLO_VALUE_BYTES = 119 B è per costruzione il messaggio più grande (STATUS 44 B,
    * SYNC_READY 18 B), quindi basta a tutti. Un campo in più senza aggiornare questa riga fa scattare
    * il tripwire di prv_pump_one al primo HELLO in emulatore invece di consumare margine in silenzio. */
-  s_outbox_size = dict_calc_buffer_size(6, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2,
+  s_outbox_size = dict_calc_buffer_size(7, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2, (size_t)2,
                                         (size_t)SYNC_SLOTS_BYTES);
 #ifdef GALLERIA_DEBUG_OUTBOX
   s_outbox_size = GALLERIA_DEBUG_OUTBOX;     /* build di test: outbox forzato (p.es. 100 → HELLO senza SLOTS + WARNING) */

@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-r"""gen_font_previews.py — v2 (S6, compito B1): anteprime dei font per la config page.
+r"""gen_font_previews.py — v3 (S6 compito B1; S8-stile: i due font nuovi): anteprime dei
+font per la config page.
 
-Rasterizza la stringa "12:34" con i tre TTF dell'app (Anton, Bebas Neue, Barlow Condensed
-Bold) in **bianco su nero**, la riduce a **1 bit**, la ritaglia sull'inchiostro e la salva
-come PNG ottimizzato; i tre PNG finiscono come data-URL dentro
+Rasterizza la stringa "12:34" con i cinque TTF dell'app (Anton, Bebas Neue, Barlow Condensed
+Bold, Francois One, Staatliches) in **bianco su nero**, la riduce a **1 bit**, la ritaglia
+sull'inchiostro e la salva come PNG ottimizzato; i PNG finiscono come data-URL dentro
 
     apps/galleria/src/pkjs/config/previews.js
 
 nello schema UMD della specifica S6 §1 (nel browser `window.GalPreviews = {anton, bebas,
-barlow}`, in node `module.exports`). Il file viene inlinato nella config page
-(`tools/build_config_page.py`), quindi:
+barlow, francois, staatliches}`, in node `module.exports`): le chiavi sono quelle di
+`PREV_KEYS` in `apps/galleria/src/pkjs/config/page.js` e di `FONTS` in `tools/gen_digits.py`.
+Il file viene inlinato nella config page (`tools/build_config_page.py`), quindi:
 
   * ES5 puro, nessun template literal (il file finisce dentro una stringa JSON);
   * niente `</script>` e nessun backtick nel contenuto generato;
   * **totale del file <= 4096 B** (`--max-bytes`): se sfora, l'altezza viene ridotta di 2 px
-    per volta (28 -> 26 -> 24 ...) finché ci sta, e la cosa viene stampata.
+    per volta (28 -> 26 -> 24 ...) finché ci sta, e la cosa viene stampata (con cinque font
+    l'altezza piena di 28 px ci sta ancora: se un font nuovo la facesse scendere andrebbe
+    riportato, perché la pagina mostra le anteprime 1:1).
 
 **v2 (finding M7-tool, 30/08): rasterizzazione a 4x + LANCZOS + soglia.** La v1 tirava la
 soglia (128) direttamente sul rendering antialiasato alla pixel size finale: a 28 px di
@@ -34,14 +38,14 @@ e nessuna rasterizzazione lo può compensare del tutto (vedi `--selftest`, ultim
 Altezza: 28 px di *inchiostro* (non di em). Per ogni font si cerca la pixel size più grande
 per cui l'altezza del bounding box dell'inchiostro di "12:34" è <= all'altezza richiesta
 (ricerca lineare dal basso, ci si ferma alla prima px che sfora) — stessa logica di
-`tools/gen_digits.py`, così i tre campioni hanno cifre della stessa altezza reale e si
+`tools/gen_digits.py`, così i campioni hanno tutti cifre della stessa altezza reale e si
 possono confrontare a occhio nella pagina.
 
 Uso:
 
     python3 tools/gen_font_previews.py                 # rigenera previews.js
     python3 tools/gen_font_previews.py --check         # verifica che sia aggiornato (exit 1 se no)
-    python3 tools/gen_font_previews.py --png-dir /tmp/prev   # salva anche i tre PNG su disco
+    python3 tools/gen_font_previews.py --png-dir /tmp/prev   # salva anche i PNG su disco
     python3 tools/gen_font_previews.py --selftest      # prova il generatore (qualità dei glifi)
 
 Deterministico: nessuna data, nessun percorso assoluto e nessun timestamp finisce
@@ -66,12 +70,17 @@ APP_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", "apps", "galleria"))
 DEF_FONTS = os.path.join(APP_DIR, "resources", "fonts")
 DEF_OUT = os.path.join(APP_DIR, "src", "pkjs", "config", "previews.js")
 
-# chiave JS -> file TTF (l'ordine è quello degli indici del campo `font`: 0 Anton, 1 Bebas,
-# 2 Barlow; il font 3 è LECO di sistema e non ha anteprima)
+# chiave JS -> file TTF: ogni voce diventa `GalPreviews.<chiave>` in previews.js. L'ordine è
+# quello degli indici del campo `font` (0 Anton, 1 Bebas, 2 Barlow, 4 Francois One,
+# 5 Staatliches; il font 3 è LECO di sistema, non ha strip né anteprima). Le chiavi sono le
+# stesse di `PREV_KEYS` (apps/galleria/src/pkjs/config/page.js, che salta il 3 con una voce
+# vuota) e di `FONTS` in tools/gen_digits.py: un font nuovo = una riga qui.
 FONTS = [
     ("anton", "Anton-Regular.ttf"),
     ("bebas", "BebasNeue-Regular.ttf"),
     ("barlow", "BarlowCondensed-Bold.ttf"),
+    ("francois", "FrancoisOne-Regular.ttf"),
+    ("staatliches", "Staatliches-Regular.ttf"),
 ]
 
 TEXT = "12:34"
@@ -229,8 +238,9 @@ def build_js(entries, height):
                  % (TEXT, height))
     lines.append(" * (rasterizzato a %dx e ridotto con LANCZOS prima della soglia: glifi pieni)."
                  % SUPERSAMPLE)
-    lines.append(" * Chiavi = indici del campo 'font' (0 Anton, 1 Bebas Neue, 2 Barlow Condensed;")
-    lines.append(" * il 3 e' LECO di sistema e non ha anteprima). Bianco su nero, PNG data-URL.")
+    lines.append(" * Chiavi (GalPreviews.<chiave>) = font della pagina: 0 Anton, 1 Bebas Neue,")
+    lines.append(" * 2 Barlow Condensed, 4 Francois One, 5 Staatliches (il 3 e' LECO di sistema e")
+    lines.append(" * non ha anteprima). Bianco su nero, PNG data-URL.")
     lines.append(" * Da mostrare 1:1 (28 px di CONTENUTO): ridimensionata perde righe e colonne. */")
     lines.append("(function (root, factory) {")
     lines.append("  if (typeof module === 'object' && module.exports) { module.exports = factory(); }")
@@ -322,7 +332,8 @@ def selftest(fonts_dir, out_path, text=TEXT, height=HEIGHT, max_bytes=MAX_BYTES,
               "%d B" % len(blob))
         check("previews.js è ASCII puro, senza backtick e senza il marcatore di chiusura script",
               blob.decode("utf-8").isascii() and "`" not in js and "</script" not in js.lower())
-        check("previews.js espone le tre chiavi dei font",
+        check("previews.js espone le %d chiavi dei font (%s)"
+              % (len(FONTS), ", ".join(k for k, _f in FONTS)),
               all(("\n    %s: 'data:image/png;base64," % key) in js for key, _f in FONTS))
         check("previews.js sul disco è aggiornato (come `--check`)",
               os.path.isfile(out_path) and io.open(out_path, "rb").read() == blob,
@@ -384,7 +395,7 @@ def main(argv=None):
     ap.add_argument("--text", default=TEXT, help="stringa da rasterizzare (default: %s)" % TEXT)
     ap.add_argument("--height", type=int, default=HEIGHT, help="altezza dell'inchiostro in px (default: %d)" % HEIGHT)
     ap.add_argument("--max-bytes", type=int, default=MAX_BYTES, help="tetto del file generato (default: %d)" % MAX_BYTES)
-    ap.add_argument("--png-dir", default=None, help="salva anche i tre PNG in questa cartella")
+    ap.add_argument("--png-dir", default=None, help="salva anche i PNG in questa cartella")
     ap.add_argument("--check", action="store_true", help="verifica che --out sia aggiornato (exit 1 se no)")
     ap.add_argument("--selftest", action="store_true",
                     help="prova il generatore (determinismo, qualità dei glifi, forma del file)")

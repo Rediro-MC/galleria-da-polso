@@ -4,7 +4,8 @@
  * Specifica: docs/design/galleria.md §5 (protocollo) e §5.1 (album, diff, piano).
  * Esecuzione:  cd apps/galleria/test && NODE_PATH=shim node test_album.js
  *              (oppure `make -C apps/galleria/test jstest`).
- * Nessuna dipendenza esterna, nessuna sorgente di non determinismo: i CRC di riferimento sono
+ * Nessuna dipendenza esterna (la sola §2 usa gli shim `fakewatch`/`message_keys` per il contratto
+ * blob ↔ orologio: da qui il NODE_PATH), nessuna sorgente di non determinismo: i CRC di riferimento sono
  * calcolati con una seconda implementazione (bit a bit) e con zlib.crc32 di node, i buffer
  * "casuali" con un LCG a seme fisso, i photo_id sono sempre espliciti tranne dove è proprio il
  * caso "photo_id assente" a essere sotto test (lì si verifica solo che sia ≠ 0 e coerente).
@@ -197,7 +198,7 @@ function hello(o) {
   (o.valid || []).forEach(function (v) { slots[v[0]] = { state: 1, crc: v[1] >>> 0 }; });
   return { format: (o.format === undefined) ? 1 : o.format,
            maxChunk: (o.maxChunk === undefined) ? 4096 : o.maxChunk,
-           settingsCrc: o.settingsCrc, slots: slots };
+           settingsCrc: o.settingsCrc, openMs: o.openMs, slots: slots };
 }
 
 function planSlots(plan) { return plan.photos.map(function (p) { return p.slot; }); }
@@ -317,36 +318,59 @@ sec('2. album vuoto e impostazioni');
   eq(a.data.watch, null, 'album vuoto: nessun watch');
   eq(a.data.photos.length, 12, 'album vuoto: 12 slot');
   eqJson(a.data.settings, { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
-                            outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15 },
-         'impostazioni di default (settings.c)');
+                            outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
+                            digit_style: 0 },
+         'impostazioni di default (settings.c): i vecchi campi invariati, digit_style 0 (S8)');
   eqJson(Album.defaultSettings(), a.data.settings, 'Album.defaultSettings() = quelle dell\'album vuoto');
   eq(f.st.keys().length, 0, 'costruire un album non scrive nulla');
 
   var bytes = a.settingsBytes();
   eq(bytes.length, 20, 'GalSettings: 20 byte');
   eqJson(bytes, [1, 0, 0, 0, 0, 0, 0, 30, 0, 0, 1, 15, 0, 0, 0, 0, 0, 0, 0xE7, 0x7E],
-         'blob dei default (schema 1, interval 30 LE, shake 1, info_row 15, crc16 0x7EE7)');
+         'blob dei default (schema 1, interval 30 LE, shake 1, info_row 15, digit_style 0, crc16 0x7EE7)');
   eq(a.settingsCrc(), 0x7EE7, 'settingsCrc dei default = 0x7EE7 (uguale a quello del C)');
   eq(bytes[18] | (bytes[19] << 8), a.settingsCrc(), 'crc16 in coda, little endian');
   eq(crcm.crc16(bytes.slice(0, 18)), a.settingsCrc(), 'settingsCrc = crc16 dei primi 18 byte');
   eq(Album.settingsCrc(Album.defaultSettings()), 0x7EE7, 'Album.settingsCrc esportata');
 
   /* i campi devono stare al posto giusto: un blob "tutto diverso" */
-  var s2 = Album.normalizeSettings({ layout: 1, font: 3, clock_mode: 2, leading_zero: 1, text_color: 4,
-                                     outline: 2, interval_min: 1440, order: 1, shake_next: 0, info_row: 3 }, null);
+  var s2 = Album.normalizeSettings({ layout: 1, font: 5, clock_mode: 2, leading_zero: 1, text_color: 4,
+                                     outline: 2, interval_min: 1440, order: 1, shake_next: 0, info_row: 3,
+                                     digit_style: 2 }, null);
   var b2 = Album.settingsBytes(s2);
-  eqJson(b2.slice(0, 12), [1, 1, 3, 2, 1, 4, 2, 1440 & 0xFF, 1440 >> 8, 1, 0, 3],
-         'ordine dei campi nel blob (interval_min u16 LE = 1440)');
-  eqJson(b2.slice(12, 18), [0, 0, 0, 0, 0, 0], 'reserved[6] a zero');
+  eq(b2.length, 20, 'settingsBytes: 20 byte anche con digit_style');
+  eqJson(b2.slice(0, 12), [1, 1, 5, 2, 1, 4, 2, 1440 & 0xFF, 1440 >> 8, 1, 0, 3],
+         'ordine dei campi nel blob (font 5, interval_min u16 LE = 1440)');
+  eq(b2[12], 2, 'byte 12 = digit_style (S8/D21, ex primo `reserved`)');
+  eqJson(b2.slice(13, 18), [0, 0, 0, 0, 0], 'reserved[5] a zero');
   check(Album.settingsCrc(s2) !== 0x7EE7, 'impostazioni diverse → crc diverso');
+
+  /* digit_style entra nel CRC: due impostazioni che differiscono solo per lo stile devono
+   * far ripartire una sync delle impostazioni (design §5.1, HELLO.CRC) */
+  var sFill = Album.defaultSettings();
+  var s3D = Album.normalizeSettings({ digit_style: 3 }, sFill);
+  eq(Album.settingsBytes(s3D)[12], 3, 'digit_style 3 → byte 12 = 3');
+  eqJson(Album.settingsBytes(s3D).slice(0, 12), Album.settingsBytes(sFill).slice(0, 12),
+         'digit_style non tocca i primi 12 byte');
+  check(Album.settingsCrc(s3D) !== Album.settingsCrc(sFill), 'digit_style diverso → CRC diverso');
+  var s3Dbis = Album.normalizeSettings({ digit_style: 3 }, sFill);
+  eq(Album.settingsCrc(s3Dbis), Album.settingsCrc(s3D), 'stesso digit_style → stesso CRC');
 })();
 
 /* normalizeSettings: intervalli di settings_validate() */
 (function () {
   var d = Album.defaultSettings();
   eq(Album.normalizeSettings({ layout: 2 }, null).layout, 0, 'layout 2 fuori intervallo → 0');
-  eq(Album.normalizeSettings({ font: 4 }, null).font, 0, 'font 4 fuori intervallo → 0');
-  eq(Album.normalizeSettings({ font: 3 }, null).font, 3, 'font 3 valido');
+  eq(Album.normalizeSettings({ font: 3 }, null).font, 3, 'font 3 (LECO) valido');
+  eq(Album.normalizeSettings({ font: 4 }, null).font, 4, 'font 4 valido (S8/D22)');
+  eq(Album.normalizeSettings({ font: 5 }, null).font, 5, 'font 5 valido (S8/D22)');
+  eq(Album.normalizeSettings({ font: 6 }, null).font, 0, 'font 6 fuori intervallo → 0');
+  eq(Album.normalizeSettings({ digit_style: 0 }, null).digit_style, 0, 'digit_style 0 (pieno) valido');
+  eq(Album.normalizeSettings({ digit_style: 3 }, null).digit_style, 3, 'digit_style 3 (pieno 3D) valido');
+  eq(Album.normalizeSettings({ digit_style: 4 }, null).digit_style, 0, 'digit_style 4 fuori intervallo → 0');
+  eq(Album.normalizeSettings({ digit_style: -1 }, null).digit_style, 0, 'digit_style negativo → 0');
+  eq(Album.normalizeSettings({ digit_style: '2' }, null).digit_style, 2, 'digit_style "2" (stringa) accettato');
+  eq(Album.normalizeSettings({}, null).digit_style, 0, 'digit_style di default = 0 (pieno)');
   eq(Album.normalizeSettings({ info_row: 16 }, null).info_row, 15, 'info_row 16 → 15');
   eq(Album.normalizeSettings({ info_row: 0 }, null).info_row, 0, 'info_row 0 valido');
   eq(Album.normalizeSettings({ interval_min: 7 }, null).interval_min, 30, 'interval_min 7 non in lista → 30');
@@ -369,8 +393,53 @@ sec('2. album vuoto e impostazioni');
   eq(m.font, 1, 'merge: font dal nuovo');
   eq(m.interval_min, 60, 'merge: interval_min dalla base');
   eq(Album.normalizeSettings({ layout: 9 }, base).layout, 0, 'merge: valore non valido → default del campo, non la base');
-  eq(Object.keys(m).length, 10, '10 campi');
-  eq(Album.SETTINGS_FIELDS.length, 10, 'SETTINGS_FIELDS: 10 campi');
+  eq(Object.keys(m).length, 11, '11 campi');
+  eq(Album.SETTINGS_FIELDS.length, 11, 'SETTINGS_FIELDS: 11 campi (S8: + digit_style)');
+  /* un album salvato prima di S8 non ha digit_style: si rilegge con 0, senza sporcare il resto */
+  var old8 = storedAlbum({ settings: { layout: 1, font: 2, clock_mode: 0, leading_zero: 0, text_color: 0,
+                                       outline: 0, interval_min: 15, order: 0, shake_next: 1, info_row: 15 },
+                           settingsSet: true }).load();
+  eq(old8.data.settings.digit_style, 0, 'album pre-S8 (senza digit_style): riletto con 0');
+  eq(old8.data.settings.layout, 1, 'album pre-S8: gli altri campi restano');
+  eq(old8.data.settings.interval_min, 15, 'album pre-S8: interval_min resta');
+  eq(old8.settingsBytes()[12], 0, 'album pre-S8: byte 12 = 0 (blob vecchio, nessuna migrazione)');
+})();
+
+/* Contratto con l'orologio: ogni blob che album.js accetta come valido deve essere accettato anche
+ * dal modello dell'orologio (shim/fakewatch.js, specchio di settings_validate() in src/c/settings.c),
+ * e viceversa un blob fuori intervallo deve essere rifiutato da tutti e due. Senza questo controllo
+ * la fake watch resta ferma agli intervalli pre-S8 (font <= 3, nessun controllo sul byte 12) e i test
+ * del motore di sync non possono esercitare i font 4/5 ne' `digit_style` (revisione S8-stile). */
+(function () {
+  var FakeWatch = require('fakewatch');
+  var mkeys = require('message_keys');
+
+  function sendBlob(blob) {
+    var w = new FakeWatch({}), d = {};
+    d[mkeys.MSG] = FakeWatch.MSG.SETTINGS; d[mkeys.SETTINGS] = blob;
+    var out = w.handle(d);
+    return { code: out.length ? out[0][mkeys.CODE] : -1, watch: w };
+  }
+
+  var font, style, s, r;
+  for (font = 0; font <= 5; font++) {
+    for (style = 0; style <= 3; style++) {
+      s = Album.normalizeSettings({ font: font, digit_style: style }, null);
+      r = sendBlob(Album.settingsBytes(s));
+      eq(r.code, FakeWatch.CODE.OK, 'fakewatch accetta font ' + font + ' + digit_style ' + style);
+      eq(r.watch.settings[2], font, 'fakewatch: font ' + font + ' memorizzato nel byte 2');
+      eq(r.watch.settings[12], style, 'fakewatch: digit_style ' + style + ' memorizzato nel byte 12');
+      eq(r.watch.settingsCrc(), Album.settingsCrc(s),
+         'CRC dell\'orologio = settingsCrc(album) con font ' + font + ' + digit_style ' + style);
+    }
+  }
+  /* blob grezzi fuori intervallo: il C risponde BAD_FORMAT, la fake watch deve fare altrettanto */
+  var bad = Album.settingsBytes(Album.defaultSettings()); bad[12] = 4;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 4 (blob grezzo)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[12] = 255;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 255 (blob grezzo)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[2] = 6;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta font 6 (blob grezzo)');
 })();
 
 /* ================================================== 3. caricamento da storage */
@@ -1875,6 +1944,31 @@ sec('7. plan(hello)');
   /* settingsCrc assente → null nello snapshot */
   a.plan(hello({}));
   eq(a.data.watch.settingsCrc, null, 'watch.settingsCrc = null se l\'HELLO non lo porta');
+})();
+
+(function () {
+  /* v1.9 (perf 04/09): watch.openMs = apertura del file persist, per l'avviso della config page */
+  var f = freshAlbum(), a = f.a;
+  eq(a.plan(hello({ openMs: 0 })) && a.data.watch.openMs, 0, 'watch.openMs = 0 (file sano)');
+  a.plan(hello({ openMs: 2150 }));
+  eq(a.data.watch.openMs, 2150, 'watch.openMs dal HELLO');
+  eq(a.state().watch.openMs, 2150, 'state(): openMs esposto alla config page');
+  check(a.state().watch.at > 0, 'state(): `at` dello snapshot esposto');
+  a.plan(hello({}));
+  eq(a.data.watch.openMs, null, 'watch.openMs = null se l\'HELLO non lo porta (orologio vecchio)');
+  eq(a.state().watch.openMs, null, 'state(): openMs null se non noto');
+  a.plan(hello({ openMs: 0x12345 }));
+  eq(a.data.watch.openMs, 0x2345, 'watch.openMs mascherato a 16 bit');
+  a.plan(hello({ openMs: 'x' }));
+  eq(a.data.watch.openMs, null, 'watch.openMs non numerico → null');
+  a.plan(hello({ openMs: 900 }));
+  eq(JSON.parse(f.st.getItem('galleria.v1.watch')).openMs, 900, 'openMs salvato nella chiave watch');
+  /* snapshot scritto prima della v1.9: resta valido, openMs null (nessun avviso) */
+  f.st.setItem('galleria.v1.watch', JSON.stringify({ at: 1, format: 1, maxChunk: 4096, settingsCrc: 1, slots: [], foreign: [] }));
+  var a2 = new Album(f.st, log);
+  check(a2.data.watch !== null, 'snapshot pre-v1.9 ancora valido');
+  eq(a2.data.watch.openMs, null, 'snapshot pre-v1.9: openMs null');
+  eq(a2.state().watch.openMs, null, 'state() di un album pre-v1.9: openMs null');
 })();
 
 (function () {

@@ -1,0 +1,129 @@
+[10:15:29] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:29] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:29] ui_time.c:847> heap qv: used=73996 free=31100
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:33] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:15:34] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:15:34] ui_time.c:847> heap qv: used=66064 free=39032
+[10:15:37] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:37] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:37] ui_time.c:847> heap qv: used=73996 free=31100
+[10:15:40] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:15:40] ui_time.c:847> heap qv: used=66064 free=39032
+[10:15:43] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:43] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:43] ui_time.c:847> heap qv: used=73996 free=31100
+[10:15:46] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:15:46] ui_time.c:847> heap qv: used=66064 free=39032
+[10:15:48] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:48] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:48] ui_time.c:847> heap qv: used=73996 free=31100
+[10:15:51] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:15:51] ui_time.c:847> heap qv: used=66064 free=39032
+[10:15:54] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:54] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:54] ui_time.c:847> heap qv: used=73996 free=31100
+[10:15:57] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:15:57] ui_time.c:847> heap qv: used=66064 free=39032
+[10:15:59] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:15:59] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:15:59] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:02] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:02] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:05] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:05] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:05] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:07] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:07] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:10] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:10] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:10] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:13] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:13] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:16] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:16] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:16] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:18] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:18] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:21] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:21] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:21] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:24] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:24] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:27] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:27] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:27] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:29] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:29] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:32] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:32] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:32] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:35] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:35] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:38] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:38] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:38] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:40] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:40] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:43] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:43] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:43] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:46] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:46] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:48] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:48] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:48] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:51] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:51] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:54] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:54] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:54] ui_time.c:847> heap qv: used=73996 free=31100
+[10:16:57] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:16:57] ui_time.c:847> heap qv: used=66064 free=39032
+[10:16:59] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:16:59] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:16:59] ui_time.c:847> heap qv: used=73996 free=31100
+[10:17:02] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:17:02] ui_time.c:847> heap qv: used=66064 free=39032
+[10:17:05] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:17:05] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:17:05] ui_time.c:847> heap qv: used=73996 free=31100
+[10:17:08] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:17:08] ui_time.c:847> heap qv: used=66064 free=39032
+[10:17:10] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:17:10] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:17:10] ui_time.c:847> heap qv: used=73996 free=31100
+[10:17:13] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:17:13] ui_time.c:847> heap qv: used=66064 free=39032
+[10:17:16] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:17:16] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:17:16] ui_time.c:847> heap qv: used=73996 free=31100
+[10:17:19] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:17:19] ui_time.c:847> heap qv: used=66064 free=39032
+[10:17:21] ui_digits.c:120> digits: font=0 size=0 440x68 fill=1 outline=2 heap 73996/31100
+[10:17:21] ui_time.c:665> luma(band): m=3 b=0+78 h=78 ph=1 w=1 bad=0(0/79) mean=17 fg=ff halo=0
+[10:17:21] ui_time.c:847> heap qv: used=73996 free=31100
+[10:17:24] ui_time.c:665> luma(band): m=2 b=119+109 h=228 ph=1 w=1 bad=14(14/60) mean=33 fg=ff halo=0
+[10:17:24] ui_time.c:847> heap qv: used=66064 free=39032
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:17:30] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer

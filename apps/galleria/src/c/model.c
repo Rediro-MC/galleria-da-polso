@@ -21,7 +21,7 @@ static uint8_t   s_slot = GAL_SLOT_NONE;   /* slot persist mostrato (GAL_SLOT_NO
 static uint16_t  s_generation;             /* generation del manifest per s_slot (ricarica dopo una sync) */
 static uint8_t   s_demo = 0xFF;            /* demo mostrata quando s_slot == GAL_SLOT_NONE */
 static uint16_t  s_bad_mask;               /* slot con lettura/CRC falliti in questa esecuzione */
-static uint16_t  s_shake, s_shake_saved;   /* contatore shake in RAM (mod ROT_SHAKE_MOD) / valore letto da persist */
+static uint16_t  s_shake;                  /* contatore shake in RAM (mod ROT_SHAKE_MOD); persist con debounce (storage) */
 static bool      s_focus = true;
 static bool      s_hold;                   /* F1: sync attiva → rotazione congelata (model_sync_hold) */
 static bool      s_tap_subscribed;
@@ -199,11 +199,10 @@ static void prv_seed_demo(void) {
 /* ---- API ---- */
 
 void model_init(void) {
-  GalRotState st;
-  if (storage_read_rotstate(&st)) {
-    s_shake = (uint16_t)(st.shake_offset % ROT_SHAKE_MOD);
-  }
-  s_shake_saved = s_shake;
+  /* Perf 04/09/2026: l'offset dello shake NON viene più persistito. Ogni scrittura persist è un record
+   * in più che il firmware scandisce a ogni avvio (il tap service scatta ~100 volte al giorno sul polso):
+   * lo shake vale fino al prossimo riavvio della watchface, poi la rotazione torna al programma (D10). */
+  s_shake = 0;
 #ifdef GALLERIA_DEBUG_SEED
   prv_seed_demo();
 #endif
@@ -218,12 +217,8 @@ void model_deinit(void) {
     accel_tap_service_unsubscribe();
     s_tap_subscribed = false;
   }
-  if (s_shake != s_shake_saved) {        /* unica scrittura dello stato di rotazione: in deinit */
-    const GalRotState st = { .shake_offset = s_shake, .crc16 = 0 };
-    if (storage_write_rotstate(&st)) {
-      s_shake_saved = s_shake;
-    }
-  }
+  /* Nessuna scrittura persist qui né altrove per lo shake (revisione perf 04/09): una ricerca nel file
+   * persist costa una scansione e in deinit ritardava il launcher; ogni record in più rallenta l'avvio. */
 }
 
 void model_tick(const struct tm *t) {
@@ -238,7 +233,7 @@ void model_shake(void) {
   if (!settings_get()->shake_next) {
     return;
   }
-  s_shake = (uint16_t)((s_shake + 1u) % ROT_SHAKE_MOD);   /* mcm(1..12): wrap continuo per ogni n */
+  s_shake = (uint16_t)((s_shake + 1u) % ROT_SHAKE_MOD);   /* mcm(1..12): wrap continuo per ogni n; solo RAM */
   if (!s_focus) {
     return;                              /* applicato al ritorno in primo piano */
   }

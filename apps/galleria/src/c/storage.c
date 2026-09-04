@@ -1,20 +1,36 @@
 /* storage.c — vedi storage.h. Regola 8: persist_exists prima di leggere, schema versionato + CRC,
  * chunk poi manifest, scritture con debounce, flush in deinit, quota con fallback 4096,
- * E_OUT_OF_STORAGE gestito. Nessuna allocazione: buffer static a file-scope (regola 5). */
+ * E_OUT_OF_STORAGE gestito. Nessuna allocazione: buffer static a file-scope (regola 5).
+ *
+ * Revisione perf (04/09/2026, schema 2): sul Pebble Time 2 il file persist con 12 foto (~430 KB,
+ * ~1.600 record) è una lista lineare che il firmware (settings_file.c, senza page cache) scandisce
+ * dall'inizio a ogni ricerca di chiave: ~0,4 s a scansione, 2 scansioni già all'apertura (prima
+ * chiamata persist), una per ogni chiave cercata, una A VUOTO per ogni chiave assente. Quindi:
+ * un solo record di metadati (manifest + impostazioni + shake, 234 B), nessuna chiave letta a
+ * vuoto, s_schema_ok alzato già in init (la prima scrittura non ripaga la ricerca della chiave 0),
+ * nessuna scrittura in deinit per lo shake (debounce, come le impostazioni; il flush di deinit
+ * scrive solo se ci sono impostazioni pendenti). Chiavi 2 e 10 dello schema 1 lette una volta
+ * sola per la migrazione e mai più (cancellarle costerebbe una scansione ciascuna). */
 #include <pebble.h>
 #include "storage.h"
 #include "crc.h"
 #include "gal_log.h"
 
-static GalManifest s_manifest;            /* copia in RAM (214 B) */
-static bool        s_manifest_loaded;     /* letto valido da persist */
+static GalManifest s_manifest;            /* copia in RAM (234 B): slot, ordine, impostazioni, shake */
+static bool        s_manifest_loaded;     /* letto valido da persist (o migrato da schema 1) */
 static bool        s_album_enabled;
 static uint32_t    s_quota;
-static GalSettings s_pending_settings;    /* ultima copia ricevuta, in attesa di scrittura */
-static bool        s_settings_dirty;
-static AppTimer   *s_settings_timer;
-static bool        s_schema_ok;           /* chiave 0 verificata/scritta in questa esecuzione (revisione S4) */
+static bool        s_settings_dirty;      /* impostazioni cambiate: timer, oppure flush in deinit */
+static bool        s_shake_dirty;         /* shake cambiato: solo timer (mai in deinit: uscita veloce) */
+static AppTimer   *s_write_timer;         /* UN solo timer per entrambi (lo shim dei test ne ha uno) */
+static bool        s_schema_ok;           /* chiave 0 verificata/scritta in questa esecuzione */
 static GalManifest s_backup;              /* copia del manifest da ripristinare se la scrittura fallisce */
+static uint16_t    s_open_ms;             /* ms della prima chiamata persist (apertura del file da parte del
+                                             firmware): misurata SEMPRE, va nel HELLO (OPEN_MS) per l'avviso
+                                             "Galleria lenta" della config page */
+#ifdef GALLERIA_DEBUG_TIMING
+static int         s_t_man_ms;            /* build M: ricerca del manifest */
+#endif
 
 /* ---- primitive ---- */
 
@@ -42,11 +58,7 @@ static StorageResult prv_write_blob(uint32_t key, const void *buf, uint16_t size
 /* Chiave 0 = versione dello schema, scritta una volta prima del primo blob. */
 static StorageResult prv_ensure_schema_key(void) {
   if (s_schema_ok) {
-    return STORAGE_OK;                     /* già verificata: niente 2 lookup a ogni scrittura */
-  }
-  if (persist_exists(GAL_KEY_SCHEMA) && persist_read_int(GAL_KEY_SCHEMA) == GAL_SCHEMA) {
-    s_schema_ok = true;
-    return STORAGE_OK;
+    return STORAGE_OK;                     /* già verificata in init: niente ricerche a ogni scrittura */
   }
   /* Ritorna i byte scritti (4) se ok, un StatusCode negativo altrimenti (pebble.h: "The number of
    * bytes written if successful") — NON S_SUCCESS: verificato in emulatore (S4). */
@@ -65,6 +77,7 @@ static void prv_manifest_defaults(GalManifest *m) {
   m->schema = GAL_SCHEMA;
   m->slot_count = GAL_MAX_SLOTS;
   memset(m->order, GAL_SLOT_NONE, sizeof(m->order));
+  settings_set_defaults(&m->settings);
 }
 
 static bool prv_manifest_valid(const GalManifest *m) {
@@ -74,20 +87,31 @@ static bool prv_manifest_valid(const GalManifest *m) {
   return crc16_ccitt((const uint8_t *)m, sizeof(*m) - 2) == m->crc16;
 }
 
-static StorageResult prv_write_manifest(void) {
-  if (!s_album_enabled) {
-    return STORAGE_DISABLED;
-  }
+/* Scrive il manifest corrente (senza controllare l'album: le impostazioni e lo shake si salvano
+ * anche con l'album disabilitato). Il CRC delle impostazioni viene ricalcolato: è quello che
+ * settings.c/sync.c espongono al telefono (HELLO.CRC), il manifest ha il suo. */
+static StorageResult prv_write_manifest_any(void) {
   StorageResult r = prv_ensure_schema_key();
   if (r != STORAGE_OK) {
     return r;
   }
+  s_manifest.settings.schema = GAL_SETTINGS_SCHEMA;
+  s_manifest.settings.crc16 = crc16_ccitt((const uint8_t *)&s_manifest.settings, sizeof(GalSettings) - 2);
   s_manifest.crc16 = crc16_ccitt((const uint8_t *)&s_manifest, sizeof(s_manifest) - 2);
   r = prv_write_blob(GAL_KEY_MANIFEST, &s_manifest, sizeof(s_manifest));
   if (r == STORAGE_OK) {
     s_manifest_loaded = true;
+    s_settings_dirty = false;              /* il record porta sempre anche impostazioni e shake */
+    s_shake_dirty = false;
   }
   return r;
+}
+
+static StorageResult prv_write_manifest(void) {
+  if (!s_album_enabled) {
+    return STORAGE_DISABLED;
+  }
+  return prv_write_manifest_any();
 }
 
 /* Versione futura dello schema: azzera le chiavi di metadati (i chunk restano: senza manifest
@@ -100,21 +124,113 @@ static void prv_reset_meta(void) {
   persist_delete(GAL_KEY_SETTINGS);
 }
 
+static void prv_schedule_write(void);
+
+/* ---- migrazione schema 1 → 2 (una volta, al primo avvio dopo l'aggiornamento) ---- */
+
+static GalManifestV1 s_v1;                /* 214 B: mai sullo stack (regola 5) */
+
+static bool prv_v1_valid(const GalManifestV1 *m) {
+  if (m->magic != GAL_MAGIC || m->schema != 1 || m->slot_count != GAL_MAX_SLOTS) {
+    return false;
+  }
+  return crc16_ccitt((const uint8_t *)m, sizeof(*m) - 2) == m->crc16;
+}
+
+/* Costruisce s_manifest dallo schema 1: slot e ordine dal manifest vecchio, impostazioni dalla
+ * chiave 10 e shake dalla chiave 2 SE esistono e sono valide (ognuna costa una ricerca: solo qui,
+ * una volta). Il record nuovo viene scritto dal timer (debounce) o dal flush di deinit, non ora:
+ * l'avvio non paga la scrittura. */
+static void prv_migrate_v1(void) {
+  prv_manifest_defaults(&s_manifest);
+  memcpy(s_manifest.order, s_v1.order, sizeof(s_manifest.order));
+  memcpy(s_manifest.slots, s_v1.slots, sizeof(s_manifest.slots));
+  static GalSettings s_old;
+  if (prv_read_blob(GAL_KEY_SETTINGS, &s_old, sizeof(s_old))
+      && s_old.schema == GAL_SETTINGS_SCHEMA
+      && crc16_ccitt((const uint8_t *)&s_old, sizeof(s_old) - 2) == s_old.crc16
+      && settings_validate(&s_old)) {
+    s_manifest.settings = s_old;
+  }
+  GalRotState rs;
+  if (prv_read_blob(GAL_KEY_ROTSTATE, &rs, sizeof(rs))
+      && crc16_ccitt((const uint8_t *)&rs, sizeof(rs) - 2) == rs.crc16) {
+    s_manifest.shake_offset = rs.shake_offset;
+  }
+  s_manifest_loaded = true;
+  s_settings_dirty = true;                 /* → scrittura del record nuovo fra 10 s (o al flush di deinit) */
+  prv_schedule_write();
+  APP_LOG(APP_LOG_LEVEL_INFO, "storage: manifest schema 1 -> 2 migrated (settings %d shake %u)",
+          (int)(s_manifest.settings.crc16 != 0), (unsigned)s_manifest.shake_offset);
+}
+
+/* ---- timer di scrittura (impostazioni + shake) ---- */
+
+static void prv_write_pending_now(void) {
+  if (!s_settings_dirty && !s_shake_dirty) {
+    return;
+  }
+  const StorageResult r = prv_write_manifest_any();   /* dirty restano alzati se fallisce: si ritenta */
+  (void)r;                                            /* un fallimento e' gia' loggato da prv_write_blob */
+  LOGV("storage: meta written -> %d", (int)r);
+}
+
+#define STORAGE_WRITE_RETRIES 3           /* fire fallito (p.es. E_OUT_OF_STORAGE transitorio): ritenta fra 10 s */
+static uint8_t s_write_retries;
+
+static void prv_write_timer_cb(void *ctx) {
+  s_write_timer = NULL;
+  prv_write_pending_now();
+  if ((s_settings_dirty || s_shake_dirty) && s_write_retries < STORAGE_WRITE_RETRIES) {
+    s_write_retries++;                     /* scrittura fallita: nuovo tentativo dal timer, mai in deinit */
+    s_write_timer = app_timer_register(STORAGE_SETTINGS_DEBOUNCE_MS, prv_write_timer_cb, NULL);
+  }
+}
+
+static void prv_schedule_write(void) {
+  s_write_retries = 0;                     /* evento nuovo: il contatore dei tentativi riparte */
+  if (s_write_timer) {
+    if (app_timer_reschedule(s_write_timer, STORAGE_SETTINGS_DEBOUNCE_MS)) {
+      return;
+    }
+    /* Scaduto ma il callback è ancora in coda (prv_write_timer_cb azzera l'handle per primo,
+     * quindi non ha ancora scritto): lo cancelliamo, il timer nuovo scrive la copia aggiornata fra
+     * 10 s (F2; stesso schema di sync.c). */
+    app_timer_cancel(s_write_timer);
+  }
+  s_write_timer = app_timer_register(STORAGE_SETTINGS_DEBOUNCE_MS, prv_write_timer_cb, NULL);
+  if (!s_write_timer) {
+    prv_write_pending_now();               /* senza timer (heap?) scriviamo subito: mai perdere dati */
+  }
+}
+
 /* ---- init ---- */
 
 bool storage_init(void) {
   s_schema_ok = false;
+  s_settings_dirty = false;
+  s_shake_dirty = false;
+  s_write_retries = 0;
+  if (s_write_timer) {                     /* solo test host (init ripetuto): sull'orologio è NULL */
+    app_timer_cancel(s_write_timer);
+    s_write_timer = NULL;
+  }
   /* PBL_API_EXISTS espande a defined(): GCC avverte con -Wextra, ma è la macro sanzionata (regola 1). */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wexpansion-to-defined"
 #if PBL_API_EXISTS(persist_get_max_size)
-  s_quota = (uint32_t)persist_get_max_size();
+  s_quota = (uint32_t)persist_get_max_size();      /* non apre il file persist (persist.c del firmware) */
 #else
   s_quota = 4096;                          /* SDK < 4.17: la doc dice di assumere 4 KB */
 #endif
 #pragma GCC diagnostic pop
   s_album_enabled = (s_quota >= GAL_MIN_QUOTA);
 
+  /* Prima chiamata persist = apertura del file da parte del firmware (bootup_check + compute_stats:
+   * 2 scansioni complete, ~0,8 s con 12 foto sul PT2). La chiave 0 è il primo record: 1 passo. */
+  time_t o_s = 0;
+  uint16_t o_ms = 0;
+  time_ms(&o_s, &o_ms);                    /* due chiamate per esecuzione: costo nullo (regola 11) */
   int32_t schema = 0;
   if (persist_exists(GAL_KEY_SCHEMA)) {
     schema = persist_read_int(GAL_KEY_SCHEMA);
@@ -122,20 +238,56 @@ bool storage_init(void) {
       APP_LOG(APP_LOG_LEVEL_WARNING, "storage: schema %d > %d: reset", (int)schema, GAL_SCHEMA);
       prv_reset_meta();
       schema = 0;
+    } else if (schema == GAL_SCHEMA) {
+      s_schema_ok = true;                  /* già letta: la prima scrittura non la ricerca di nuovo */
     }
+  }
+  {
+    time_t s1 = 0;
+    uint16_t ms1 = 0;
+    time_ms(&s1, &ms1);
+    const int32_t d = (int32_t)(s1 - o_s) * 1000 + ((int32_t)ms1 - (int32_t)o_ms);
+    s_open_ms = (d < 0) ? 0 : (d > 65535) ? 65535 : (uint16_t)d;
   }
 
   prv_manifest_defaults(&s_manifest);
   s_manifest_loaded = false;
-  /* Lettura in s_backup (buffer static riusato: mai 214 B sullo stack, regola 5). */
-  if (s_album_enabled && prv_read_blob(GAL_KEY_MANIFEST, &s_backup, sizeof(s_backup))) {
-    if (prv_manifest_valid(&s_backup)) {
-      s_manifest = s_backup;
-      s_manifest_loaded = true;
+  /* Manifest: una sola ricerca (il record sta in coda al file: ~1 scansione), poi persist_get_size
+   * e persist_read_data riprendono dal record trovato. Schema 1 (214 B) → migrazione. */
+  TMR(t_man);
+  if (persist_exists(GAL_KEY_MANIFEST)) {
+    const int size = persist_get_size(GAL_KEY_MANIFEST);
+    if (size == (int)sizeof(GalManifest)) {
+      if (persist_read_data(GAL_KEY_MANIFEST, &s_backup, sizeof(s_backup)) == (int)sizeof(s_backup)
+          && prv_manifest_valid(&s_backup)) {
+        s_manifest = s_backup;
+        s_manifest_loaded = true;
+      } else {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest invalid (magic %08x schema %u crc): ignored",
+                (unsigned)s_backup.magic, (unsigned)s_backup.schema);
+      }
+    } else if (size == (int)sizeof(GalManifestV1)) {
+      if (persist_read_data(GAL_KEY_MANIFEST, &s_v1, sizeof(s_v1)) == (int)sizeof(s_v1) && prv_v1_valid(&s_v1)) {
+        prv_migrate_v1();
+      } else {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest v1 invalid (magic %08x schema %u): ignored",
+                (unsigned)s_v1.magic, (unsigned)s_v1.schema);
+      }
     } else {
-      APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest invalid (magic %08x schema %u crc): ignored",
-              (unsigned)s_backup.magic, (unsigned)s_backup.schema);
+      APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest size %d: ignored", size);
     }
+  }
+#ifdef GALLERIA_DEBUG_TIMING
+  s_t_man_ms = TMR_MS(t_man);
+#endif
+  if (!settings_validate(&s_manifest.settings)) {
+    settings_set_defaults(&s_manifest.settings);   /* record letto ma impostazioni fuori intervallo */
+  }
+  if (!s_album_enabled) {
+    /* Quota < 1 MiB: il record serve solo per impostazioni e shake; gli slot non sono leggibili
+     * (storage_read_chunk rifiuta) e non devono comparire come validi (model.c li proverebbe tutti). */
+    memset(s_manifest.slots, 0, sizeof(s_manifest.slots));
+    memset(s_manifest.order, GAL_SLOT_NONE, sizeof(s_manifest.order));
   }
   APP_LOG(APP_LOG_LEVEL_INFO, "storage: quota=%u album=%d schema=%d manifest=%s valid=%u",
           (unsigned)s_quota, (int)s_album_enabled, (int)schema,
@@ -165,89 +317,57 @@ uint8_t storage_valid_slots(void) {
   return n;
 }
 
-/* ---- impostazioni ---- */
+uint16_t storage_open_ms(void) {
+  return s_open_ms;
+}
+
+int storage_debug_ms(uint8_t which) {
+#ifdef GALLERIA_DEBUG_TIMING
+  return which == 0 ? (int)s_open_ms : s_t_man_ms;
+#else
+  (void)which;
+  return 0;
+#endif
+}
+
+/* ---- impostazioni (nel manifest) ---- */
 
 bool storage_read_settings(GalSettings *out) {
-  if (!out) {
-    return false;
+  if (!out || !s_manifest_loaded) {
+    return false;                          /* nessun record: default (nessuna ricerca a vuoto) */
   }
-  static GalSettings s_tmp;
-  if (!prv_read_blob(GAL_KEY_SETTINGS, &s_tmp, sizeof(s_tmp))) {
-    return false;
-  }
-  if (s_tmp.schema != GAL_SETTINGS_SCHEMA
-      || crc16_ccitt((const uint8_t *)&s_tmp, sizeof(s_tmp) - 2) != s_tmp.crc16) {
-    APP_LOG(APP_LOG_LEVEL_WARNING, "storage: settings invalid (schema %u): defaults", (unsigned)s_tmp.schema);
-    return false;
-  }
-  *out = s_tmp;
+  *out = s_manifest.settings;
   return true;
-}
-
-static void prv_write_settings_now(void) {
-  if (!s_settings_dirty) {
-    return;
-  }
-  if (prv_ensure_schema_key() != STORAGE_OK) {
-    return;                              /* dirty resta alzato: si ritenta al flush (test_storage S4) */
-  }
-  s_pending_settings.schema = GAL_SETTINGS_SCHEMA;
-  s_pending_settings.crc16 = crc16_ccitt((const uint8_t *)&s_pending_settings, sizeof(s_pending_settings) - 2);
-  const StorageResult r = prv_write_blob(GAL_KEY_SETTINGS, &s_pending_settings, sizeof(s_pending_settings));
-  if (r == STORAGE_OK) {
-    s_settings_dirty = false;            /* solo dopo una scrittura riuscita: mai perdere dati */
-  }
-  LOGV("storage: settings written -> %d", (int)r);   /* un fallimento e' gia' loggato da prv_write_blob */
-}
-
-static void prv_settings_timer_cb(void *ctx) {
-  s_settings_timer = NULL;
-  prv_write_settings_now();
 }
 
 void storage_settings_changed(const GalSettings *s) {
   if (!s) {
     return;
   }
-  s_pending_settings = *s;
+  s_manifest.settings = *s;
   s_settings_dirty = true;
-  if (s_settings_timer) {
-    if (app_timer_reschedule(s_settings_timer, STORAGE_SETTINGS_DEBOUNCE_MS)) {
-      return;
-    }
-    /* Scaduto ma il callback è ancora in coda (prv_settings_timer_cb azzera l'handle per primo,
-     * quindi non ha ancora scritto): lo cancelliamo, il timer nuovo scrive la copia aggiornata fra
-     * 10 s (F2; stesso schema di sync.c). */
-    app_timer_cancel(s_settings_timer);
-  }
-  s_settings_timer = app_timer_register(STORAGE_SETTINGS_DEBOUNCE_MS, prv_settings_timer_cb, NULL);
-  if (!s_settings_timer) {
-    prv_write_settings_now();              /* senza timer (heap?) scriviamo subito: mai perdere dati */
-  }
+  prv_schedule_write();
 }
 
 void storage_flush(void) {
-  if (s_settings_timer) {
-    app_timer_cancel(s_settings_timer);
-    s_settings_timer = NULL;
+  if (s_write_timer) {
+    app_timer_cancel(s_write_timer);
+    s_write_timer = NULL;
   }
-  prv_write_settings_now();
+  if (!s_settings_dirty) {
+    return;                                /* solo shake pendente: NIENTE scrittura in deinit (uscita veloce) */
+  }
+  prv_write_pending_now();
 }
 
-/* ---- stato rotazione ---- */
+/* ---- stato rotazione (nel manifest) ---- */
 
 bool storage_read_rotstate(GalRotState *out) {
-  if (!out) {
+  if (!out || !s_manifest_loaded) {
     return false;
   }
-  GalRotState st;
-  if (!prv_read_blob(GAL_KEY_ROTSTATE, &st, sizeof(st))) {
-    return false;
-  }
-  if (crc16_ccitt((const uint8_t *)&st, sizeof(st) - 2) != st.crc16) {
-    return false;
-  }
-  *out = st;
+  out->shake_offset = s_manifest.shake_offset;
+  out->crc16 = 0;
   return true;
 }
 
@@ -255,10 +375,13 @@ bool storage_write_rotstate(const GalRotState *st) {
   if (!st) {
     return false;
   }
-  GalRotState w = *st;
-  w.crc16 = crc16_ccitt((const uint8_t *)&w, sizeof(w) - 2);
-  return prv_ensure_schema_key() == STORAGE_OK
-      && prv_write_blob(GAL_KEY_ROTSTATE, &w, sizeof(w)) == STORAGE_OK;
+  if (s_manifest.shake_offset == st->shake_offset && !s_shake_dirty) {
+    return true;                           /* invariato: nessuna scrittura */
+  }
+  s_manifest.shake_offset = st->shake_offset;
+  s_shake_dirty = true;
+  prv_schedule_write();                    /* debounce: mai una scansione nel gestore dello shake */
+  return true;
 }
 
 /* ---- foto ---- */
@@ -295,7 +418,7 @@ StorageResult storage_commit_slot(uint8_t slot, uint8_t format, uint32_t length,
   if (slot >= GAL_MAX_SLOTS || length == 0 || length > (uint32_t)GAL_KEYS_PER_SLOT * GAL_CHUNK_BYTES) {
     return STORAGE_ERR;
   }
-  s_backup = s_manifest;                    /* ripristino se la scrittura fallisce (mai 214 B sullo stack) */
+  s_backup = s_manifest;                    /* ripristino se la scrittura fallisce (mai 234 B sullo stack) */
   GalSlotMeta *m = &s_manifest.slots[slot];
   m->state = GAL_SLOT_VALID;
   m->format = format;

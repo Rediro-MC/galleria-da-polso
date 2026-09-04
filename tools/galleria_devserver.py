@@ -18,9 +18,12 @@ Endpoint (JSON UTF-8, `Cache-Control: no-store`, CORS `*`):
                                 inlinata da --page-dir (S6, build_config_page.py)
     GET  /state.json            modalita' pool (--album): payload completo {v, full, seq,
                                 settings, order, deleted, photos: [una voce per FORMATO],
-                                hooks: {scenario}};  modalita' relay (S6, senza --album):
-                                {v, seq, settings?, hooks} SENZA `full` (delta vuoto: il
-                                PKJS non cancella niente)
+                                hooks: {scenario, open_ms?}};  modalita' relay (S6, senza
+                                --album): {v, seq, settings?, hooks} SENZA `full` (delta
+                                vuoto: il PKJS non cancella niente).  `hooks.open_ms`
+                                (v1.9, --open-ms) fa forzare al PKJS HELLO.openMs prima del
+                                piano: serve a PROVARE l'avviso di avvio lento della config
+                                page, che in emulatore non scatterebbe mai
     GET  /save.json             payload dell'ultimo Save della config page vera (senza
                                 `full`); prima di quello, alias di /state.json
     GET  /pool.json             foto disponibili (--album) con anteprime
@@ -32,7 +35,7 @@ Endpoint (JSON UTF-8, `Cache-Control: no-store`, CORS `*`):
                                 config page vera (S6, riconosciuta da `deleted`; anche un
                                 {v, settings, order} senza `deleted` viene trattato come suo
                                 e respinto con 400, invece di passare per meta' — M2-bis F2)
-                                {v, settings (10), order, deleted, photos?: [{slot,
+                                {v, settings (tutti i campi), order, deleted, photos?: [{slot,
                                 photo_id, fmt, len, crc, data, name, thumb?}]} -> tenuto
                                 da parte per /save.json. In tutti e due: seq+1,
                                 {"ok": true, "seq": N} (campo sconosciuto a QUALSIASI
@@ -48,11 +51,17 @@ Uso:
     python3 tools/galleria_devserver.py --album a.jpg b.jpg c.jpg \
             --slots 3,7,11 --order 11,3,7 --scenario crc
 
+    # S8: font nuovo (4) e cifre "trasparenti 3D" (digit_style 2), applicati senza riavvio
+    python3 tools/galleria_devserver.py --album a.jpg --settings '{"digit_style": 2, "font": 4}'
+
     # dall'altro terminale: apre la pagina nel browser con ?return_to=...
     pebble emu-app-config --emulator emery
 
     # S6: config page vera inlinata a ogni richiesta, nessun album (modalita' relay)
     python3 tools/galleria_devserver.py --page-dir apps/galleria/src/pkjs/config
+
+    # v1.9: la stessa cosa, ma con l'avviso "Galleria si avvia lentamente (2,2 s)" acceso
+    python3 tools/galleria_devserver.py --page-dir apps/galleria/src/pkjs/config --open-ms 2150
 
     # autotest completo (nessuna rete esterna, immagini sintetiche)
     python3 tools/galleria_devserver.py --selftest
@@ -119,9 +128,11 @@ FMT_LEN = {FMT_RAW6: RAW6_BYTES, FMT_RAW1: RAW1_BYTES}
 # Impostazioni: nome, valori ammessi, descrizione dell'intervallo, default.
 # Stessi intervalli di settings_validate() in apps/galleria/src/c/settings.c e stessi default
 # di settings_set_defaults(). L'ordine è quello dei campi di GalSettings (design §4.1).
+# S8 (D21/D22): `font` arriva a 5 (3 = LECO, 4 Francois One, 5 Staatliches) e `digit_style` 0..3
+# (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D) occupa il byte 12 del blob.
 SETTINGS_SPEC = (
     ('layout',       tuple(range(0, 2)),                     '0..1',    0),
-    ('font',         tuple(range(0, 4)),                     '0..3',    0),
+    ('font',         tuple(range(0, 6)),                     '0..5',    0),
     ('clock_mode',   tuple(range(0, 3)),                     '0..2',    0),
     ('leading_zero', tuple(range(0, 3)),                     '0..2',    0),
     ('text_color',   tuple(range(0, 5)),                     '0..4',    0),
@@ -130,6 +141,7 @@ SETTINGS_SPEC = (
     ('order',        tuple(range(0, 2)),                     '0..1',    0),
     ('shake_next',   tuple(range(0, 2)),                     '0..1',    1),
     ('info_row',     tuple(range(0, 16)),                    '0..15',  15),
+    ('digit_style',  tuple(range(0, 4)),                     '0..3',    0),
 )
 SETTINGS_ALLOWED = {name: values for name, values, _d, _v in SETTINGS_SPEC}
 SETTINGS_RANGE_TEXT = {name: desc for name, _values, desc, _v in SETTINGS_SPEC}
@@ -243,6 +255,17 @@ def port_arg(text):
     if not 0 <= value <= 65535:
         raise argparse.ArgumentTypeError(
             '%d fuori intervallo (0..65535; 0 = porta libera)' % value)
+    return value
+
+
+def open_ms_arg(text):
+    """--open-ms: intero 0..65535 (uint16 come HELLO.OPEN_MS)."""
+    try:
+        value = int(text, 10)
+    except ValueError:
+        raise argparse.ArgumentTypeError('"%s" non è un numero intero' % text)
+    if not 0 <= value <= 65535:
+        raise argparse.ArgumentTypeError('%d fuori intervallo (0..65535 ms)' % value)
     return value
 
 
@@ -496,7 +519,8 @@ def validate_page_payload(body):
         return None, err
     missing = [name for name, _v, _d, _x in SETTINGS_SPEC if name not in settings]
     if missing:
-        return None, 'settings: mancano %s (la pagina manda tutti e 10 i campi)' % ', '.join(missing)
+        return None, 'settings: mancano %s (la pagina manda tutti e %d i campi)' % (
+            ', '.join(missing), len(SETTINGS_SPEC))
 
     _deleted, err = _page_slot_list(body['deleted'], 'deleted')
     if err:
@@ -603,16 +627,21 @@ class DevState(object):
     """Stato del server (album, ordine, impostazioni, scenario), protetto da un Lock."""
 
     def __init__(self, pool, photos, order, settings, scenario, settings_set=False,
-                 relay=False):
+                 relay=False, open_ms=None):
         self.lock = threading.Lock()
         self.pool = pool                     # sola lettura dopo la costruzione
         self.photos = list(photos)           # [{slot, src}] — src = indice nel pool
         self.order = list(order)             # [slot…]
-        self.settings = dict(settings)       # tutti e 10 i campi
+        self.settings = dict(settings)       # tutti i campi di SETTINGS_SPEC
         # `settings` entra in /state.json solo se l'utente le ha espresse (--settings o un Save):
         # altrimenti il PKJS (album.settingsSet) non deve sovrascrivere quelle dell'orologio (design §5.1).
         self.settings_set = bool(settings_set)
         self.scenario = scenario
+        # v1.9 (perf 04/09): hook dev-only per PROVARE l'avviso di avvio lento della config page.
+        # Lo stato che la pagina legge nasce nel PKJS (album.state() -> hash dell'URL), non qui:
+        # con --open-ms il PKJS forza HELLO.openMs a questo valore prima del piano (index.js, DEV).
+        # None = nessun hook (`hooks` resta {'scenario': …} come prima).
+        self.open_ms = None if open_ms is None else int(open_ms)
         # Modalita' relay (S6): niente album sul server, /state.json e' un delta vuoto.
         # In pool (S5b, --album) resta il payload `full: true`.
         self.relay = bool(relay)
@@ -625,6 +654,13 @@ class DevState(object):
 
     def _by_slot(self):
         return {entry['slot']: self.pool[entry['src']] for entry in self.photos}
+
+    def _hooks(self):
+        """Hook per il PKJS: sempre `scenario`, `open_ms` solo se richiesto (--open-ms)."""
+        hooks = {'scenario': self.scenario}
+        if self.open_ms is not None:
+            hooks['open_ms'] = self.open_ms
+        return hooks
 
     def state_dict(self):
         """Payload letto dal PKJS.
@@ -639,7 +675,7 @@ class DevState(object):
                 out = {'v': 1, 'seq': self.seq}
                 if self.settings_set:
                     out['settings'] = dict(self.settings)
-                out['hooks'] = {'scenario': self.scenario}
+                out['hooks'] = self._hooks()
                 return out
             by_slot = self._by_slot()
             photos = []
@@ -653,7 +689,7 @@ class DevState(object):
                                'url': '/photo/%d.raw1?b64=1' % slot})
             out = {'v': 1, 'full': True, 'seq': self.seq, 'order': list(self.order),
                    'deleted': [], 'photos': photos,
-                   'hooks': {'scenario': self.scenario}}
+                   'hooks': self._hooks()}
             if self.settings_set:
                 out['settings'] = dict(self.settings)
             return out
@@ -671,7 +707,7 @@ class DevState(object):
             if payload is not None:
                 payload['v'] = 1
                 payload['seq'] = self.seq
-                payload['hooks'] = {'scenario': self.scenario}
+                payload['hooks'] = self._hooks()
         return payload if payload is not None else self.state_dict()
 
     def pool_dict(self):
@@ -879,7 +915,8 @@ var RT = "";
 
 var SETTINGS_FIELDS = [
   { key: "layout", label: "Layout", opts: [[0, "A — ora in alto"], [1, "B — a tutto schermo"]] },
-  { key: "font", label: "Font", opts: [[0, "Anton"], [1, "Bebas"], [2, "Barlow"], [3, "LECO"]] },
+  { key: "font", label: "Font",
+    opts: [[0, "Anton"], [1, "Bebas"], [2, "Barlow"], [3, "LECO"], [4, "Francois One"], [5, "Staatliches"]] },
   { key: "clock_mode", label: "Formato ora", opts: [[0, "automatico"], [1, "12 h"], [2, "24 h"]] },
   { key: "leading_zero", label: "Zero iniziale", opts: [[0, "automatico"], [1, "sempre"], [2, "mai"]] },
   { key: "text_color", label: "Colore del testo",
@@ -889,7 +926,10 @@ var SETTINGS_FIELDS = [
     opts: [[0, "mai"], [5, "5"], [15, "15"], [30, "30"], [60, "60"], [180, "180"], [1440, "1440 (giornaliera)"]] },
   { key: "order", label: "Ordine", opts: [[0, "sequenziale"], [1, "casuale"]] },
   { key: "shake_next", label: "Shake = foto successiva", opts: [[0, "no"], [1, "sì"]] },
-  { key: "info_row", label: "Riga info (bit 1 passi, 2 batteria, 4 data, 8 BT)", number: [0, 15] }
+  { key: "info_row", label: "Riga info (bit 1 passi, 2 batteria, 4 data, 8 BT)", number: [0, 15] },
+  { key: "digit_style", label: "Stile cifre",
+    opts: [[0, "pieno"], [1, "trasparente (solo contorno)"], [2, "trasparente 3D (contorno + ombra)"],
+           [3, "pieno 3D (con ombra)"]] }
 ];
 var SCENARIOS = ["photo", "seq", "dup", "crc", "interrupt", "none"];
 var MAX_SLOTS = 12;
@@ -1825,8 +1865,9 @@ def selftest():
                   and item['photo_id'] == pool[k]['photo_id']
                   and item['crc6'] == pool[k]['crc6'] and item['crc1'] == pool[k]['crc1']
                   for k, item in enumerate(pj['pool'])))
-        check('pool.json: settings_defaults = i 10 default di SETTINGS_SPEC (F13)',
-              pj.get('settings_defaults') == SETTINGS_DEFAULTS and len(pj['settings_defaults']) == 10
+        check('pool.json: settings_defaults = gli %d default di SETTINGS_SPEC (F13)' % len(SETTINGS_SPEC),
+              pj.get('settings_defaults') == SETTINGS_DEFAULTS
+              and len(pj['settings_defaults']) == len(SETTINGS_SPEC)
               and set(pj['settings_defaults']) == set(SETTINGS_ALLOWED),
               str(pj.get('settings_defaults')))
 
@@ -1901,7 +1942,7 @@ def selftest():
 
         code, _h, st2 = get_json('/state.json')
         check('dopo il save: seq = 2', st2['seq'] == 2)
-        check('primo Save senza --settings: `settings` compare in state.json con tutti i 10 campi '
+        check('primo Save senza --settings: `settings` compare in state.json con tutti i campi '
               '(da qui il dev server è l\'autorità delle impostazioni)',
               'settings' in st2 and set(st2['settings']) == set(SETTINGS_ALLOWED), str(st2.get('settings')))
         check('dopo il save: 2 foto (4 voci) negli slot 0 e 5',
@@ -2162,7 +2203,7 @@ def selftest():
             dj = json.loads(out)
         except ValueError:
             dj = None
-        check('--dump-json state --settings/--scenario: settings completi (10) e hooks.scenario',
+        check('--dump-json state --settings/--scenario: settings completi e hooks.scenario',
               rc == 0 and dj is not None and set(dj.get('settings', {})) == set(SETTINGS_ALLOWED)
               and dj['settings']['layout'] == 1 and dj['hooks']['scenario'] == 'dup',
               'rc=%s out=%s' % (rc, out.strip()[:80]))
@@ -2254,6 +2295,18 @@ def selftest():
                   and set(dj.get('settings', {})) == set(SETTINGS_ALLOWED)
                   and dj['settings']['layout'] == 1 and dj['hooks']['scenario'] == 'crc',
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
+            # v1.9: --open-ms aggiunge SOLO l'hook open_ms (senza l'opzione `hooks` non cambia)
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--open-ms', '2150'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--open-ms 2150: hooks = {scenario, open_ms}',
+                  rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'open_ms': 2150}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--open-ms', '99999'])
+            check('--open-ms fuori intervallo: errore, niente traceback',
+                  rc != 0 and 'Traceback' not in err, 'rc=%s err=%s' % (rc, err.strip()[:90]))
             rc, out, err = run_cli(['--dump-json', 'state', '--page-dir', page_dir])
             try:
                 dj = json.loads(out)
@@ -2582,8 +2635,10 @@ def selftest():
                 ld = res['loaded']
                 check('pagina/%s: nessuna eccezione al caricamento' % label, res['load_error'] is None,
                       str(res['load_error']))
-                check('pagina/%s: 10 campi impostazioni, dataset.built, 6 scenari, pool e ordine resi' % label,
-                      ld['settings_children'] == 10 and ld['built'] == '1' and ld['scenario_options'] == 6
+                check('pagina/%s: %d campi impostazioni, dataset.built, 6 scenari, pool e ordine resi'
+                      % (label, len(SETTINGS_SPEC)),
+                      ld['settings_children'] == len(SETTINGS_SPEC) and ld['built'] == '1'
+                      and ld['scenario_options'] == 6
                       and ld['pool_children'] == 3 and ld['order_children'] == 2,
                       'campi=%s built=%s scenari=%s pool=%s ordine=%s' % (
                           ld['settings_children'], ld['built'], ld['scenario_options'],
@@ -2602,7 +2657,7 @@ def selftest():
                           'impostazioni: default (non ancora salvate)' in ld['head'], ld['head'])
                 rr = res['rerender']
                 check('pagina/%s: secondo render(): nessun doppione e il campo modificato resta' % label,
-                      res['rerender_error'] is None and rr['settings_children'] == 10
+                      res['rerender_error'] is None and rr['settings_children'] == len(SETTINGS_SPEC)
                       and rr['scenario_options'] == 6 and rr['values'].get('font') == '2',
                       'err=%s campi=%s scenari=%s font=%s' % (res['rerender_error'], rr['settings_children'],
                                                                rr['scenario_options'], rr['values'].get('font')))
@@ -2610,7 +2665,8 @@ def selftest():
                 want_settings = dict(custom if label == 'yes' else SETTINGS_DEFAULTS)
                 want_settings['font'] = 2
                 body = sv['posts'][0]['body'] if len(sv['posts']) == 1 and sv['posts'][0]['body'] else {}
-                check('pagina/%s: Salva → un solo POST /save con settings (10), order, photos, scenario' % label,
+                check('pagina/%s: Salva → un solo POST /save con settings (%d), order, photos, scenario'
+                      % (label, len(SETTINGS_SPEC)),
                       res['save_error'] is None and len(sv['posts']) == 1 and sv['posts'][0]['url'] == '/save'
                       and body.get('settings') == want_settings
                       and body.get('order') == dstate.order and body.get('photos') == two
@@ -2738,6 +2794,9 @@ def build_parser():
                          '(campi: %s)' % ', '.join('%s %s' % (n, SETTINGS_RANGE_TEXT[n]) for n, _v, _d, _x in SETTINGS_SPEC))
     ap.add_argument('--scenario', choices=SCENARIOS, default='photo',
                     help='guasto iniettato nella sync del PKJS (default: photo = nessun guasto)')
+    ap.add_argument('--open-ms', type=open_ms_arg, metavar='N',
+                    help='hook dev: HELLO.OPEN_MS finto (0..65535 ms) per provare l\'avviso di avvio '
+                         'lento della config page (sopra 1000 ms la pagina mostra il riquadro #slow)')
     ap.add_argument('--work', metavar='DIR',
                     help='cartella dei raw e delle anteprime (default: temporanea, rimossa in '
                          'uscita sia con Ctrl-C sia con SIGTERM)')
@@ -2791,7 +2850,8 @@ def build_state(args, slots, order, settings, work, prep_args, verbose=True):
                     settings=settings,
                     scenario=args.scenario,
                     settings_set=getattr(args, 'settings_set', bool(args.settings)),
-                    relay=getattr(args, 'relay_mode', False))
+                    relay=getattr(args, 'relay_mode', False),
+                    open_ms=getattr(args, 'open_ms', None))
 
 
 def main(argv=None):

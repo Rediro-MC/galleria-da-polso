@@ -14,6 +14,7 @@ var album = null;
 var scenario = 'photo';               /* solo dev: guasti iniettati nel motore (state.hooks.scenario), one-shot */
 var scenarioFired = false;
 var chunkNo = 0;
+var devOpenMs = null;                 /* solo dev: HELLO.OPEN_MS finto (state.hooks.open_ms, --open-ms) */
 
 /* Ripresa automatica (S5b, F9): una sync finita con errori viene ritentata con un backoff lungo —
  * ogni tentativo è solo JS_READY → HELLO → diff, quindi costa nulla se non c'è niente da fare.
@@ -157,6 +158,9 @@ var hooks = {
 
 var provider = {
   plan: function (hello) {
+    /* v1.9 (perf 04/09): in emulatore l'apertura del file persist è quasi istantanea, quindi l'avviso
+     * di avvio lento della config page non si vedrebbe mai: `--open-ms N` del dev server lo forza. */
+    if (DEV && devOpenMs !== null && hello) { hello.openMs = devOpenMs; }
     var p = album.plan(hello);
     chunkNo = 0;
     if (DEV && scenario === 'crc' && !scenarioFired && p.photos.length) {
@@ -220,9 +224,15 @@ function applyPayload(payload, full) {
 /* Stato dal dev server: completo solo se lo dichiara (full: true, come /state.json e /save.json
  * oggi); un payload delta (S6) non va applicato come stato completo (F10). */
 function applyDevState(state) {
+  var om;
   if (state && state.hooks && typeof state.hooks.scenario === 'string') {
     scenario = state.hooks.scenario;
     if (scenario !== 'photo' && scenario !== 'none') { log('[dev] scenario di guasto "' + scenario + '"'); }
+  }
+  om = state && state.hooks && state.hooks.open_ms;
+  if (typeof om === 'number' && isFinite(om) && om >= 0) {
+    devOpenMs = om & 0xFFFF;
+    log('[dev] HELLO.OPEN_MS forzato a ' + devOpenMs + ' ms (avviso di avvio lento)');
   }
   return applyPayload(state, !!(state && state.full === true));
 }
@@ -303,6 +313,8 @@ function configState() {
            deleted: st.deleted, watch: st.watch || null };
 }
 
+var cfgOpenedAt = 0;                                /* S8: ms fra Pebble.openURL e webviewclosed (tempo nella pagina) */
+
 Pebble.addEventListener('showConfiguration', function () {
   var hash = '', url;
   try { hash = b64.encodeUtf8(JSON.stringify(configState())); }
@@ -322,12 +334,15 @@ Pebble.addEventListener('showConfiguration', function () {
     url = 'data:text/html;charset=utf-8,' + encodeURIComponent(CONFIG_HTML) + '#' + hash;
     log('[config] apro la pagina (URL ' + url.length + ' car., stato ' + hash.length + ')');
   }
+  cfgOpenedAt = new Date().getTime();
   Pebble.openURL(url);
 });
 
 Pebble.addEventListener('webviewclosed', function (e) {
-  var payload = parseResponse(e && e.response), r;
-  log('[config] pagina chiusa: risposta di ' + ((e && typeof e.response === 'string') ? e.response.length : 0) + ' car.');
+  var payload = parseResponse(e && e.response), r, t0;
+  log('[config] pagina chiusa: risposta di ' + ((e && typeof e.response === 'string') ? e.response.length : 0) + ' car.' +
+      (cfgOpenedAt ? ' dopo ' + (new Date().getTime() - cfgOpenedAt) + ' ms' : ''));
+  cfgOpenedAt = 0;
   if (!payload) { log('[config] pagina chiusa senza modifiche'); return; }
   if (payload.dev) {
     if (!DEV) { log('[config] token dev fuori dall\'emulatore: ignorato'); return; }
@@ -340,7 +355,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
     return;
   }
   if (payload.v !== 1) { log('[config] payload v' + payload.v + ' non supportato'); return; }
+  t0 = new Date().getTime();
   r = applyPayload(payload, false);
+  log('[config] payload applicato in ' + (new Date().getTime() - t0) + ' ms');   /* S8: costo del localStorage del telefono */
   if (rolledBack(r)) { log('[config] modifiche annullate: nessuna sync'); return; }
   sync.resync();
 });

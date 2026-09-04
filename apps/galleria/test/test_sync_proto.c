@@ -399,12 +399,12 @@ static void test_hello(void) {
   CHECK_EQ(g_out.slots_len, SYNC_SLOTS_BYTES);
   CHECK_EQ(SYNC_SLOTS_BYTES, 60);
   /* F4: l'outbox di sync.c e' dimensionata sul HELLO (il messaggio piu' grande) con
-   * dict_calc_buffer_size(6, 1, 1, 1, 2, 2, SYNC_SLOTS_BYTES) = 1 + 6 tuple x 7 B di intestazione +
-   * 67 B di valori = 110 B (emery e flint: log "sync: open(4153/110)" / "open(3129/110)"). Questo pin
+   * dict_calc_buffer_size(7, 1, 1, 1, 2, 2, 2, SYNC_SLOTS_BYTES) = 1 + 7 tuple x 7 B di intestazione +
+   * 69 B di valori = 119 B (v1.9; emery e flint: log "sync: open(4153/119)" / "open(3129/119)"). Questo pin
    * fissa solo il valore atteso: sync.c NON e' compilato su host, quindi un campo aggiunto senza
    * aggiornare la chiamata di sync_init lo rileva solo il tripwire WARNING in emulatore (gate). */
-  CHECK_EQ(SYNC_HELLO_VALUE_BYTES, 67);
-  CHECK_EQ(1 + 6 * 7 + SYNC_HELLO_VALUE_BYTES, 110);
+  CHECK_EQ(SYNC_HELLO_VALUE_BYTES, 69);                 /* v1.9: + OPEN_MS u16 */
+  CHECK_EQ(1 + 7 * 7 + SYNC_HELLO_VALUE_BYTES, 119);
   CHECK(g_out.slots != NULL);
   CHECK_EQ(g_out.slot, GAL_SLOT_NONE);       /* SLOT non pertinente in HELLO */
   /* S5b: CRC-16/CCITT-FALSE dei primi 18 B delle impostazioni correnti (qui i default) */
@@ -414,6 +414,7 @@ static void test_hello(void) {
     CHECK_EQ(g_out.settings_crc, crc16_ccitt((const uint8_t *)&def, sizeof(def) - 2));
     CHECK_EQ(g_out.settings_crc, crc16_ccitt((const uint8_t *)settings_get(), sizeof(GalSettings) - 2));
     CHECK(g_out.settings_crc != 0);
+    CHECK_EQ(g_out.open_ms, storage_open_ms());   /* v1.9: apertura del file persist nel HELLO */
   }
   for (uint8_t k = 0; k < GAL_MAX_SLOTS; k++) {  /* album vuoto: tutto a zero */
     CHECK_EQ(hello_state(g_out.slots, k), 0);
@@ -1430,7 +1431,13 @@ static void test_settings_msg(void) {
   CHECK(shim_timer_pending());
   CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
   CHECK(shim_timer_fire());
-  CHECK_EQ(shim_key_len(GAL_KEY_SETTINGS), (int)sizeof(GalSettings));
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));   /* schema 2: nel manifest */
+  CHECK_EQ(shim_key_len(GAL_KEY_SETTINGS), -1);                          /* la chiave 10 non si scrive più */
+  {
+    GalSettings back;
+    CHECK(storage_read_settings(&back));
+    CHECK_EQ(back.interval_min, 180);
+  }
 
   /* secondo blob: la callback riceve i valori del PRIMO */
   GalSettings s2 = s;
@@ -1481,7 +1488,8 @@ static void test_settings_msg(void) {
   mk_valid_settings(&m); m.interval_min = 7;       expect_settings_rejected(m, "interval 7");
   mk_valid_settings(&m); m.interval_min = 31;      expect_settings_rejected(m, "interval 31");
   mk_valid_settings(&m); m.layout = 2;             expect_settings_rejected(m, "layout 2");
-  mk_valid_settings(&m); m.font = 4;               expect_settings_rejected(m, "font 4");
+  mk_valid_settings(&m); m.font = GAL_FONT_COUNT;  expect_settings_rejected(m, "font 6");     /* S8-stile: 4 e 5 sono F4/F5 */
+  mk_valid_settings(&m); m.digit_style = 4;        expect_settings_rejected(m, "digit_style 4");
   mk_valid_settings(&m); m.clock_mode = 3;         expect_settings_rejected(m, "clock_mode 3");
   mk_valid_settings(&m); m.leading_zero = 3;       expect_settings_rejected(m, "leading_zero 3");
   mk_valid_settings(&m); m.text_color = 5;         expect_settings_rejected(m, "text_color 5");
@@ -1499,13 +1507,29 @@ static void test_settings_msg(void) {
   CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
   CHECK_EQ(g_out.code, SYNC_CODE_OK);
   CHECK_EQ(settings_get()->interval_min, 0);
-  /* reserved[] non e' validato: un blob di uno schema futuro con reserved != 0 passa */
+  /* reserved[] non e' validato: un blob di uno schema futuro con reserved != 0 passa (S8-stile: sono 5 byte,
+   * il primo dei sei di prima e' diventato digit_style e QUELLO e' validato) */
   mk_valid_settings(&m);
   m.reserved[0] = 0xAA;
-  m.reserved[5] = 0x55;
+  m.reserved[4] = 0x55;
   CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
   CHECK_EQ(g_out.code, SYNC_CODE_OK);
   CHECK_EQ(settings_get()->reserved[0], 0xAA);
+  CHECK_EQ(settings_get()->reserved[4], 0x55);
+  /* S8-stile: font 4/5 e i 4 stili sono accettati e applicati */
+  mk_valid_settings(&m);
+  m.font = GAL_FONT_STAATLICHES;
+  m.digit_style = GAL_STYLE_FILL_3D;
+  CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
+  CHECK_EQ(g_out.code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->font, GAL_FONT_STAATLICHES);
+  CHECK_EQ(settings_get()->digit_style, GAL_STYLE_FILL_3D);
+  mk_valid_settings(&m);
+  m.font = GAL_FONT_FRANCOIS;
+  m.digit_style = GAL_STYLE_OUTLINE;
+  CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
+  CHECK_EQ(g_out.code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->digit_style, GAL_STYLE_OUTLINE);
 
   /* --- SETTINGS in SYNCING: applicate senza toccare il pending --- */
   fresh(QUOTA_OK, MAX_CHUNK);

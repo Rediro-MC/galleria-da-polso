@@ -8,7 +8,7 @@
  * test non consegna l'esito). sync_proto.c, storage.c, settings.c, model.c e rotation.c sono quelli
  * VERI (F1 end-to-end: l'hold della rotazione si osserva sulle chiamate finte di ui_photo/ui_time).
  *
- * Copre (spec S7 §2.7): F4 (outbox esatto 110 B, HELLO completo, tripwire "incompleto" con outbox
+ * Copre (spec S7 §2.7): F4 (outbox esatto 119 B, HELLO completo, tripwire "incompleto" con outbox
  * forzato a 100 dopo l'apertura), F2 (timer di silenzio: reschedule, scaduto-non-consumato,
  * callback stantio, timeout vero, nessun orfano), F1 (rotazione congelata durante la sostituzione
  * dello slot mostrato e un solo ricaricamento a fine sync), coda outbox (4 messaggi, il 5o scartato,
@@ -59,7 +59,7 @@ static int g_ok, g_fail;
 #define INBOX_MAX_STD 8200u                  /* app Core / emulatore */
 #define OVERHEAD      41u                    /* dict_calc_buffer_size(4, 4, 4, 4, 0) */
 #define SLACK         16u                    /* SYNC_INBOX_SLACK */
-#define OUTBOX_EXACT  110u                   /* F4: dict_calc_buffer_size del HELLO */
+#define OUTBOX_EXACT  119u                   /* F4: dict_calc_buffer_size del HELLO (v1.9: + OPEN_MS) */
 #define INBOX_EMERY   (OVERHEAD + SLACK + MAX_CHUNK)   /* 4.153 */
 
 /* ---- payload deterministici (LCG, come test_sync_proto.c) ---- */
@@ -257,15 +257,15 @@ static void test_init_sizes(void) {
   CHECK(shim_am_is_open());
   CHECK_EQ(shim_am_last_open_result(), APP_MSG_OK);
   CHECK_EQ(shim_am_callbacks_registered(), 4);
-  /* F4: outbox ESATTO = dict_calc_buffer_size del HELLO = 110 B */
+  /* F4: outbox ESATTO = dict_calc_buffer_size del HELLO = 119 B (v1.9: + OPEN_MS u16) */
   CHECK_EQ(shim_am_outbox_size(), OUTBOX_EXACT);
-  CHECK_EQ(dict_calc_buffer_size(6, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2,
+  CHECK_EQ(dict_calc_buffer_size(7, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2, (size_t)2,
                                  (size_t)SYNC_SLOTS_BYTES), OUTBOX_EXACT);
-  CHECK_EQ(1u + 6u * 7u + SYNC_HELLO_VALUE_BYTES, OUTBOX_EXACT);
+  CHECK_EQ(1u + 7u * 7u + SYNC_HELLO_VALUE_BYTES, OUTBOX_EXACT);
   /* una tupla in piu' NON entrerebbe: il tripwire deve scattare, non consumare margine */
-  CHECK_EQ(dict_calc_buffer_size(7, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2,
-                                 (size_t)SYNC_SLOTS_BYTES, (size_t)1), 118u);
-  CHECK(dict_calc_buffer_size(7, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2,
+  CHECK_EQ(dict_calc_buffer_size(8, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2, (size_t)2,
+                                 (size_t)SYNC_SLOTS_BYTES, (size_t)1), 127u);
+  CHECK(dict_calc_buffer_size(8, (size_t)1, (size_t)1, (size_t)1, (size_t)2, (size_t)2, (size_t)2,
                               (size_t)SYNC_SLOTS_BYTES, (size_t)1) > OUTBOX_EXACT);
   /* inbox: overhead (41) + slack (16) + chunk di piattaforma (4.096) = 4.153 su emery */
   CHECK_EQ(dict_calc_buffer_size(4, (size_t)4, (size_t)4, (size_t)4, (size_t)0), OVERHEAD);
@@ -302,7 +302,7 @@ static void test_hello(void) {
   CHECK(m != NULL);
   if (m) {
     CHECK_EQ(m->msg, SYNC_MSG_HELLO);
-    CHECK_EQ(m->tuples, 6);
+    CHECK_EQ(m->tuples, 7);                  /* MSG, PROTO, FORMAT, MAX_CHUNK, CRC, OPEN_MS, SLOTS */
     CHECK_EQ(m->bytes, OUTBOX_EXACT);        /* il HELLO riempie l'outbox al byte */
     CHECK_EQ(m->proto, SYNC_PROTO_VERSION);
     CHECK_EQ(m->format, FMT_RAW6);
@@ -370,15 +370,15 @@ static void test_outbox_tripwire(void) {
   CHECK(m != NULL);
   if (m) {
     CHECK_EQ(m->msg, SYNC_MSG_HELLO);
-    CHECK_EQ(m->tuples, 5);                  /* SLOTS (67 B) non entra in 100 B */
+    CHECK_EQ(m->tuples, 6);                  /* SLOTS (67 B) non entra in 100 B */
     CHECK_EQ(m->slots_len, 0);
     CHECK_EQ(m->fields & SHIM_S_SLOTS, 0);
-    CHECK_EQ(m->bytes, 43u);                 /* 1 + 5 tuple: MSG, PROTO, FORMAT, MAX_CHUNK, CRC */
+    CHECK_EQ(m->bytes, 52u);                 /* 1 + 6 tuple: MSG, PROTO, FORMAT, MAX_CHUNK, CRC, OPEN_MS */
     CHECK_EQ(m->max_chunk, MAX_CHUNK);       /* le tuple scritte PRIMA restano valide */
     CHECK_EQ(m->proto, SYNC_PROTO_VERSION);
   }
   ack_all();
-  /* outbox rimessa a 110: il HELLO successivo e' di nuovo completo e senza WARNING */
+  /* outbox rimessa a 119: il HELLO successivo e' di nuovo completo e senza WARNING */
   shim_log_reset();
   shim_am_force_outbox_size(OUTBOX_EXACT);
   js_ready();
@@ -387,7 +387,7 @@ static void test_outbox_tripwire(void) {
   m = shim_am_last_sent();
   CHECK(m != NULL);
   if (m) {
-    CHECK_EQ(m->tuples, 6);
+    CHECK_EQ(m->tuples, 7);
     CHECK_EQ(m->slots_len, SYNC_SLOTS_BYTES);
     CHECK_EQ(m->bytes, OUTBOX_EXACT);
   }
@@ -1196,6 +1196,10 @@ static void test_env_settings(void) {
   env_case("text_color", base, s, 0, 0, 1, 0, 0);
   s = base; s.outline = GAL_OUTLINE_ALWAYS;
   env_case("outline", base, s, 0, 0, 1, 0, 0);
+  s = base; s.digit_style = GAL_STYLE_OUTLINE_3D;
+  env_case("digit_style", base, s, 0, 0, 1, 0, 0);   /* S8-stile: solo palette + redraw, nessuna strip da ricaricare */
+  s = base; s.digit_style = GAL_STYLE_OUTLINE; s.layout = GAL_LAYOUT_B;
+  env_case("stile+layout", base, s, 0, 1, 0, 0, 0);  /* layout vince anche sullo stile */
   s = base;
   env_case("nessun cambiamento", base, s, 0, 0, 0, 1, 0);   /* comportamento attuale: redraw prudente */
   s = base; s.clock_mode = GAL_CLOCK_24H; s.font = GAL_FONT_BEBAS;
@@ -1419,6 +1423,7 @@ static void test_open_failure(void) {
   model_tick(at(10, 0));
   model_shake();
   CHECK(shim_ui_total_calls() > 0);
+  CHECK(!shim_timer_pending());                     /* perf 04/09: lo shake resta in RAM, nessun timer */
   /* con AppMessage chiusa outbox_begin da' INVALID_STATE senza toccare l'iteratore: e' l'esito che
    * fa scartare i messaggi in coda (provato sotto sulla coda vera con la stessa iniezione) */
   DictionaryIterator *it = NULL;

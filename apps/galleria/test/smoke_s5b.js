@@ -9,7 +9,9 @@
  * senza Save e senza retry lungo) e tre volte di fila (passo 9: 1 JS_READY + 2 rinvii, poi
  * provider.onReadyFailed → scheduleRetry di index.js "nuovo tentativo fra 30 s (1)", timer da
  * 30 s compresso a 30 ms → sync riuscita → contatore azzerato). Le politiche di retry di
- * index.js nel dettaglio sono in test_index_retry.js. */
+ * index.js nel dettaglio sono in test_index_retry.js.
+ * Passo 11 (v1.9, perf 04/09): HELLO.OPEN_MS → snapshot dell'album → hash della config page →
+ * page_core.slowSeconds (l'avviso di avvio lento che vedrebbe l'utente). */
 var FakeWatch = require('fakewatch');
 var FakePebble = require('fake_pebble');
 var b64 = require('../src/pkjs/b64');
@@ -272,6 +274,30 @@ steps.push(function (next) {
     check(watch.received.length === n10, 'step10: nessun messaggio dopo la chiusura vuota');
     next();
   }, 150);
+});
+
+steps.push(function (next) {
+  /* 11. v1.9 (perf 04/09): HELLO.OPEN_MS -> snapshot dell'album -> hash della config page -> la
+   *     pagina (page_core, lo stesso codice che gira nella WebView) decide di mostrare l'avviso. */
+  var l11 = logs.length;
+  watch.openMs = 2150;                              /* orologio con il file persist gonfio */
+  pebble.fire('ready');                             /* motore gia' avviato -> resync -> nuovo HELLO */
+  realSetTimeout(function () {
+    var url, hash, st, core, dec;
+    check(hasLog(/HELLO .*open=2150ms/, l11), 'step11: il PKJS legge OPEN_MS dal HELLO');
+    pebble.fire('showConfiguration');
+    url = pebble.opened[pebble.opened.length - 1] || '';
+    hash = url.slice(url.indexOf('#') + 1);
+    try { st = JSON.parse(Buffer.from(b64.decode(hash)).toString('utf8')); } catch (e) { st = null; }
+    check(!!st && st.watch && st.watch.openMs === 2150, 'step11: watch.openMs nello stato della pagina (got ' +
+          (st && st.watch && st.watch.openMs) + ')');
+    core = require('../src/pkjs/config/page_core');
+    dec = core.decodeState('#' + hash);
+    check(dec.watch && dec.watch.openMs === 2150, 'step11: la pagina rilegge openMs dall\'hash');
+    check(core.slowSeconds(dec.watch) === '2,2', 'step11: la pagina mostrerebbe l\'avviso "2,2 s"');
+    pebble.fire('webviewclosed', { response: '' });
+    realSetTimeout(next, 50);
+  }, 400);
 });
 
 (function run() {

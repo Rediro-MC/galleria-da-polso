@@ -8,7 +8,8 @@
  *
  * Chiavi:
  *   galleria.v1.album        JSON {v, photos[12], order[], orderGen, settings{}, settingsSet, deleted[], orderDirty}
- *   galleria.v1.watch        JSON {at, format, maxChunk, settingsCrc, slots[12], foreign[]} = ultimo HELLO (per la config page)
+ *   galleria.v1.watch        JSON {at, format, maxChunk, settingsCrc, openMs, slots[12], foreign[]} = ultimo HELLO (per la config page)
+ *                            (`openMs`, v1.9: ms dell'apertura del file persist sull'orologio; null se l'HELLO non lo porta)
  *   galleria.v1.p<slot>.<fmt>  payload base64url senza padding (fmt 1 raw6 emery, 2 raw1 flint)
  *
  * Campo `stored` (S7, F12): ogni formato dei metadati (`photos[k].fmts[fmt].stored`) dice se il
@@ -64,7 +65,7 @@ var SETTINGS_BYTES = 20;
 /* [nome, min, max, default] — stessi intervalli di settings_validate() (settings.c). */
 var SETTINGS_FIELDS = [
   ['layout', 0, 1, 0],
-  ['font', 0, 3, 0],
+  ['font', 0, 5, 0],
   ['clock_mode', 0, 2, 0],
   ['leading_zero', 0, 2, 0],
   ['text_color', 0, 4, 0],
@@ -72,7 +73,8 @@ var SETTINGS_FIELDS = [
   ['interval_min', 0, 1440, 30],
   ['order', 0, 1, 0],
   ['shake_next', 0, 1, 1],
-  ['info_row', 0, 15, 15]
+  ['info_row', 0, 15, 15],
+  ['digit_style', 0, 3, 0]        /* S8: byte 12 del blob (ex primo `reserved`); l'ordine dell'array non e' quello dei byte */
 ];
 
 /* ---- helper puri ---- */
@@ -132,11 +134,13 @@ function sameSettings(a, b) {
 }
 
 /* GalSettings (settings.h, 20 B packed): schema, layout, font, clock_mode, leading_zero,
- * text_color, outline, interval_min u16 LE, order, shake_next, info_row, reserved[6], crc16 LE. */
+ * text_color, outline, interval_min u16 LE, order, shake_next, info_row, digit_style,
+ * reserved[5], crc16 LE. Il byte 12 (`digit_style`, S8/D21) era il primo dei sei `reserved`:
+ * i blob vecchi valgono 0 = "pieno", nessuna migrazione. */
 function settingsBytes(s) {
   var b = [SETTINGS_SCHEMA, s.layout, s.font, s.clock_mode, s.leading_zero, s.text_color, s.outline,
            s.interval_min & 0xFF, (s.interval_min >> 8) & 0xFF, s.order, s.shake_next, s.info_row,
-           0, 0, 0, 0, 0, 0];
+           s.digit_style, 0, 0, 0, 0, 0];   /* byte 12 = digit_style, poi reserved[5] */
   var c = crc.crc16(b);
   b.push(c & 0xFF, (c >> 8) & 0xFF);
   return b;
@@ -257,7 +261,10 @@ Album.prototype._loadWatch = function () {
   try { raw = this.s.getItem(WKEY); } catch (e) { raw = null; }
   if (typeof raw !== 'string') { return null; }
   try { w = JSON.parse(raw); } catch (e) { w = null; }
-  return (w && typeof w === 'object' && w.slots && typeof w.slots.length === 'number') ? w : null;
+  if (!w || typeof w !== 'object' || !w.slots || typeof w.slots.length !== 'number') { return null; }
+  /* Snapshot scritto prima di v1.9 (senza `openMs`): resta valido, il campo vale null. */
+  w.openMs = isInt(w.openMs) ? (w.openMs & 0xFFFF) : null;
+  return w;
 };
 
 /* L'album (senza `watch`, che ha la sua chiave): una scrittura per applyPayload/onDone. */
@@ -621,6 +628,9 @@ Album.prototype.plan = function (hello) {
 
   d.watch = { at: new Date().getTime(), format: fmt, maxChunk: hello.maxChunk | 0,
               settingsCrc: (hello.settingsCrc === undefined) ? null : hello.settingsCrc,
+              /* v1.9 (perf 04/09): tempo di apertura del file persist; la config page avvisa se e'
+               * sopra la soglia. Orologio vecchio (campo assente) -> null, mai un avviso. */
+              openMs: isInt(hello.openMs) ? (hello.openMs & 0xFFFF) : null,
               slots: wslots, foreign: foreign };
   this._saveWatch();
   /* eliminazioni già fatte sull'orologio: via dalla lista; `probed` = campi `stored` appena decisi */
@@ -733,7 +743,9 @@ Album.prototype.setLoader = function (fn) { this.loader = fn; };
 Album.prototype.settingsBytes = function () { return settingsBytes(this.data.settings); };
 Album.prototype.settingsCrc = function () { return settingsCrc(this.data.settings); };
 
-/* Stato per la config page (S6) e per i log. */
+/* Stato per la config page (S6) e per i log. `watch` e' lo snapshot dell'ultimo HELLO: porta anche
+ * `at` (quando) e `openMs` (v1.9: apertura del file persist sull'orologio, null se non noto), da cui
+ * la pagina ricava l'avviso di avvio lento. */
 Album.prototype.state = function () {
   var d = this.data;
   return { v: V, photos: d.photos, order: d.order.slice(), settings: d.settings, settingsSet: d.settingsSet,

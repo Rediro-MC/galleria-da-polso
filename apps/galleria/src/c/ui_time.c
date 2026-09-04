@@ -3,7 +3,10 @@
  * S2: sfondo = foto (ui_photo), colore testo da luma.c (una volta per foto), alone opzionale.
  * S3: cifre come sprite (ui_digits) nel layout A (o LECO di sistema) e nel layout B a tutto
  * schermo (HH sopra MM); con Quick View il layout B ripiega su una riga con la strip A, che in B
- * viene caricata solo per la durata della Quick View (S7, D16: −8.152 B di heap a regime). */
+ * viene caricata solo per la durata della Quick View (S7, D16: −8.152 B di heap a regime).
+ * S8-stile (D20/D21): le strip hanno un anello spesso `ring` px e un'ombra 3D `shadow` px come indici
+ * di palette; le costanti di layout sono la prima riga del RIEMPIMENTO e la strip parte `ring` righe
+ * più su (prv_strip_y); lo stile (pieno / trasparente / 3D) è solo palette (prv_apply_text_style). */
 #include <pebble.h>
 #include "ui_time.h"
 #include "ui_photo.h"
@@ -13,8 +16,8 @@
 #include "timefmt.h"
 #include "gal_log.h"
 
-_Static_assert(GAL_FONT_LECO == 3 && sizeof(DIGITS_METRICS) / sizeof(DIGITS_METRICS[0]) == 3,
-               "i font sprite sono 0..2 (Anton, Bebas, Barlow); GAL_FONT_LECO = 3 e' il font di sistema");
+_Static_assert(GAL_FONT_LECO == 3 && DIGITS_FONT_COUNT + 1 == GAL_FONT_COUNT,
+               "ogni font sprite dell'enum ha la sua strip (D22): solo LECO (3) non ne ha; un font nuovo vuole strip e risorse");
 
 /* ---- geometria (numeri da docs/design/galleria.md §3.1–§3.3) ---- */
 #define MARGIN_X        4
@@ -38,10 +41,11 @@ typedef struct {
   int16_t leco_y, leco_h;       /* box del testo ora: (0, leco_y, w, leco_h) */
   int16_t leco_bottom;          /* riga sotto l'ultimo pixel delle cifre LECO (misurata sugli screenshot) */
   int16_t info_y, info_h;       /* riga info (solo layout A) */
-  /* layout A con sprite: riga y, passo delle celle in 24 h (cifra, due punti) */
-  int16_t a_y, a_cell, a_colon;
-  /* layout B: righe HH/MM, cella e gap */
-  int16_t b_hh_y, b_mm_y, b_cell, b_gap;
+  /* layout A con sprite: PRIMA RIGA DEL RIEMPIMENTO (la strip parte `ring` righe più su: S8-stile, D20),
+   * passo delle celle in 24 h (cifra, due punti) */
+  int16_t a_fill_y, a_cell, a_colon;
+  /* layout B: prima riga del riempimento di HH e MM, cella e gap */
+  int16_t b_hh_fill_y, b_mm_fill_y, b_cell, b_gap;
   GFont   leco_font, ampm_font, info_font;
   /* dinamici (prv_pick_mode) */
   uint8_t mode;
@@ -127,8 +131,8 @@ static void prv_compute_layout(Layer *root) {
       s_lay.info_y = 82;
       s_lay.info_h = 22;
     }
-    s_lay.a_y = 8;   s_lay.a_cell = 40; s_lay.a_colon = 16;    /* §3.1: 40|40|16|40|40 = 176, x0 12 */
-    s_lay.b_hh_y = 12; s_lay.b_mm_y = 120; s_lay.b_cell = 64; s_lay.b_gap = 8;   /* §3.2 */
+    s_lay.a_fill_y = 9;   s_lay.a_cell = 40; s_lay.a_colon = 16;    /* §3.1: 40|40|16|40|40 = 176, x0 12; riempimento da y 9 (strip 8 con anello 1, 7 con anello 2) */
+    s_lay.b_hh_fill_y = 13; s_lay.b_mm_fill_y = 121; s_lay.b_cell = 64; s_lay.b_gap = 8;   /* §3.2: strip a 12/120 con anello 1, 11/119 con anello 2 */
   } else {
     s_lay.leco_font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);            /* cifre 29 px */
     s_lay.leco_y = 6;
@@ -137,15 +141,29 @@ static void prv_compute_layout(Layer *root) {
     s_lay.info_font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
     s_lay.info_y = 56;
     s_lay.info_h = 18;
-    s_lay.a_y = 6;   s_lay.a_cell = 28; s_lay.a_colon = 12;    /* §3.3: 28|28|12|28|28 = 124, x0 10 */
-    s_lay.b_hh_y = 12; s_lay.b_mm_y = 92; s_lay.b_cell = 48; s_lay.b_gap = 8;
+    s_lay.a_fill_y = 7;   s_lay.a_cell = 28; s_lay.a_colon = 12;    /* §3.3: 28|28|12|28|28 = 124, x0 10; riempimento da y 7 */
+    s_lay.b_hh_fill_y = 13; s_lay.b_mm_fill_y = 93; s_lay.b_cell = 48; s_lay.b_gap = 8;
   }
   s_lay.ampm_font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
 }
 
-/* Il font delle impostazioni è un font sprite (0..DIGITS_FONTS-1)? LECO e valori fuori intervallo no. */
+/* Strip del font (D22): gal_font_strip() e la tabella generata concordano (_Static_assert sopra); -1 = LECO
+ * o valore fuori intervallo (il controllo sull'indice resta come difesa). */
+static int8_t prv_strip_index(uint8_t font) {
+  const int8_t idx = gal_font_strip(font);
+  return (idx >= 0 && idx < (int8_t)DIGITS_STRIPS) ? idx : -1;
+}
+
+/* Il font delle impostazioni è un font sprite? LECO e valori fuori intervallo no. */
 static bool prv_sprite_font(void) {
-  return settings_get()->font < DIGITS_FONTS;
+  return prv_strip_index(settings_get()->font) >= 0;
+}
+
+/* Riga 0 della strip (PNG) per la taglia caricata, dato il riempimento che parte a fill_y: l'anello
+ * sta `ring` righe più su (D20). Con la taglia non caricata vale l'anello di 1 px di prima. */
+static int16_t prv_strip_y(uint8_t size, int16_t fill_y) {
+  const DigitStripMetrics *m = ui_digits_metrics(size);
+  return (int16_t)(fill_y - (m ? (int16_t)m->ring : 1));
 }
 
 /* La strip caricata deve corrispondere alla griglia cablata (regola 1: nessun legame implicito fra
@@ -157,18 +175,21 @@ static bool prv_strip_fits(uint8_t size) {
   }
   const bool a = (size == DIGITS_SIZE_A);
   const int16_t cell = a ? s_lay.a_cell : s_lay.b_cell;
-  const int16_t bottom = a ? (int16_t)(s_lay.a_y + m->strip_h) : (int16_t)(s_lay.b_mm_y + m->strip_h);
+  const int16_t top = prv_strip_y(size, a ? s_lay.a_fill_y : s_lay.b_hh_fill_y);   /* riga 0 della strip (in B: riga HH) */
+  const int16_t last_top = a ? top : prv_strip_y(size, s_lay.b_mm_fill_y);          /* in B la riga MM è la più bassa */
+  const int16_t bottom = (int16_t)(last_top + m->strip_h);
   const int16_t limit = a ? s_lay.info_y : s_lay.full.size.h;
-  if ((int16_t)m->cell_w != cell || bottom > limit) {
-    APP_LOG(APP_LOG_LEVEL_ERROR, "digits: size=%u cell_w=%u h=%u vs grid cell %d bottom %d > %d",
-            (unsigned)size, (unsigned)m->cell_w, (unsigned)m->strip_h, (int)cell, (int)bottom, (int)limit);
+  const bool rows_overlap = !a && (int16_t)(top + m->strip_h) > last_top;            /* HH sopra MM senza toccarsi */
+  if ((int16_t)m->cell_w != cell || top < 0 || bottom > limit || rows_overlap) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "digits: size=%u cell_w=%u h=%u vs grid cell %d top %d bottom %d > %d",
+            (unsigned)size, (unsigned)m->cell_w, (unsigned)m->strip_h, (int)cell, (int)top, (int)bottom, (int)limit);
     return false;
   }
   return true;
 }
 
-static bool prv_load_checked(uint8_t size, uint8_t font) {
-  if (!ui_digits_load(size, font)) {
+static bool prv_load_checked(uint8_t size, uint8_t strip) {
+  if (!ui_digits_load(size, strip)) {
     return false;
   }
   if (!prv_strip_fits(size)) {
@@ -191,29 +212,30 @@ static bool prv_load_checked(uint8_t size, uint8_t font) {
  * taglia scarica (prv_pick_mode ripiega: senza A sotto Quick View → MODE_A_LECO). */
 static void prv_load_strips(void) {
   const GalSettings *st = settings_get();
-  const bool sprite = prv_sprite_font();
+  const int8_t strip = prv_strip_index(st->font);
+  const bool sprite = strip >= 0;
   const bool layout_b = st->layout == GAL_LAYOUT_B;
   const bool obstructed = s_unob_h < s_lay.full.size.h;
-  const uint8_t font_b = sprite ? st->font : GAL_FONT_ANTON;
+  const uint8_t strip_b = sprite ? (uint8_t)strip : 0;   /* LECO in B → strip 0 (Anton) */
   bool need_a;
-  uint8_t font_a;
+  uint8_t strip_a;
 
   if (layout_b) {
-    prv_load_checked(DIGITS_SIZE_B, font_b);
+    prv_load_checked(DIGITS_SIZE_B, strip_b);
     if (ui_digits_is_loaded(DIGITS_SIZE_B)) {
       need_a = obstructed;               /* D16: la A solo sotto Quick View, con il font della B */
-      font_a = font_b;
+      strip_a = strip_b;
     } else {
       need_a = sprite;                   /* B non caricabile (heap): ripiego sul layout A con sprite (come prima di S7) */
-      font_a = st->font;
+      strip_a = strip_b;
     }
   } else {
     ui_digits_unload(DIGITS_SIZE_B);
     need_a = sprite;
-    font_a = st->font;
+    strip_a = strip_b;
   }
   if (need_a) {
-    prv_load_checked(DIGITS_SIZE_A, font_a);
+    prv_load_checked(DIGITS_SIZE_A, strip_a);
   } else {
     ui_digits_unload(DIGITS_SIZE_A);
   }
@@ -241,12 +263,12 @@ static void prv_pick_mode(void) {
     case MODE_B_SPRITE:
       /* Al tick cambia solo la riga MM (+ "PM" in basso): fascia dalla riga MM al fondo; la riga HH
        * (e il cambio AM/PM) si ridisegnano con un redraw completo quando cambia l'ora (D11). */
-      s_lay.band_y = (int16_t)(s_lay.b_mm_y - 1);
+      s_lay.band_y = (int16_t)(prv_strip_y(DIGITS_SIZE_B, s_lay.b_mm_fill_y) - 1);   /* 1 px di margine sopra l'anello */
       s_lay.band_h = (int16_t)(s_lay.full.size.h - s_lay.band_y);
       s_lay.luma_h = s_lay.full.size.h;                      /* colore deciso su entrambe le righe */
       break;
     case MODE_B_QV:
-      s_lay.band_h = s_lay.a_y + ui_digits_height(DIGITS_SIZE_A) + 2;   /* riga singola, niente riga info */
+      s_lay.band_h = (int16_t)(prv_strip_y(DIGITS_SIZE_A, s_lay.a_fill_y) + ui_digits_height(DIGITS_SIZE_A) + 2);   /* riga singola, niente riga info */
       s_lay.luma_h = s_lay.band_h;
       break;
     default:
@@ -273,25 +295,77 @@ static uint8_t prv_glyph_of(char c) {
   return (c >= '0' && c <= '9') ? (uint8_t)(c - '0') : DIGITS_GLYPH_COLON;
 }
 
-/* Riga di glifi con passo per cifra/due punti, a partire da x0: ritorna la larghezza totale.
- * Un glifo più largo del passo (Barlow '4' in 12 h) riceve il proprio inchiostro come passo,
- * così non si sovrappone mai ai vicini (il blocco si allarga di conseguenza). */
-static int16_t prv_place_row(GlyphPos *row, uint8_t *n, uint8_t size, const char *s, uint8_t count,
-                             int16_t x0, int16_t cell, int16_t colon, int16_t gap) {
+/* Passi UNIFORMI della griglia per la taglia (D3/S3: celle fisse, le cifre non si spostano al cambio di
+ * minuto), adattati al font (D25, terza versione — segnalazione dell'utente 05/09: con anello da 2 px gli
+ * anelli di tutti i font tranne Bebas si toccavano nelle celle 40|40|16|40|40 dimensionate per il
+ * riempimento). Con ring_gap >= 0: passo cifre = max(cell, nucleo della cifra PIÙ LARGA + ring_gap),
+ * passo ':' = max(colon, nucleo del ':' + ring_gap), nucleo = riempimento + 2R → fra due anelli restano
+ * almeno ring_gap px. Con ring_gap < 0 la riserva: max(cell, riempimento più largo + R) — l'unica che il
+ * generatore garantisce dentro lo schermo (nessun morso dell'anello sul riempimento, anelli sovrapposti
+ * al massimo di 1 px). */
+static void prv_grid_steps(uint8_t size, int16_t cell, int16_t colon, int8_t ring_gap,
+                           int16_t *adv_digit, int16_t *adv_colon) {
+  const DigitStripMetrics *m = ui_digits_metrics(size);
+  const int16_t ring = m ? (int16_t)m->ring : 0;
+  int16_t max_fill = 0;
+  for (uint8_t g = 0; g < 10; g++) {
+    const int16_t f = ui_digits_fill_width(size, g);
+    if (f > max_fill) {
+      max_fill = f;
+    }
+  }
+  const int16_t colon_fill = ui_digits_fill_width(size, DIGITS_GLYPH_COLON);
+  *adv_digit = cell;
+  *adv_colon = colon;
+  if (max_fill > 0) {
+    const int16_t need = (ring_gap >= 0) ? (int16_t)(max_fill + 2 * ring + ring_gap) : (int16_t)(max_fill + ring);
+    if (need > cell) {
+      *adv_digit = need;
+    }
+  }
+  if (colon_fill > 0) {
+    const int16_t need = (ring_gap >= 0) ? (int16_t)(colon_fill + 2 * ring + ring_gap) : (int16_t)(colon_fill + ring);
+    if (need > colon) {
+      *adv_colon = need;
+    }
+  }
+}
+
+/* Riga di glifi con i passi dati (cifra / due punti), a partire da x0: ritorna la larghezza totale. */
+static int16_t prv_place_row(GlyphPos *row, uint8_t *n, const char *s, uint8_t count,
+                             int16_t x0, int16_t adv_digit, int16_t adv_colon, int16_t gap) {
   int16_t x = x0;
   *n = 0;
   for (uint8_t i = 0; i < count && s[i] && *n < MAX_GLYPHS; i++) {
     const uint8_t g = prv_glyph_of(s[i]);
-    int16_t adv = (g == DIGITS_GLYPH_COLON) ? colon : cell;
-    const int16_t ink = ui_digits_ink_width(size, g);
-    if (ink > adv) {
-      adv = ink;
-    }
+    const int16_t adv = (g == DIGITS_GLYPH_COLON) ? adv_colon : adv_digit;
     row[*n] = (GlyphPos) { .glyph = g, .x = x, .adv = adv };
     (*n)++;
     x += adv + gap;
   }
   return (int16_t)(x - x0 - (*n ? gap : 0));
+}
+
+#define FIT_MARGIN 2   /* px liberi per lato richiesti ai tentativi con spazio fra gli anelli (non alla riserva) */
+
+/* Come prv_place_row, ma sceglie la griglia: prova 2, 1, 0 px fra gli anelli e tiene il primo per cui la
+ * riga (più `extra`, p.es. gap + "PM") sta in max_w − 2·FIT_MARGIN; altrimenti la riserva (sempre
+ * accettata: il generatore la verifica contro lo schermo). La griglia dipende solo da font, taglia e
+ * numero di glifi della riga → costante per tutta l'ora: 24 h gap 2 per tutti i font (Francois «00:44»
+ * 193 px, Anton 183), 12 h con «PM» Anton gap 0 (195), Francois/Staatliches/Barlow riserva (198). */
+static int16_t prv_place_row_fit(GlyphPos *row, uint8_t *n, uint8_t size, const char *s, uint8_t count,
+                                 int16_t cell, int16_t colon, int16_t gap, int16_t extra, int16_t max_w) {
+  static const int8_t RING_GAPS[] = { 2, 1, 0, -1 };
+  int16_t total = 0;
+  for (uint8_t k = 0; k < sizeof(RING_GAPS) / sizeof(RING_GAPS[0]); k++) {
+    int16_t adv_digit, adv_colon;
+    prv_grid_steps(size, cell, colon, RING_GAPS[k], &adv_digit, &adv_colon);
+    total = prv_place_row(row, n, s, count, 0, adv_digit, adv_colon, gap);
+    if (RING_GAPS[k] < 0 || total + extra <= max_w - 2 * FIT_MARGIN) {
+      break;
+    }
+  }
+  return total;
 }
 
 static void prv_shift_row(GlyphPos *row, uint8_t n, int16_t dx) {
@@ -332,33 +406,34 @@ static void prv_layout_time(void) {
     if (*mm == ':') {
       mm++;
     }
-    const int16_t hh_w = prv_place_row(s_row1, &s_row1_n, DIGITS_SIZE_B, s_time_buf, hh_n, 0, s_lay.b_cell, s_lay.b_cell, s_lay.b_gap);
-    const int16_t mm_w = prv_place_row(s_row2, &s_row2_n, DIGITS_SIZE_B, mm, 2, 0, s_lay.b_cell, s_lay.b_cell, s_lay.b_gap);
+    const int16_t hh_w = prv_place_row_fit(s_row1, &s_row1_n, DIGITS_SIZE_B, s_time_buf, hh_n, s_lay.b_cell, s_lay.b_cell, s_lay.b_gap, 0, w);
+    const int16_t mm_w = prv_place_row_fit(s_row2, &s_row2_n, DIGITS_SIZE_B, mm, 2, s_lay.b_cell, s_lay.b_cell, s_lay.b_gap, 0, w);
     prv_shift_row(s_row1, s_row1_n, (int16_t)((w - hh_w) / 2));
     prv_shift_row(s_row2, s_row2_n, (int16_t)((w - mm_w) / 2));
-    s_row1_y = s_lay.b_hh_y;
-    s_row2_y = s_lay.b_mm_y;
+    s_row1_y = prv_strip_y(DIGITS_SIZE_B, s_lay.b_hh_fill_y);
+    s_row2_y = prv_strip_y(DIGITS_SIZE_B, s_lay.b_mm_fill_y);
     /* 12 h: "PM" in basso a destra (§3.2), base a 2 px dal bordo */
     s_rc_ampm = GRect(w - MARGIN_X - as.w, s_lay.full.size.h - 2 - as.h, as.w + 2, as.h + 2);
     return;
   }
 
   /* MODE_A_SPRITE e MODE_B_QV: riga unica con la strip A; in 12 h le celle delle cifre si
-   * stringono di 2 px, i due punti tengono la cella piena (§3.1); un glifo più largo del passo
-   * tiene il suo inchiostro come passo (prv_place_row). */
+   * stringono di 2 px, i due punti tengono la cella piena (§3.1); la griglia si allarga in modo
+   * UNIFORME se il nucleo della cifra più larga + lo spazio fra gli anelli non ci sta (prv_place_row_fit, D25). */
   const bool ampm = s_ampm_buf[0] != '\0';
   const int16_t cell = s_lay.a_cell - (ampm ? AMPM_SHRINK : 0);
   const int16_t colon = s_lay.a_colon;
-  const int16_t total = prv_place_row(s_row1, &s_row1_n, DIGITS_SIZE_A, s_time_buf, MAX_GLYPHS, 0, cell, colon, 0);
-  const int16_t block = total + (as.w ? AMPM_GAP + as.w : 0);
+  const int16_t ampm_w = as.w ? (int16_t)(AMPM_GAP + as.w) : 0;
+  const int16_t total = prv_place_row_fit(s_row1, &s_row1_n, DIGITS_SIZE_A, s_time_buf, MAX_GLYPHS, cell, colon, 0, ampm_w, w);
+  const int16_t block = total + ampm_w;
   int16_t x0 = (w - block) / 2;
   if (x0 < 0) {
     x0 = 0;
   }
   prv_shift_row(s_row1, s_row1_n, x0);
-  s_row1_y = s_lay.a_y;
+  s_row1_y = prv_strip_y(DIGITS_SIZE_A, s_lay.a_fill_y);
   const DigitStripMetrics *m = ui_digits_metrics(DIGITS_SIZE_A);
-  const int16_t digits_bottom = s_lay.a_y + 1 + (m ? (int16_t)m->digit_h : 0);
+  const int16_t digits_bottom = s_lay.a_fill_y + (m ? (int16_t)m->digit_h : 0);   /* riga sotto l'ultimo pixel del riempimento */
   s_rc_ampm = GRect(x0 + total + AMPM_GAP, digits_bottom - as.h, as.w + 2, as.h + 2);
 }
 
@@ -502,7 +577,7 @@ static void prv_draw_text(GContext *ctx, const char *text, GFont font, GRect box
 }
 
 /* Colore e alone effettivi da impostazioni + risultato di luma (chiamata fuori dal tick);
- * aggiorna anche le palette delle strip caricate (contorno = alone). */
+ * aggiorna anche le palette delle strip caricate secondo lo stile delle cifre (D21). */
 static void prv_apply_text_style(void) {
   const GalSettings *st = settings_get();
   bool light;                                   /* testo chiaro (alone scuro) o viceversa */
@@ -527,8 +602,17 @@ static void prv_apply_text_style(void) {
 #endif
       break;
   }
-  ui_digits_set_colors(DIGITS_SIZE_A, s_fg, s_bg, s_halo);
-  ui_digits_set_colors(DIGITS_SIZE_B, s_fg, s_bg, s_halo);
+  /* Stile delle cifre sprite (S8-stile, D21): la stessa strip rende pieno / trasparente / 3D cambiando
+   * tre voci di palette. Pieno: riempimento = testo, anello = alone (se acceso), ombra spenta.
+   * Trasparente: riempimento GColorClear (la foto si vede dentro), anello = colore del testo, sempre.
+   * 3D: in più l'ombra nel colore opposto. Il testo di sistema (LECO, riga info, AM/PM) non cambia. */
+  const uint8_t style = st->digit_style;
+  const bool transparent = gal_style_transparent(style);
+  const GColor fill   = transparent ? GColorClear : s_fg;
+  const GColor ring   = transparent ? s_fg : (s_halo ? s_bg : GColorClear);
+  const GColor shadow = gal_style_shadow(style) ? s_bg : GColorClear;
+  ui_digits_set_palette(DIGITS_SIZE_A, fill, ring, shadow);
+  ui_digits_set_palette(DIGITS_SIZE_B, fill, ring, shadow);
 }
 
 static void prv_draw_row(GContext *ctx, uint8_t size, const GlyphPos *row, uint8_t n, int16_t y) {
@@ -566,7 +650,7 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
   int16_t dy = 0;
   if (compact) {
     const int16_t h = (s_lay.mode == MODE_A_LECO) ? s_lay.leco_h : ui_digits_height(DIGITS_SIZE_A);
-    const int16_t y = (s_lay.mode == MODE_A_LECO) ? s_lay.leco_y : s_lay.a_y;
+    const int16_t y = (s_lay.mode == MODE_A_LECO) ? s_lay.leco_y : prv_strip_y(DIGITS_SIZE_A, s_lay.a_fill_y);
     dy = (int16_t)((ub.size.h - h) / 2 - y);
   }
   GRect rc_ampm = s_rc_ampm;
@@ -591,7 +675,15 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
     prv_draw_text(ctx, s_ampm_buf, s_lay.ampm_font, rc_ampm, false);
   }
 
+#ifdef GALLERIA_DEBUG_TIMING
+  int32_t info_ms = -1;                          /* S8: costo del solo blocco riga info (-1 = non disegnato) */
+  time_t ti_s = 0;
+  uint16_t ti_ms = 0;
+#endif
   if (mode_a && !compact) {
+#ifdef GALLERIA_DEBUG_TIMING
+    time_ms(&ti_s, &ti_ms);
+#endif
     if (s_show_sync) {
       prv_draw_text(ctx, s_sync_buf, s_lay.info_font, s_rc_left, false);
     } else if (s_show_bt_icon) {
@@ -624,6 +716,9 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
     if (s_show_date) {
       prv_draw_text(ctx, s_date_buf, s_lay.info_font, s_rc_date, false);
     }
+#ifdef GALLERIA_DEBUG_TIMING
+    info_ms = prv_elapsed_ms(ti_s, ti_ms);
+#endif
   }
 
   if (!s_first_render_logged) {
@@ -632,8 +727,8 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
             (unsigned)heap_bytes_used(), (unsigned)heap_bytes_free());
   }
 #ifdef GALLERIA_DEBUG_TIMING
-  APP_LOG(APP_LOG_LEVEL_INFO, "draw: mode=%u full=%d %d ms", (unsigned)s_lay.mode, (int)full_draw,
-          (int)prv_elapsed_ms(t0s, t0ms));
+  APP_LOG(APP_LOG_LEVEL_INFO, "draw: mode=%u full=%d %d ms info %d", (unsigned)s_lay.mode, (int)full_draw,
+          (int)prv_elapsed_ms(t0s, t0ms), (int)info_ms);
 #endif
 }
 
@@ -718,10 +813,10 @@ void ui_time_init(Window *window) {
   prv_load_strips();                 /* strip sprite in heap (window_load; poi solo prv_refresh_mode) */
   prv_pick_mode();
   /* Una riga all'init: cs=content size, loc=locale, unob=altezza non ostruita, lay/font=impostazioni */
-  APP_LOG(APP_LOG_LEVEL_INFO, "ui_time: cs=%d bt=%d loc=%s %dx%d unob=%d lay=%u font=%u mode=%u band=%d",
+  APP_LOG(APP_LOG_LEVEL_INFO, "ui_time: cs=%d bt=%d loc=%s %dx%d unob=%d lay=%u font=%u sty=%u mode=%u band=%d",
           (int)s_lay.content_size, (int)s_connected, loc ? loc : "?",
           (int)s_lay.full.size.w, (int)s_lay.full.size.h, (int)s_unob_h,
-          (unsigned)settings_get()->layout, (unsigned)settings_get()->font,
+          (unsigned)settings_get()->layout, (unsigned)settings_get()->font, (unsigned)settings_get()->digit_style,
           (unsigned)s_lay.mode, (int)s_lay.band_h);
 
   s_bolt_path = gpath_create(&s_bolt_info);
@@ -805,7 +900,7 @@ void ui_time_set_connected(bool connected) {
     return;
   }
   s_connected = connected;
-  LOGV("bt: connected=%d", (int)connected);   /* evento raro, ma visibile dall'icona: solo diagnostica */
+  APP_LOG(APP_LOG_LEVEL_INFO, "bt: connected=%d", (int)connected);   /* evento raro: una riga per cambio (S8: BT reale) */
   if (s_layer && prv_mode_is_a()) {
     prv_layout_info();
     layer_mark_dirty(s_layer);

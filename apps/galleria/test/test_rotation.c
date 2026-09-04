@@ -1,5 +1,6 @@
 /* test_rotation.c — test host di rotation.c (gcc). Esegue: make -C apps/galleria/test run-test_rotation */
 #include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 #include "rotation.h"
 #include "photo_codec.h"
@@ -26,7 +27,14 @@ static void slot_set(GalManifest *m, uint8_t k, uint8_t state, uint8_t fmt) {
 
 static void test_sizes(void) {
   CHECK_EQ(sizeof(GalSlotMeta), 16);
-  CHECK_EQ(sizeof(GalManifest), 214);
+  /* schema 2 (revisione perf 04/09/2026): il manifest porta anche shake_offset e GalSettings. */
+  CHECK_EQ(sizeof(GalManifest), 234);
+  CHECK_EQ(sizeof(GalManifestV1), 214);       /* schema 1: solo migrazione */
+  CHECK_EQ(GAL_SCHEMA, 2);
+  CHECK_EQ(offsetof(GalManifest, order), 6);
+  CHECK_EQ(offsetof(GalManifest, shake_offset), 18);
+  CHECK_EQ(offsetof(GalManifest, slots), 20);   /* rotation.c legge order[]/slots[]: invariati */
+  CHECK_EQ(offsetof(GalManifestV1, slots), 20);
   CHECK_EQ(sizeof(GalRotState), 4);
   CHECK_EQ(GAL_KEY_CHUNK(0, 0), 1000u);
   CHECK_EQ(GAL_KEY_CHUNK(11, 255), 1000u + 11u * 256u + 255u);

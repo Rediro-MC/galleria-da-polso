@@ -4,7 +4,16 @@
  * Copre: init su persist vuoto, quota < 1 MiB (album disabilitato), scrittura+commit di una foto
  * raw6 (134 chunk), rilettura del manifest, manifest corrotto (CRC/dimensione/magic/schema),
  * schema futuro -> reset, E_OUT_OF_STORAGE su chunk/manifest (ripristino), argomenti invalidi,
- * debounce delle impostazioni (timer), rotstate, clear_slot/set_order e conteggio delle scritture. */
+ * debounce delle impostazioni (timer), rotstate, clear_slot/set_order e conteggio delle scritture.
+ *
+ * Schema 2 (revisione perf 04/09/2026): UN solo record di metadati (chiave 1, GalManifest 234 B =
+ * slot + ordine + shake_offset + GalSettings). Le chiavi 2 (GalRotState) e 10 (GalSettings) non
+ * vengono piu' scritte: esistono solo per la migrazione dallo schema 1 (GalManifestV1, 214 B),
+ * fatta una volta in storage_init e materializzata dal timer di debounce o dal flush di deinit.
+ * Contratti pinnati qui: s_schema_ok (la chiave 0 gia' allineata non viene riscritta), un solo
+ * timer per impostazioni e shake, flush che scrive SOLO con impostazioni pendenti (uno shake da
+ * solo va perso), scrittura fallita -> dirty mantenuti, settings_apply identiche -> nessuna
+ * scrittura, migrazione V1 in tutte le sue varianti. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,9 +65,16 @@ static StorageResult write_photo(uint8_t slot) {
   return STORAGE_OK;
 }
 
-static void fresh(uint32_t quota) {
+/* storage.c ha stato static (handle del timer + flag dirty) che sopravvive a shim_persist_reset:
+ * il flush lo azzera prima di ogni caso, cosi' i contatori di timer/scritture partono puliti. */
+static void reset_all(uint32_t quota) {
+  storage_flush();
   shim_persist_reset();
   shim_set_quota(quota);
+}
+
+static void fresh(uint32_t quota) {
+  reset_all(quota);
   (void)storage_init();
 }
 
@@ -72,8 +88,15 @@ static int order_all_none(const GalManifest *m) {
 }
 
 static int manifest_is_default(const GalManifest *m) {
+  GalSettings def;
+  settings_set_defaults(&def);
   if (m->magic != GAL_MAGIC || m->schema != GAL_SCHEMA || m->slot_count != GAL_MAX_SLOTS
-      || m->reserved != 0 || !order_all_none(m)) {
+      || m->shake_offset != 0 || !order_all_none(m)) {
+    return 0;
+  }
+  /* schema 2: anche le impostazioni fanno parte del record (crc16 escluso: vale 0 finche' non
+   * viene scritto) */
+  if (memcmp(&m->settings, &def, sizeof(GalSettings) - 2u) != 0) {
     return 0;
   }
   for (uint8_t k = 0; k < GAL_MAX_SLOTS; k++) {
@@ -86,6 +109,8 @@ static int manifest_is_default(const GalManifest *m) {
   return storage_valid_slots() == 0;
 }
 
+static const uint16_t GAL_INTERVALS[7] = { 0, 5, 15, 30, 60, 180, 1440 };   /* settings_validate */
+
 static void mk_settings(GalSettings *s, uint8_t seed) {
   memset(s, 0, sizeof(*s));
   s->schema       = 99;                      /* deve essere FORZATO a GAL_SETTINGS_SCHEMA */
@@ -95,7 +120,8 @@ static void mk_settings(GalSettings *s, uint8_t seed) {
   s->leading_zero = (uint8_t)((seed + 1u) % 3u);
   s->text_color   = (uint8_t)(seed % 5u);
   s->outline      = (uint8_t)((seed + 2u) % 3u);
-  s->interval_min = (uint16_t)(5u * (seed + 1u));
+  s->interval_min = GAL_INTERVALS[seed % 7u];  /* schema 2: il record viene RILETTO da storage_init,
+                                                  che rimette i default se un campo e' fuori range */
   s->order        = (uint8_t)(seed & 1u);
   s->shake_next   = (uint8_t)((seed >> 1) & 1u);
   s->info_row     = (uint8_t)(seed & 0x0Fu);
@@ -150,15 +176,36 @@ static void build_valid_state(void) {
 
 /* ---- 1. dimensioni e chiavi ---- */
 
+/* Le stesse asserzioni di gal_types.h, ripetute qui: se un giorno l'header perdesse i propri
+ * _Static_assert il layout del record persistito resterebbe comunque bloccato dai test. */
+_Static_assert(sizeof(GalManifest) == 234, "GalManifest deve essere 234 B (schema 2)");
+_Static_assert(sizeof(GalManifestV1) == 214, "GalManifestV1 deve essere 214 B (schema 1)");
+_Static_assert(sizeof(GalSlotMeta) == 16, "GalSlotMeta deve essere 16 B");
+_Static_assert(sizeof(GalSettings) == 20, "GalSettings deve essere 20 B");
+_Static_assert(sizeof(GalRotState) == 4, "GalRotState deve essere 4 B");
+_Static_assert(sizeof(GalManifest) <= GAL_CHUNK_BYTES, "il manifest deve stare in una chiave persist");
+_Static_assert(GAL_SCHEMA == 2, "schema persistito corrente");
+
 static void test_sizes(void) {
-  CHECK_EQ(sizeof(GalManifest), 214);
+  CHECK_EQ(sizeof(GalManifest), 234);
+  CHECK_EQ(sizeof(GalManifestV1), 214);
   CHECK_EQ(sizeof(GalSlotMeta), 16);
   CHECK_EQ(sizeof(GalRotState), 4);
   CHECK_EQ(sizeof(GalSettings), 20);
+  CHECK_EQ(GAL_SCHEMA, 2);
   CHECK(sizeof(GalManifest) <= GAL_CHUNK_BYTES);        /* una sola chiave persist */
-  CHECK_EQ(offsetof(GalManifest, crc16), 212);
+  CHECK_EQ(offsetof(GalManifest, crc16), 232);
   CHECK_EQ(offsetof(GalManifest, order), 6);
+  CHECK_EQ(offsetof(GalManifest, shake_offset), 18);
   CHECK_EQ(offsetof(GalManifest, slots), 20);
+  CHECK_EQ(offsetof(GalManifest, settings), 212);
+  /* schema 1: stessi offset fino a slots[], reserved dove ora sta shake_offset */
+  CHECK_EQ(offsetof(GalManifestV1, order), 6);
+  CHECK_EQ(offsetof(GalManifestV1, reserved), 18);
+  CHECK_EQ(offsetof(GalManifestV1, slots), 20);
+  CHECK_EQ(offsetof(GalManifestV1, crc16), 212);
+  CHECK_EQ(GAL_KEY_ROTSTATE, 2);
+  CHECK_EQ(GAL_KEY_SETTINGS, 10);
   CHECK_EQ(GAL_KEY_CHUNK(0, 0), 1000u);
   CHECK_EQ(GAL_KEY_CHUNK(3, 133), 1000u + 3u * 256u + 133u);
   CHECK_EQ(GAL_KEY_CHUNK(11, 255), 1000u + 11u * 256u + 255u);
@@ -169,8 +216,7 @@ static void test_sizes(void) {
 /* ---- 2. init su persist vuoto ---- */
 
 static void test_init_empty(void) {
-  shim_persist_reset();
-  shim_set_quota(QUOTA_OK);
+  reset_all(QUOTA_OK);
   CHECK(storage_init() == true);
   CHECK(storage_album_enabled());
   CHECK_EQ(storage_quota(), QUOTA_OK);
@@ -180,7 +226,7 @@ static void test_init_empty(void) {
   CHECK_EQ(m->magic, GAL_MAGIC);
   CHECK_EQ(m->schema, GAL_SCHEMA);
   CHECK_EQ(m->slot_count, GAL_MAX_SLOTS);
-  CHECK_EQ(m->reserved, 0);
+  CHECK_EQ(m->shake_offset, 0);
   CHECK(order_all_none(m));
   CHECK(manifest_is_default(m));
   CHECK_EQ(storage_valid_slots(), 0);
@@ -197,6 +243,7 @@ static void test_init_empty(void) {
   CHECK(!storage_read_rotstate(&r));
   CHECK(!storage_read_settings(NULL));
   CHECK(!storage_read_rotstate(NULL));
+  CHECK(!shim_timer_pending());                   /* init non programma nulla senza migrazione */
   uint8_t rd[8];
   CHECK(storage_read_chunk(0, 0, rd, sizeof(rd)) < 0);
 
@@ -213,8 +260,7 @@ static void test_init_empty(void) {
 /* ---- 3. quota < 1 MiB: album disabilitato, impostazioni e rotstate comunque ---- */
 
 static void test_disabled_quota(void) {
-  shim_persist_reset();
-  shim_set_quota(QUOTA_BAD);
+  reset_all(QUOTA_BAD);
   CHECK(storage_init() == false);
   CHECK(!storage_album_enabled());
   CHECK_EQ(storage_quota(), QUOTA_BAD);
@@ -235,33 +281,77 @@ static void test_disabled_quota(void) {
   CHECK_EQ(shim_key_count(), 0);
   CHECK_EQ(storage_valid_slots(), 0);
 
-  /* rotstate: scritto comunque (crea anche la chiave schema) */
+  /* shake: accettato comunque, ma solo con il debounce (nessuna chiave 2 nello schema 2) */
   GalRotState st;
   st.shake_offset = 5;
   st.crc16 = 0;
   CHECK(storage_write_rotstate(&st));
-  CHECK_EQ(shim_key_len(GAL_KEY_ROTSTATE), (int)sizeof(GalRotState));
-  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+  CHECK_EQ(shim_write_count(), 0);                     /* debounce: niente scritture immediate */
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
+  CHECK_EQ(shim_timer_registrations(), 1);
+  CHECK_EQ(storage_manifest()->shake_offset, 5);
   GalRotState back;
-  CHECK(storage_read_rotstate(&back));
-  CHECK_EQ(back.shake_offset, 5);
+  CHECK(!storage_read_rotstate(&back));                /* nessun record ancora scritto/letto */
 
-  /* impostazioni: debounce + scrittura comunque */
+  /* impostazioni: stesso timer (un solo AppTimer per impostazioni e shake) */
   GalSettings s, out;
   mk_settings(&s, 3);
   storage_settings_changed(&s);
+  CHECK_EQ(shim_timer_registrations(), 1);
+  CHECK_EQ(shim_timer_reschedules(), 1);
   CHECK(shim_timer_pending());
-  CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
+  CHECK_EQ(shim_write_count(), 0);
   CHECK(shim_timer_fire());
-  CHECK_EQ(shim_key_len(GAL_KEY_SETTINGS), (int)sizeof(GalSettings));
+  /* album disabilitato: il record dei metadati viene scritto lo stesso (impostazioni + shake) */
+  CHECK_EQ(shim_write_count(), 2);                     /* chiave schema + manifest */
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  CHECK_EQ(shim_last_write_key(), GAL_KEY_MANIFEST);   /* il manifest sempre per ultimo */
   CHECK(storage_read_settings(&out));
   CHECK(settings_eq_payload(&out, &s));
   CHECK_EQ(out.schema, GAL_SETTINGS_SCHEMA);
+  CHECK(storage_read_rotstate(&back));                 /* lo stesso record porta anche lo shake */
+  CHECK_EQ(back.shake_offset, 5);
 
-  /* nessun manifest e nessun chunk toccato */
-  CHECK(!shim_key_exists(GAL_KEY_MANIFEST));
+  /* nessuna chiave dello schema 1 e nessun chunk toccato */
+  CHECK(!shim_key_exists(GAL_KEY_SETTINGS));
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
   CHECK(!shim_key_exists(GAL_KEY_CHUNK(0, 0)));
-  CHECK_EQ(shim_key_count(), 3);
+  CHECK_EQ(shim_key_count(), 2);
+  CHECK(!storage_album_enabled());
+  CHECK_EQ(storage_valid_slots(), 0);
+
+  /* rilettura con la quota ancora bassa: impostazioni e shake sopravvivono al riavvio */
+  CHECK(storage_init() == false);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK(storage_read_rotstate(&back));
+  CHECK_EQ(back.shake_offset, 5);
+  CHECK_EQ(shim_key_count(), 2);
+
+  /* Album pieno e POI quota crollata (SDK vecchio / persist ridotto): schema 2 legge comunque il
+   * record, quindi gli slot restano VISIBILI mentre i chunk non sono leggibili. Comportamento
+   * CAMBIATO rispetto allo schema 1 (dove la lettura del manifest era sotto `if (s_album_enabled)`
+   * e storage_valid_slots() valeva 0): la lettura serve per impostazioni e shake, ma model.c vede
+   * degli slot validi e tenta 12 caricamenti falliti prima di ripiegare sulle demo. */
+  fresh(QUOTA_OK);
+  fill_photo();
+  CHECK_EQ(write_photo(1), STORAGE_OK);
+  CHECK_EQ(storage_commit_slot(1, FMT_RAW6, PHOTO_LEN, 0x1234u, 7u), STORAGE_OK);
+  CHECK_EQ(storage_valid_slots(), 1);
+  shim_set_quota(QUOTA_BAD);
+  CHECK(storage_init() == false);
+  /* Schema 2: il record viene letto anche con l'album disabilitato (porta impostazioni e shake) ma
+   * slot e ordine vengono azzerati in RAM: model.c non deve provare 12 slot illeggibili. */
+  CHECK_EQ(storage_valid_slots(), 0);
+  CHECK_EQ(storage_manifest()->order[0], GAL_SLOT_NONE);
+  {
+    uint8_t rd2[GAL_CHUNK_BYTES];
+    CHECK(storage_read_chunk(1, 0, rd2, sizeof(rd2)) < 0);   /* ...ma i chunk non si leggono */
+  }
+  CHECK_EQ(storage_commit_slot(1, FMT_RAW6, PHOTO_LEN, 1u, 1u), STORAGE_DISABLED);
 }
 
 /* ---- 4. foto: 134 chunk + commit + rilettura ---- */
@@ -377,7 +467,7 @@ static void test_manifest_corrupt(void) {
   build_valid_state();
   memcpy(g_ref, key_bytes(GAL_KEY_MANIFEST), sizeof(GalManifest));
   CHECK_EQ(crc16_ccitt(g_ref, (uint32_t)sizeof(GalManifest) - 2u),
-           ((uint16_t)g_ref[212] | (uint16_t)((uint16_t)g_ref[213] << 8)));
+           ((uint16_t)g_ref[232] | (uint16_t)((uint16_t)g_ref[233] << 8)));
 
   /* controllo: il riferimento viene accettato */
   CHECK(storage_init());
@@ -386,23 +476,29 @@ static void test_manifest_corrupt(void) {
 
   /* CRC alterato (entrambi i byte) */
   memcpy(g_tmp, g_ref, sizeof(GalManifest));
-  g_tmp[212] = (uint8_t)(g_tmp[212] ^ 0xFFu);
+  g_tmp[232] = (uint8_t)(g_tmp[232] ^ 0xFFu);
   expect_rejected(g_tmp, sizeof(GalManifest), "crc16 byte basso");
   memcpy(g_tmp, g_ref, sizeof(GalManifest));
-  g_tmp[213] = (uint8_t)(g_tmp[213] ^ 0x01u);
+  g_tmp[233] = (uint8_t)(g_tmp[233] ^ 0x01u);
   expect_rejected(g_tmp, sizeof(GalManifest), "crc16 byte alto");
 
   /* payload cambiato senza aggiornare il CRC */
   memcpy(g_tmp, g_ref, sizeof(GalManifest));
   g_tmp[offsetof(GalManifest, slots) + 8] ^= 0x20u;      /* dentro slots[0].crc32 */
   expect_rejected(g_tmp, sizeof(GalManifest), "payload alterato, crc16 vecchio");
-
-  /* dimensione 213 e 215 */
   memcpy(g_tmp, g_ref, sizeof(GalManifest));
-  expect_rejected(g_tmp, (uint16_t)(sizeof(GalManifest) - 1u), "213 byte");
+  g_tmp[offsetof(GalManifest, shake_offset)] ^= 0x11u;   /* schema 2: anche lo shake e' coperto */
+  expect_rejected(g_tmp, sizeof(GalManifest), "shake_offset alterato, crc16 vecchio");
+  memcpy(g_tmp, g_ref, sizeof(GalManifest));
+  g_tmp[offsetof(GalManifest, settings) + 2] ^= 0x0Fu;   /* schema 2: e le impostazioni */
+  expect_rejected(g_tmp, sizeof(GalManifest), "settings alterate, crc16 vecchio");
+
+  /* dimensione 233 e 235 (214 = schema 1: percorso di migrazione, testato a parte) */
+  memcpy(g_tmp, g_ref, sizeof(GalManifest));
+  expect_rejected(g_tmp, (uint16_t)(sizeof(GalManifest) - 1u), "233 byte");
   memcpy(g_tmp, g_ref, sizeof(GalManifest));
   g_tmp[sizeof(GalManifest)] = 0x00;
-  expect_rejected(g_tmp, (uint16_t)(sizeof(GalManifest) + 1u), "215 byte");
+  expect_rejected(g_tmp, (uint16_t)(sizeof(GalManifest) + 1u), "235 byte");
 
   /* magic diverso, CRC ricalcolato (solo il magic lo rifiuta) */
   {
@@ -414,10 +510,16 @@ static void test_manifest_corrupt(void) {
     expect_rejected(g_tmp, sizeof(GalManifest), "magic diverso (crc valido)");
 
     memcpy(&mm, g_ref, sizeof(mm));
-    mm.schema = 2;                                       /* schema futuro nel manifest */
+    mm.schema = GAL_SCHEMA + 1;                          /* schema futuro nel manifest */
     memcpy(g_tmp, &mm, sizeof(mm));
     manifest_fix_crc(g_tmp);
-    expect_rejected(g_tmp, sizeof(GalManifest), "schema 2 (crc valido)");
+    expect_rejected(g_tmp, sizeof(GalManifest), "schema 3 (crc valido)");
+
+    memcpy(&mm, g_ref, sizeof(mm));
+    mm.schema = 1;                                       /* schema 1 ma 234 B: non e' un V1 */
+    memcpy(g_tmp, &mm, sizeof(mm));
+    manifest_fix_crc(g_tmp);
+    expect_rejected(g_tmp, sizeof(GalManifest), "schema 1 in un record da 234 B");
 
     memcpy(&mm, g_ref, sizeof(mm));
     mm.slot_count = GAL_MAX_SLOTS - 1;
@@ -426,11 +528,17 @@ static void test_manifest_corrupt(void) {
     expect_rejected(g_tmp, sizeof(GalManifest), "slot_count 11 (crc valido)");
   }
 
-  /* tutti zero e tutti 0xFF */
+  /* tutti zero e tutti 0xFF, sia a 234 B (schema 2) sia a 214 B (percorso V1) */
   memset(g_tmp, 0, sizeof(GalManifest));
-  expect_rejected(g_tmp, sizeof(GalManifest), "214 byte a zero");
+  expect_rejected(g_tmp, sizeof(GalManifest), "234 byte a zero");
   memset(g_tmp, 0xFF, sizeof(GalManifest));
-  expect_rejected(g_tmp, sizeof(GalManifest), "214 byte a 0xFF");
+  expect_rejected(g_tmp, sizeof(GalManifest), "234 byte a 0xFF");
+  memset(g_tmp, 0, sizeof(GalManifestV1));
+  expect_rejected(g_tmp, sizeof(GalManifestV1), "214 byte a zero (V1)");
+  CHECK(!shim_timer_pending());                          /* nessuna migrazione, nessun timer */
+  memset(g_tmp, 0xFF, sizeof(GalManifestV1));
+  expect_rejected(g_tmp, sizeof(GalManifestV1), "214 byte a 0xFF (V1)");
+  CHECK(!shim_timer_pending());
   /* 0 byte */
   CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, g_tmp, 0), 0);
   CHECK(storage_init());
@@ -451,7 +559,7 @@ static void test_manifest_corrupt(void) {
 /* ---- 6. schema futuro/negativo nella chiave 0: reset dei metadati, chunk intatti ---- */
 
 static void test_schema_reset(void) {
-  const int32_t variants[] = { 2, 127, -1, -2147483647 - 1 };
+  const int32_t variants[] = { GAL_SCHEMA + 1, 127, -1, -2147483647 - 1 };
   for (size_t v = 0; v < sizeof(variants) / sizeof(variants[0]); v++) {
     build_valid_state();
     GalSettings s;
@@ -462,9 +570,19 @@ static void test_schema_reset(void) {
     st.shake_offset = 9;
     st.crc16 = 0;
     CHECK(storage_write_rotstate(&st));
-    CHECK(shim_key_exists(GAL_KEY_SETTINGS));
-    CHECK(shim_key_exists(GAL_KEY_ROTSTATE));
+    /* flush con SOLO lo shake pendente: nessuna scrittura (lo shake si perde, contratto D10) */
+    const int w_flush = shim_write_count();
+    storage_flush();
+    CHECK_EQ(shim_write_count(), w_flush);
+    CHECK(!shim_timer_pending());
     CHECK(shim_key_exists(GAL_KEY_MANIFEST));
+    CHECK(!shim_key_exists(GAL_KEY_SETTINGS));         /* schema 2: nessuna chiave 10 */
+    CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));         /* schema 2: nessuna chiave 2 */
+    /* chiavi 2 e 10 lasciate da una versione schema 1: prv_reset_meta deve cancellarle comunque */
+    uint8_t legacy[sizeof(GalSettings)];
+    memset(legacy, 0, sizeof(legacy));
+    CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, legacy, sizeof(GalSettings)), (int)sizeof(GalSettings));
+    CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, legacy, sizeof(GalRotState)), (int)sizeof(GalRotState));
     const int keys_before = shim_key_count();
     const int del_before = shim_delete_count();
 
@@ -489,6 +607,7 @@ static void test_schema_reset(void) {
 
   /* controllo: schema corrente -> nessuna cancellazione */
   build_valid_state();
+  CHECK(!shim_timer_pending());
   const int keys = shim_key_count();
   const int dels = shim_delete_count();
   CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
@@ -623,14 +742,36 @@ static void test_write_failures(void) {
   CHECK(memcmp(&before, storage_manifest(), sizeof(before)) == 0);
   shim_fail_writes_code(E_OUT_OF_STORAGE);
 
-  /* rotstate sotto iniezione */
+  /* shake sotto iniezione: la scossa e' sempre accettata (solo debounce), ma la scrittura del
+   * manifest alla scadenza fallisce -> dirty mantenuto e chiave 1 invariata (nessun dato perso) */
   GalRotState st;
   st.shake_offset = 2;
   st.crc16 = 0;
-  CHECK(!storage_write_rotstate(&st));
+  CHECK(storage_write_rotstate(&st));                  /* true: non scrive, programma soltanto */
   CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+  CHECK(shim_timer_pending());
+  const int wr = shim_write_count();
+  shim_log_reset();
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), wr);                    /* scrittura fallita */
+  CHECK(memcmp(key1, key_bytes(GAL_KEY_MANIFEST), sizeof(key1)) == 0);
+  CHECK_EQ(shim_log_find("storage: write key 1"), 1);  /* errore loggato una volta sola */
+  CHECK_EQ(shim_log_errors(), 1);
 
+  /* nuova scossa: il timer riparte e, finita l'emergenza, scrive lo shake accumulato */
+  st.shake_offset = 3;
+  CHECK(storage_write_rotstate(&st));
+  CHECK(shim_timer_pending());
   shim_fail_writes_after(-1);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), wr + 1);
+  GalRotState back;
+  CHECK(storage_read_rotstate(&back));
+  CHECK_EQ(back.shake_offset, 3);
+  CHECK_EQ(storage_manifest()->shake_offset, 3);
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), storage_manifest(), sizeof(GalManifest)) == 0);
+  CHECK(!shim_timer_pending());
+
   /* finita l'emergenza tutto riprende: generation avanza UNA sola volta */
   CHECK_EQ(storage_commit_slot(2, FMT_RAW6, 512u, 7u, 9u), STORAGE_OK);
   CHECK_EQ(storage_manifest()->slots[2].generation, 2);
@@ -668,19 +809,24 @@ static void test_settings(void) {
   CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
   CHECK_EQ(shim_write_count(), 0);
 
-  /* alla scadenza viene scritta l'ULTIMA copia */
+  /* alla scadenza viene scritta l'ULTIMA copia, DENTRO il manifest (schema 2) */
   CHECK(shim_timer_fire());
   CHECK(!shim_timer_pending());
-  CHECK_EQ(shim_write_count(), 2);                     /* schema + impostazioni */
-  CHECK_EQ(shim_key_len(GAL_KEY_SETTINGS), (int)sizeof(GalSettings));
+  CHECK_EQ(shim_write_count(), 2);                     /* schema + manifest */
+  CHECK(!shim_key_exists(GAL_KEY_SETTINGS));           /* la chiave 10 non esiste piu' */
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
   {
-    const uint8_t *p = key_bytes(GAL_KEY_SETTINGS);
-    CHECK(shim_key_exists(GAL_KEY_SETTINGS));
+    const uint8_t *man = key_bytes(GAL_KEY_MANIFEST);
+    const uint8_t *p = man + offsetof(GalManifest, settings);
     CHECK_EQ(p[0], GAL_SETTINGS_SCHEMA);               /* schema forzato */
     uint16_t pc = 0;
     memcpy(&pc, p + sizeof(GalSettings) - 2u, sizeof(pc));
     CHECK_EQ(pc, crc16_ccitt(p, (uint32_t)sizeof(GalSettings) - 2u));   /* CRC16 sui 18 B */
     CHECK(pc != 0xBEEF);
+    uint16_t mc = 0;
+    memcpy(&mc, man + sizeof(GalManifest) - 2u, sizeof(mc));
+    CHECK_EQ(mc, crc16_ccitt(man, (uint32_t)sizeof(GalManifest) - 2u)); /* CRC16 sui 232 B */
+    CHECK(memcmp(man, storage_manifest(), sizeof(GalManifest)) == 0);
   }
   CHECK(storage_read_settings(&out));
   CHECK(settings_eq_payload(&out, &b));
@@ -720,32 +866,59 @@ static void test_settings(void) {
   CHECK(settings_eq_payload(&out, &d));
   shim_fail_timer_register(false);
 
-  /* persist invalido -> read false (default in RAM) */
-  uint8_t saved[sizeof(GalSettings)];
-  uint8_t tmp[sizeof(GalSettings)];
-  memcpy(saved, key_bytes(GAL_KEY_SETTINGS), sizeof(saved));
+  /* Schema 2: le impostazioni non hanno piu' una chiave propria, quindi le vecchie prove di
+   * corruzione della chiave 10 diventano prove sul RECORD UNICO, rilette con storage_init.
+   * (a) un byte delle impostazioni alterato senza aggiornare il CRC del manifest -> tutto il
+   *     record e' rifiutato: default e nessun record caricato (anche le foto sono perse). */
+  uint8_t saved[sizeof(GalManifest)];
+  uint8_t tmp[sizeof(GalManifest)];
+  memcpy(saved, key_bytes(GAL_KEY_MANIFEST), sizeof(saved));
   memcpy(tmp, saved, sizeof(tmp));
-  tmp[5] = (uint8_t)(tmp[5] ^ 0xFFu);                  /* payload alterato: CRC non torna */
-  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  tmp[offsetof(GalManifest, settings) + 5] ^= 0xFFu;
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  CHECK(storage_init());
   CHECK(!storage_read_settings(&out));
+  CHECK(manifest_is_default(storage_manifest()));
+  /* (b) impostazioni FUORI INTERVALLO con CRC del manifest valido: il record resta buono (slot e
+   *     ordine si salvano) ma le impostazioni tornano ai default. */
   memcpy(tmp, saved, sizeof(tmp));
-  tmp[sizeof(tmp) - 1] = (uint8_t)(tmp[sizeof(tmp) - 1] ^ 0x80u);       /* CRC alterato */
-  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, tmp, sizeof(tmp)), (int)sizeof(tmp));
-  CHECK(!storage_read_settings(&out));
-  memcpy(tmp, saved, sizeof(tmp));
-  tmp[0] = 2;                                          /* schema != 1, CRC ricalcolato */
+  tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min)] = 7;   /* non ammesso */
+  tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min) + 1] = 0;
+  manifest_fix_crc(tmp);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));                  /* record caricato... */
   {
-    const uint16_t c2 = crc16_ccitt(tmp, (uint32_t)sizeof(tmp) - 2u);
-    memcpy(tmp + sizeof(tmp) - 2u, &c2, sizeof(c2));
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));            /* ...ma impostazioni ai default */
+    CHECK(!settings_eq_payload(&out, &d));
   }
-  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  /* (c) schema delle impostazioni diverso da GAL_SETTINGS_SCHEMA: stessa regola */
+  memcpy(tmp, saved, sizeof(tmp));
+  tmp[offsetof(GalManifest, settings)] = GAL_SETTINGS_SCHEMA + 1;
+  manifest_fix_crc(tmp);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.schema, GAL_SETTINGS_SCHEMA);
+  {
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));
+  }
+  /* (d) dimensione sbagliata: record ignorato */
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, saved, sizeof(saved) - 1u),
+           (int)sizeof(saved) - 1);
+  CHECK(storage_init());
   CHECK(!storage_read_settings(&out));
-  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, saved, sizeof(saved) - 1u),
-           (int)sizeof(saved) - 1);                    /* dimensione sbagliata */
-  CHECK(!storage_read_settings(&out));
-  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, saved, sizeof(saved)), (int)sizeof(saved));
-  CHECK(storage_read_settings(&out));                  /* ripristinato */
-  CHECK(settings_eq_payload(&out, &d));
+  /* (e) record ripristinato: torna tutto (le impostazioni di d NON erano valide -> default) */
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, saved, sizeof(saved)), (int)sizeof(saved));
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &d));                /* impostazioni valide: sopravvivono al riavvio */
+  CHECK_EQ(out.schema, GAL_SETTINGS_SCHEMA);
+  CHECK_EQ(storage_valid_slots(), 0);                  /* questo caso non ha foto */
 
   /* scrittura fallita alla scadenza del timer: le impostazioni pendenti restano dirty e il flush le
    * ritenta (BUG S4 trovato da questo test e corretto: s_settings_dirty veniva azzerato PRIMA della
@@ -756,8 +929,11 @@ static void test_settings(void) {
   storage_settings_changed(&e);
   CHECK(shim_timer_pending());
   CHECK(shim_timer_fire());
+  /* schema 2: storage_read_settings ritorna la copia in RAM (gia' aggiornata), mentre in PERSIST
+   * c'e' ancora il record vecchio: la scrittura e' fallita e resta pendente */
   CHECK(storage_read_settings(&out));
-  CHECK(settings_eq_payload(&out, &d));                /* in persist c'è ancora la copia vecchia */
+  CHECK(settings_eq_payload(&out, &e));
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), saved, sizeof(saved)) == 0);
   shim_fail_writes_after(-1);
   const int wf = shim_write_count();
   storage_flush();
@@ -809,50 +985,116 @@ static void test_settings(void) {
   CHECK_EQ(shim_timer_orphans(), 0);                   /* per tutta la sezione timer */
 }
 
-/* ---- 10. stato rotazione ---- */
+/* ---- 10. stato rotazione (shake nel manifest, debounce come le impostazioni) ---- */
 
 static void test_rotstate(void) {
   fresh(QUOTA_OK);
   GalRotState out;
-  CHECK(!storage_read_rotstate(&out));
+  CHECK(!storage_read_rotstate(&out));                 /* nessun record */
   CHECK(!storage_read_rotstate(NULL));
   CHECK(!storage_write_rotstate(NULL));
   CHECK_EQ(shim_write_count(), 0);
+  CHECK(!shim_timer_pending());
 
+  /* prima scossa: solo debounce, nessuna scrittura e nessuna chiave 2 */
   GalRotState st;
-  st.shake_offset = 27719;                             /* ROT_SHAKE_MOD − 1: 16 bit, little-endian */
-  st.crc16 = 0x1234;                                   /* deve essere ricalcolato */
+  st.shake_offset = 27719;                             /* ROT_SHAKE_MOD - 1: 16 bit, little-endian */
+  st.crc16 = 0x1234;                                   /* ignorato: il CRC e' quello del manifest */
   CHECK(storage_write_rotstate(&st));
-  CHECK_EQ(shim_write_count(), 2);                     /* schema + rotstate */
-  CHECK_EQ(shim_key_len(GAL_KEY_ROTSTATE), (int)sizeof(GalRotState));
-  uint8_t saved[sizeof(GalRotState)];
-  memcpy(saved, key_bytes(GAL_KEY_ROTSTATE), sizeof(saved));
-  CHECK_EQ(saved[0], 0x47);
-  CHECK_EQ(saved[1], 0x6C);
-  {
-    uint16_t pc = 0;
-    memcpy(&pc, saved + 2, sizeof(pc));
-    CHECK_EQ(pc, crc16_ccitt(saved, 2));
-    CHECK(pc != 0x1234);
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+  CHECK(!shim_key_exists(GAL_KEY_MANIFEST));
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
+  CHECK_EQ(shim_timer_registrations(), 1);
+  CHECK_EQ(storage_manifest()->shake_offset, 27719);   /* subito in RAM (la rotazione lo usa) */
+  CHECK(!storage_read_rotstate(&out));                 /* ...ma nessun record ancora */
+
+  /* piu' scosse ravvicinate: UN solo timer (reschedule) e UNA sola scrittura */
+  for (uint16_t v = 27720; v <= 27724; v++) {
+    st.shake_offset = v;
+    CHECK(storage_write_rotstate(&st));
   }
+  CHECK_EQ(shim_timer_registrations(), 1);
+  CHECK_EQ(shim_timer_reschedules(), 5);
+  CHECK_EQ(shim_timer_orphans(), 0);
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);                     /* chiave schema + manifest */
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
   CHECK(storage_read_rotstate(&out));
-  CHECK_EQ(out.shake_offset, 27719);
+  CHECK_EQ(out.shake_offset, 27724);                   /* l'ULTIMO valore */
+  CHECK_EQ(out.crc16, 0);                              /* campo non piu' usato: sempre azzerato */
+  {
+    const uint8_t *p = key_bytes(GAL_KEY_MANIFEST) + offsetof(GalManifest, shake_offset);
+    CHECK_EQ(p[0], 0x4C);                              /* 27724 = 0x6C4C, little-endian */
+    CHECK_EQ(p[1], 0x6C);
+  }
 
-  uint8_t bad[sizeof(GalRotState)];
-  memcpy(bad, saved, sizeof(bad));
-  bad[3] = (uint8_t)(bad[3] ^ 0x01u);                  /* CRC errato */
-  CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, bad, sizeof(bad)), (int)sizeof(bad));
-  CHECK(!storage_read_rotstate(&out));
-  memcpy(bad, saved, sizeof(bad));
-  bad[1] = (uint8_t)(bad[1] ^ 0xFFu);                  /* payload alterato */
-  CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, bad, sizeof(bad)), (int)sizeof(bad));
-  CHECK(!storage_read_rotstate(&out));
-  CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, saved, sizeof(saved) - 1u), 3);   /* 3 B */
-  CHECK(!storage_read_rotstate(&out));
-  CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, saved, sizeof(saved)), (int)sizeof(saved));
+  /* shake INVARIATO: nessun timer, nessuna scrittura */
+  int w = shim_write_count();
+  int reg = shim_timer_registrations();
+  st.shake_offset = 27724;
+  CHECK(storage_write_rotstate(&st));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_timer_registrations(), reg);
+  CHECK_EQ(shim_write_count(), w);
+  CHECK(storage_write_rotstate(&st));                  /* idempotente */
+  CHECK_EQ(shim_write_count(), w);
+  CHECK(!shim_timer_pending());
+
+  /* riavvio: lo shake si rilegge dal manifest */
+  CHECK(storage_init());
+  CHECK_EQ(shim_write_count(), w);
   CHECK(storage_read_rotstate(&out));
+  CHECK_EQ(out.shake_offset, 27724);
+  CHECK_EQ(storage_manifest()->shake_offset, 27724);
 
-  /* roundtrip su shake_offset a 16 bit (tutti i byte bassi + estremi) */
+  /* flush con SOLO lo shake pendente: il timer viene cancellato e NON si scrive (l'offset va
+   * perso: contratto D10 rivista, l'uscita non deve pagare una scansione del file) */
+  st.shake_offset = 1234;
+  CHECK(storage_write_rotstate(&st));
+  CHECK(shim_timer_pending());
+  const int can = shim_timer_cancels();
+  storage_flush();
+  CHECK_EQ(shim_timer_cancels(), can + 1);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), w);                     /* NESSUNA scrittura */
+  CHECK(storage_init());
+  CHECK_EQ(storage_manifest()->shake_offset, 27724);   /* in persist c'e' ancora il valore vecchio */
+
+  /* flush con impostazioni pendenti: UNA scrittura che porta anche lo shake accumulato */
+  GalSettings sp;
+  mk_settings(&sp, 4);
+  reg = shim_timer_registrations();
+  const int res = shim_timer_reschedules();
+  st.shake_offset = 4321;
+  CHECK(storage_write_rotstate(&st));                  /* shake dirty: un timer... */
+  storage_settings_changed(&sp);                       /* ...piu' impostazioni: lo STESSO timer */
+  CHECK_EQ(shim_timer_registrations(), reg + 1);
+  CHECK_EQ(shim_timer_reschedules(), res + 1);
+  CHECK_EQ(shim_timer_orphans(), 0);
+  CHECK(shim_timer_pending());
+  w = shim_write_count();
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w + 1);                 /* una sola scrittura */
+  CHECK(!shim_timer_pending());
+  CHECK(storage_read_rotstate(&out));
+  CHECK_EQ(out.shake_offset, 4321);
+  GalSettings so;
+  CHECK(storage_read_settings(&so));
+  CHECK(settings_eq_payload(&so, &sp));
+  storage_flush();                                     /* idempotente: niente piu' pendente */
+  CHECK_EQ(shim_write_count(), w + 1);
+  CHECK(storage_init());                               /* e sopravvive al riavvio */
+  CHECK(storage_read_rotstate(&out));
+  CHECK_EQ(out.shake_offset, 4321);
+  CHECK(storage_read_settings(&so));
+  CHECK(settings_eq_payload(&so, &sp));
+
+  /* roundtrip su shake_offset a 16 bit (tutti i byte bassi + estremi), in RAM */
   int bad_rt = 0;
   for (int v = 0; v < 65536; v += (v < 256 ? 1 : 997)) {
     st.shake_offset = (uint16_t)v;
@@ -860,9 +1102,22 @@ static void test_rotstate(void) {
       bad_rt++;
     }
   }
-  st.shake_offset = 65535;
-  CHECK(storage_write_rotstate(&st) && storage_read_rotstate(&out) && out.shake_offset == 65535);
   CHECK_EQ(bad_rt, 0);
+  /* ...e attraverso persist per gli estremi */
+  const uint16_t extremes[4] = { 0, 1, 32768u, 65535u };
+  for (size_t i = 0; i < 4; i++) {
+    st.shake_offset = extremes[i];
+    CHECK(storage_write_rotstate(&st));
+    if (shim_timer_pending()) {
+      GalSettings force;
+      mk_settings(&force, (uint8_t)(i + 1u));
+      storage_settings_changed(&force);                /* le impostazioni fanno scrivere il record */
+      storage_flush();
+    }
+    CHECK(storage_init());
+    CHECK(storage_read_rotstate(&out));
+    CHECK_EQ(out.shake_offset, extremes[i]);
+  }
 }
 
 /* ---- 11. clear_slot / set_order ---- */
@@ -932,8 +1187,12 @@ static void test_clear_and_order(void) {
    * anche per un ordine identico (test_disabled_quota copre l'ordine diverso) */
   shim_set_quota(QUOTA_BAD);
   CHECK(!storage_init());
-  memset(same, GAL_SLOT_NONE, sizeof(same));             /* = manifest di default in RAM */
-  CHECK(memcmp(storage_manifest()->order, same, sizeof(same)) == 0);
+  /* Schema 2: il record viene letto ANCHE con l'album disabilitato (porta impostazioni e shake) ma
+   * slot e ordine vengono azzerati in RAM (storage_init). Il controllo di quota resta comunque
+   * PRIMA del confronto: STORAGE_DISABLED anche per un ordine identico a quello in RAM. */
+  CHECK_EQ(storage_manifest()->order[0], GAL_SLOT_NONE);
+  CHECK_EQ(storage_set_order(ord), STORAGE_DISABLED);
+  memset(same, GAL_SLOT_NONE, sizeof(same));
   CHECK_EQ(storage_set_order(same), STORAGE_DISABLED);
   CHECK_EQ(shim_write_count(), w + 2);
   shim_set_quota(QUOTA_OK);
@@ -962,6 +1221,448 @@ static void test_clear_and_order(void) {
   CHECK_EQ(storage_valid_slots(), 3);
 }
 
+/* ---- 12. chiave 0 (s_schema_ok): la prima scrittura la ripete solo se serve ---- */
+
+static void test_schema_key_writes(void) {
+  GalSettings s;
+
+  /* (a) chiave 0 ASSENTE: la prima scrittura la crea (2 scritture), il manifest per ultimo */
+  fresh(QUOTA_OK);
+  CHECK(!shim_key_exists(GAL_KEY_SCHEMA));
+  mk_settings(&s, 2);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  CHECK_EQ(shim_last_write_key(), GAL_KEY_MANIFEST);
+
+  /* (b) chiave 0 gia' = GAL_SCHEMA all'init: NESSUNA riscrittura (una ricerca in meno nel file) */
+  CHECK(storage_init());
+  shim_reset_write_count();
+  mk_settings(&s, 5);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 1);                     /* solo il manifest */
+  CHECK_EQ(shim_last_write_key(), GAL_KEY_MANIFEST);
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  /* e nemmeno alla seconda/terza scrittura della stessa esecuzione */
+  shim_reset_write_count();
+  mk_settings(&s, 6);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(storage_commit_slot(1, FMT_RAW6, 256u, 1u, 1u), STORAGE_OK);
+  CHECK_EQ(shim_write_count(), 2);                     /* due manifest, zero chiavi 0 */
+
+  /* (c) chiave 0 = 1 (schema vecchio senza manifest): la prima scrittura la porta a 2 */
+  reset_all(QUOTA_OK);
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, 1), 4);
+  CHECK(storage_init());
+  CHECK(!shim_timer_pending());                        /* nessun manifest: niente da migrare */
+  shim_reset_write_count();
+  mk_settings(&s, 7);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+
+  /* (d) chiave 0 = 0 (valore "mai scritto" del firmware): come (c) */
+  reset_all(QUOTA_OK);
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, 0), 4);
+  CHECK(storage_init());
+  shim_reset_write_count();
+  mk_settings(&s, 8);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+}
+
+/* ---- 13. migrazione schema 1 -> 2 ---- */
+
+static uint8_t g_v1[sizeof(GalManifestV1)];
+
+/* Manifest V1 valido: nslots foto in slot 0..n-1, order[] in ordine INVERSO (non banale). */
+static void build_v1(uint8_t nslots, uint16_t reserved, int corrupt) {
+  GalManifestV1 v;
+  memset(&v, 0, sizeof(v));
+  v.magic = GAL_MAGIC;
+  v.schema = 1;
+  v.slot_count = GAL_MAX_SLOTS;
+  memset(v.order, GAL_SLOT_NONE, sizeof(v.order));
+  v.reserved = reserved;
+  for (uint8_t k = 0; k < nslots; k++) {
+    v.order[k] = (uint8_t)(nslots - 1u - k);
+    v.slots[k].state = GAL_SLOT_VALID;
+    v.slots[k].format = FMT_RAW6;
+    v.slots[k].generation = (uint16_t)(k + 1u);
+    v.slots[k].length = PHOTO_LEN;
+    v.slots[k].crc32 = 0x1000u + k;
+    v.slots[k].photo_id = 100u + k;
+  }
+  v.crc16 = crc16_ccitt((const uint8_t *)&v, (uint32_t)sizeof(v) - 2u);
+  if (corrupt) {
+    v.crc16 = (uint16_t)(v.crc16 ^ 0x0001u);
+  }
+  memcpy(g_v1, &v, sizeof(g_v1));
+}
+
+/* Chiave 10 dello schema 1 (schema e CRC coerenti, salvo corrupt). */
+static void write_legacy_settings(const GalSettings *s, int corrupt) {
+  GalSettings t = *s;
+  t.schema = GAL_SETTINGS_SCHEMA;
+  t.crc16 = crc16_ccitt((const uint8_t *)&t, (uint32_t)sizeof(t) - 2u);
+  if (corrupt) {
+    t.crc16 = (uint16_t)(t.crc16 ^ 0x0001u);
+  }
+  CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, &t, sizeof(t)), (int)sizeof(t));
+}
+
+/* Chiave 2 dello schema 1. */
+static void write_legacy_rotstate(uint16_t off, int corrupt) {
+  GalRotState r;
+  r.shake_offset = off;
+  r.crc16 = crc16_ccitt((const uint8_t *)&r, 2u);
+  if (corrupt) {
+    r.crc16 = (uint16_t)(r.crc16 ^ 0x0100u);
+  }
+  CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, &r, sizeof(r)), (int)sizeof(r));
+}
+
+/* Persist "schema 1": chiave 0 = 1, manifest V1 con nslots foto, chiavi 2/10 su richiesta. */
+static void setup_v1(uint8_t nslots, int corrupt_v1) {
+  reset_all(QUOTA_OK);
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, 1), 4);
+  build_v1(nslots, 0, corrupt_v1);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, g_v1, sizeof(g_v1)), (int)sizeof(g_v1));
+}
+
+static void test_migrate_v1(void) {
+  GalSettings old, out;
+  GalRotState rs;
+
+  /* (a) migrazione completa: V1 + chiave 10 valida + chiave 2 valida */
+  setup_v1(3, 0);
+  mk_settings(&old, 5);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(777, 0);
+  shim_reset_write_count();
+  const int del0 = shim_delete_count();
+  CHECK(storage_init());
+  /* l'init NON scrive: il record nuovo arriva dal timer di debounce (o dal flush di deinit) */
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK_EQ(shim_delete_count(), del0);                 /* le chiavi 2/10 restano dove sono */
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifestV1));
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), 1);
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
+  CHECK_EQ(shim_timer_registrations(), 1);
+  {
+    const GalManifest *m = storage_manifest();
+    CHECK_EQ(m->magic, GAL_MAGIC);
+    CHECK_EQ(m->schema, GAL_SCHEMA);                   /* in RAM e' gia' schema 2 */
+    CHECK_EQ(m->slot_count, GAL_MAX_SLOTS);
+    CHECK_EQ(m->shake_offset, 777);
+    CHECK_EQ(m->order[0], 2);
+    CHECK_EQ(m->order[1], 1);
+    CHECK_EQ(m->order[2], 0);
+    CHECK_EQ(m->order[3], GAL_SLOT_NONE);
+    CHECK_EQ(m->slots[0].generation, 1);
+    CHECK_EQ(m->slots[2].generation, 3);
+    CHECK_EQ(m->slots[2].photo_id, 102u);
+    CHECK_EQ(m->slots[2].length, PHOTO_LEN);
+    CHECK_EQ(m->slots[2].crc32, 0x1002u);
+    CHECK_EQ(m->slots[3].state, GAL_SLOT_EMPTY);
+  }
+  CHECK_EQ(storage_valid_slots(), 3);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));              /* impostazioni dalla chiave 10 */
+  CHECK_EQ(out.schema, GAL_SETTINGS_SCHEMA);
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 777);                      /* shake dalla chiave 2 */
+  CHECK_EQ(shim_log_find("schema 1 -> 2 migrated"), 1);
+
+  /* il timer materializza il record nuovo (234 B) e porta la chiave 0 a 2 */
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  CHECK_EQ(shim_last_write_key(), GAL_KEY_MANIFEST);
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), storage_manifest(), sizeof(GalManifest)) == 0);
+
+  /* rilettura: schema 2, nessuna nuova migrazione, impostazioni/shake/foto intatti */
+  {
+    GalManifest saved;
+    memcpy(&saved, storage_manifest(), sizeof(saved));
+    shim_reset_write_count();
+    CHECK(storage_init());
+    CHECK_EQ(shim_write_count(), 0);
+    CHECK(!shim_timer_pending());                      /* niente da migrare: nessun timer */
+    CHECK(memcmp(&saved, storage_manifest(), sizeof(saved)) == 0);
+    CHECK_EQ(shim_log_find("schema 1 -> 2 migrated"), 1);   /* migrato UNA volta sola */
+  }
+  CHECK_EQ(storage_valid_slots(), 3);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 777);
+
+  /* (b) chiave 10 ASSENTE: impostazioni ai default, shake migrato */
+  setup_v1(2, 0);
+  write_legacy_rotstate(5, 0);
+  CHECK(!shim_key_exists(GAL_KEY_SETTINGS));
+  CHECK(storage_init());
+  CHECK(shim_timer_pending());
+  CHECK(storage_read_settings(&out));
+  {
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));
+  }
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 5);
+  CHECK_EQ(storage_valid_slots(), 2);
+
+  /* (c) chiave 10 con CRC ERRATO: default (mai impostazioni a caso) */
+  setup_v1(2, 0);
+  mk_settings(&old, 6);
+  write_legacy_settings(&old, 1);
+  write_legacy_rotstate(6, 0);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  {
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));
+    CHECK(!settings_eq_payload(&out, &old));
+  }
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 6);                        /* lo shake si migra lo stesso */
+
+  /* (c2) chiave 10 con CRC valido ma valori FUORI INTERVALLO: default */
+  setup_v1(2, 0);
+  mk_settings(&old, 6);
+  old.interval_min = 7;                                /* non ammesso da settings_validate */
+  write_legacy_settings(&old, 0);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  {
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));
+  }
+  CHECK_EQ(out.interval_min, 30);
+
+  /* (c3) chiave 10 di dimensione sbagliata: default */
+  setup_v1(2, 0);
+  mk_settings(&old, 6);
+  {
+    GalSettings t = old;
+    t.schema = GAL_SETTINGS_SCHEMA;
+    t.crc16 = crc16_ccitt((const uint8_t *)&t, (uint32_t)sizeof(t) - 2u);
+    CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, &t, sizeof(t) - 1u), (int)sizeof(t) - 1);
+  }
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  {
+    GalSettings def;
+    settings_set_defaults(&def);
+    CHECK(settings_eq_payload(&out, &def));
+  }
+
+  /* (d) chiave 2 con CRC ERRATO / assente / troppo corta: shake 0, impostazioni migrate */
+  setup_v1(2, 0);
+  mk_settings(&old, 9);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(999, 1);
+  CHECK(storage_init());
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 0);
+  CHECK_EQ(storage_manifest()->shake_offset, 0);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+
+  setup_v1(2, 0);
+  CHECK(!shim_key_exists(GAL_KEY_ROTSTATE));
+  CHECK(storage_init());
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 0);
+
+  setup_v1(2, 0);
+  {
+    GalRotState r;
+    r.shake_offset = 321;
+    r.crc16 = crc16_ccitt((const uint8_t *)&r, 2u);
+    CHECK_EQ(persist_write_data(GAL_KEY_ROTSTATE, &r, sizeof(r) - 1u), (int)sizeof(r) - 1);
+  }
+  CHECK(storage_init());
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 0);
+
+  /* (e) V1 con CRC ERRATO: nessuna migrazione, manifest di default, nessun timer, nessuna
+   *     scrittura e nessun record (le foto della versione precedente vanno perse, come per un
+   *     manifest schema 2 corrotto) */
+  setup_v1(4, 1);
+  mk_settings(&old, 11);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(42, 0);
+  shim_reset_write_count();
+  CHECK(storage_init());
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK(!shim_timer_pending());
+  CHECK(manifest_is_default(storage_manifest()));
+  CHECK_EQ(storage_valid_slots(), 0);
+  CHECK(!storage_read_settings(&out));                 /* nessun record caricato */
+  CHECK(!storage_read_rotstate(&rs));
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifestV1));   /* non toccato */
+
+  /* (e2) V1 con magic sbagliato / slot_count sbagliato / schema != 1 nei 214 B */
+  {
+    const size_t off_magic = offsetof(GalManifestV1, magic);
+    const size_t off_schema = offsetof(GalManifestV1, schema);
+    const size_t off_slots = offsetof(GalManifestV1, slot_count);
+    const size_t fields[3] = { off_magic, off_schema, off_slots };
+    for (size_t i = 0; i < 3; i++) {
+      setup_v1(3, 0);
+      g_v1[fields[i]] = (uint8_t)(g_v1[fields[i]] ^ 0x55u);
+      {
+        const uint16_t c = crc16_ccitt(g_v1, (uint32_t)sizeof(g_v1) - 2u);
+        memcpy(g_v1 + sizeof(g_v1) - 2u, &c, sizeof(c));   /* CRC ricalcolato: solo il campo conta */
+      }
+      CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, g_v1, sizeof(g_v1)), (int)sizeof(g_v1));
+      CHECK(storage_init());
+      CHECK(manifest_is_default(storage_manifest()));
+      CHECK(!shim_timer_pending());
+    }
+  }
+
+  /* (f) migrazione materializzata dal FLUSH di deinit invece che dal timer */
+  setup_v1(2, 0);
+  mk_settings(&old, 13);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(64, 0);
+  shim_reset_write_count();
+  CHECK(storage_init());
+  CHECK(shim_timer_pending());
+  const int can0 = shim_timer_cancels();
+  storage_flush();                                     /* impostazioni pendenti: scrive */
+  CHECK_EQ(shim_timer_cancels(), can0 + 1);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), 2);                     /* chiave 0 (era 1) + manifest */
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  storage_flush();                                     /* idempotente */
+  CHECK_EQ(shim_write_count(), 2);
+  /* riavvio: tutto al suo posto e nessuna migrazione */
+  shim_reset_write_count();
+  CHECK(storage_init());
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(storage_valid_slots(), 2);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 64);
+  CHECK_EQ(storage_manifest()->order[0], 1);
+  CHECK_EQ(storage_manifest()->order[1], 0);
+
+  /* (g) migrazione con album DISABILITATO (quota < 1 MiB): il record si scrive lo stesso */
+  reset_all(GAL_MIN_QUOTA - 1u);
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, 1), 4);
+  build_v1(2, 0, 0);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, g_v1, sizeof(g_v1)), (int)sizeof(g_v1));
+  mk_settings(&old, 3);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(11, 0);
+  shim_reset_write_count();
+  CHECK(!storage_init());
+  CHECK(shim_timer_pending());
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 11);
+
+  /* (h) migrazione con la scrittura che fallisce: dirty mantenuti e ritentati */
+  setup_v1(2, 0);
+  mk_settings(&old, 2);
+  write_legacy_settings(&old, 0);
+  write_legacy_rotstate(88, 0);
+  shim_reset_write_count();
+  CHECK(storage_init());
+  CHECK(shim_timer_pending());
+  shim_fail_writes_after(0);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifestV1));   /* ancora il V1 */
+  shim_fail_writes_after(-1);
+  storage_flush();                                     /* il flush ritenta (settings dirty) */
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 88);
+}
+
+/* ---- 14. settings_apply: impostazioni identiche = nessuna scrittura ---- */
+
+static void test_settings_apply(void) {
+  fresh(QUOTA_OK);
+  settings_init();                                     /* nessun record: default in RAM */
+  CHECK_EQ(shim_timer_registrations(), 0);
+  CHECK_EQ(shim_write_count(), 0);
+
+  /* identiche (crc16 escluso dal confronto): nessun timer, nessuna scrittura */
+  GalSettings same = *settings_get();
+  CHECK(settings_apply(&same));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_timer_registrations(), 0);
+  CHECK_EQ(shim_write_count(), 0);
+  same.crc16 = (uint16_t)(same.crc16 ^ 0xFFFFu);
+  CHECK(settings_apply(&same));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), 0);
+
+  /* non valide: rifiutate, nessun timer e nessuna scrittura */
+  GalSettings bad = *settings_get();
+  bad.interval_min = 7;
+  CHECK(!settings_apply(&bad));
+  bad = *settings_get();
+  bad.schema = GAL_SETTINGS_SCHEMA + 1;
+  CHECK(!settings_apply(&bad));
+  CHECK(!settings_apply(NULL));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), 0);
+
+  /* un campo diverso: debounce e UNA scrittura */
+  GalSettings other = *settings_get();
+  other.interval_min = (uint16_t)(other.interval_min == 30u ? 60u : 30u);
+  CHECK(settings_apply(&other));
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_registrations(), 1);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);                     /* chiave 0 + manifest */
+  GalSettings out;
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.interval_min, other.interval_min);
+  CHECK(settings_eq_payload(&out, settings_get()));
+
+  /* riapplicare le stesse: ancora nessuna scrittura (nessun record morto in flash) */
+  const int w = shim_write_count();
+  CHECK(settings_apply(&other));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), w);
+  /* ...anche dopo un riavvio che le rilegge da persist */
+  CHECK(storage_init());
+  settings_init();
+  CHECK_EQ(settings_get()->interval_min, other.interval_min);
+  CHECK(settings_apply(&other));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), w);
+}
+
 int main(void) {
   shim_set_log(getenv("GALLERIA_TEST_VERBOSE") != NULL);
   test_sizes();
@@ -975,6 +1676,9 @@ int main(void) {
   test_settings();
   test_rotstate();
   test_clear_and_order();
+  test_schema_key_writes();
+  test_migrate_v1();
+  test_settings_apply();
   printf("storage: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

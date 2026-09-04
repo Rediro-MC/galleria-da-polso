@@ -40,7 +40,8 @@
       "CODE",
       "ORDER",
       "SETTINGS",
-      "REPLY_TO"
+      "REPLY_TO",
+      "OPEN_MS"
     ],
     "resources": {
       "media": [
@@ -115,6 +116,34 @@
           "type": "bitmap",
           "name": "DIGITS_BARLOW_B",
           "file": "digits/barlow_b.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_FRANCOIS_A",
+          "file": "digits/francois_a.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_FRANCOIS_B",
+          "file": "digits/francois_b.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_STAATLICHES_A",
+          "file": "digits/staatliches_a.png",
+          "memoryFormat": "2BitPalette",
+          "spaceOptimization": "memory"
+        },
+        {
+          "type": "bitmap",
+          "name": "DIGITS_STAATLICHES_B",
+          "file": "digits/staatliches_b.png",
           "memoryFormat": "2BitPalette",
           "spaceOptimization": "memory"
         }

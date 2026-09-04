@@ -7,6 +7,8 @@
 #      make -C apps/galleria/test jstest          solo i test JS del PKJS (b64, album, motore, smoke)
 #      make -C apps/galleria/test devtest         solo l'autotest del dev server
 #      make -C apps/galleria/test pagecheck       S6: config_page.js e fixture_page.js aggiornati (build_config_page.py --check, gen_page_fixture.py --check)
+#      make -C apps/galleria/test logstats        S8: autotest di tools/galleria_logstats.py (riepilogo dei log dell'orologio reale) + test_logstats.py
+#      make -C apps/galleria/test cards           S8: test_cards.py (tools/gen_test_cards.py --selftest e --check; salta se manca Pillow)
 #      make -C apps/galleria/test browsertest     S6: autotest del client WebDriver (Firefox headless via geckodriver; fuori da `all`)
 #      make -C apps/galleria/test clean ; EXTRA_CFLAGS="..." per flag in più
 # I test girano con cwd = questa cartella (fixture in fixtures/, generate da photo_prep.py --fixture).
@@ -23,7 +25,7 @@ TESTS = test_timefmt test_crc test_photo_codec test_luma test_rotation test_stor
 # S7: test_sync (sync.c compilato INALTERATO su host con lo shim AppMessage/dict) entra in `all` solo se il file esiste.
 TESTS += $(if $(wildcard test_sync.c),test_sync,)
 
-all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck
+all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck logstats cards
 
 # run-<test>: ricompila se serve ed esegue (FORCE: un target .PHONY non attiverebbe la regola a pattern).
 run-%: $(OUT)/% FORCE
@@ -45,8 +47,8 @@ $(OUT)/test_rotation: test_rotation.c $(SRC_DIR)/rotation.c $(SRC_DIR)/rotation.
 
 # storage.c usa <pebble.h>: viene compilato INALTERATO con lo shim host in shim/ (-Ishim davanti
 # a -I$(SRC_DIR), che è già dentro CFLAGS).
-$(OUT)/test_storage: test_storage.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/settings.h $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
-	$(CC) -Ishim $(CFLAGS) -o $@ test_storage.c shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/crc.c
+$(OUT)/test_storage: test_storage.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
+	$(CC) -Ishim $(CFLAGS) -o $@ test_storage.c shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c
 
 # sync_proto.c e' puro ma trascina storage.c/settings.c (<pebble.h>): stesso trattamento con -Ishim.
 $(OUT)/test_sync_proto: test_sync_proto.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/sync_proto.c $(SRC_DIR)/sync_proto.h $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/photo_codec.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
@@ -112,8 +114,19 @@ pagecheck:
 	@if [ -f gen_page_fixture.py ]; then $(PYTHON) gen_page_fixture.py --check; else echo "pagecheck: gen_page_fixture.py assente, saltato"; fi
 	@if [ -f $(FONT_PREVIEWS) ]; then $(PYTHON) $(FONT_PREVIEWS) --check; else echo "pagecheck: $(FONT_PREVIEWS) assente, saltato"; fi
 
+# S8: riepilogo dei log catturati sull'orologio reale (tools/galleria_logstats.py): autotest del tool
+# (--selftest, solo stdlib) + test_logstats.py sulle fixture in fixtures/logs/. Saltato se i file mancano.
+LOGSTATS = ../../../tools/galleria_logstats.py
+logstats:
+	@if [ -f $(LOGSTATS) ]; then $(PYTHON) $(LOGSTATS) --selftest; else echo "logstats: $(LOGSTATS) assente, saltato"; fi
+	@if [ -f test_logstats.py ]; then $(PYTHON) test_logstats.py; else echo "logstats: test_logstats.py assente, saltato"; fi
+
+# S8: test card per soglie luma/LUT (tools/gen_test_cards.py): --selftest + --check in una dir temporanea.
+cards:
+	@if [ -f test_cards.py ]; then $(PYTHON) test_cards.py; else echo "cards: test_cards.py assente, saltato"; fi
+
 # Autotest del client WebDriver (S6): serve Firefox + geckodriver; non fa parte di `all`.
 browsertest:
 	@if [ -f $(BROWSER_TOOL) ]; then $(PYTHON) $(BROWSER_TOOL) --selftest; else echo "browsertest: $(BROWSER_TOOL) assente, saltato"; fi
 
-.PHONY: all clean pyselftest jstest devtest dumbtest pagecheck browsertest FORCE
+.PHONY: all clean pyselftest jstest devtest dumbtest pagecheck logstats cards browsertest FORCE

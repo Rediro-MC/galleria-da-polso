@@ -9,6 +9,7 @@
  *   var w = new FakeWatch({ format: 1, maxChunk: 4096, log: console.log });
  *   var replies = w.handle(dict);                    // dict con chiavi numeriche (message_keys)
  *   w.wipe(); w.slots[k]; w.settings; w.order; w.dropStatus = 1; w.idle();
+ *   w.openMs = 2150;                                 // HELLO.OPEN_MS (v1.9); w.noOpenMs = orologio vecchio
  *   w.progress                                        // [k, n] di "Foto k/n" (SYNC_REQUEST{OFFSET}: F3)
  */
 var keys = require('message_keys');
@@ -20,12 +21,20 @@ var CODE = { OK: 0, CRC_ERR: 1, NO_SPACE: 2, BAD_FORMAT: 3, BUSY: 4, SEQ_ERR: 5,
 var FMT_LEN = { 1: 34200, 2: 3024 };
 var MAX_SLOTS = 12, SLOT_NONE = 0xFF, CHUNK = 256;
 var DEFAULT_SETTINGS = [1, 0, 0, 0, 0, 0, 0, 30, 0, 0, 1, 15, 0, 0, 0, 0, 0, 0];   /* settings.c, 18 B senza crc16 */
+/* S8/D21: il byte 12 e' `digit_style` (0 = pieno), ex primo dei sei `reserved`; il default resta 0,
+ * quindi il blob e il CRC di un orologio appena azzerato non cambiano. La validazione del blob in
+ * MSG.SETTINGS e' lo specchio di settings_validate() (src/c/settings.c): S8 alza il font a <= 5
+ * (D22: 4 Francois One, 5 Staatliches) e aggiunge il controllo digit_style <= 3 (D21). */
 
 function FakeWatch(opts) {
   opts = opts || {};
   this.format = opts.format || 1;
   this.maxChunk = (opts.maxChunk !== undefined) ? opts.maxChunk : (this.format === 2 ? 3072 : 4096);
   this.albumEnabled = (opts.albumEnabled !== undefined) ? opts.albumEnabled : true;
+  /* v1.9: HELLO.OPEN_MS = ms dell'apertura del file persist (0 = misurato e trascurabile, come un
+   * orologio con il file sano). `noOpenMs` = orologio vecchio, che il campo non lo manda affatto. */
+  this.openMs = (opts.openMs !== undefined) ? opts.openMs : 0;
+  this.noOpenMs = !!opts.noOpenMs;
   this.log = opts.log || function () {};
   this.dropStatus = 0;          /* > 0: i prossimi N STATUS/SYNC_READY non vengono spediti (persi) */
   this.received = [];           /* log dei MSG ricevuti (numeri) */
@@ -74,6 +83,7 @@ FakeWatch.prototype._hello = function () {
   d[keys.MSG] = MSG.HELLO; d[keys.PROTO] = 1; d[keys.FORMAT] = this.format;
   d[keys.MAX_CHUNK] = this.albumEnabled ? this.maxChunk : 0;
   if (!this.noSettingsCrc) { d[keys.CRC] = this.settingsCrc(); }
+  if (!this.noOpenMs) { d[keys.OPEN_MS] = this.openMs & 0xFFFF; }
   d[keys.SLOTS] = slots;
   return d;
 };
@@ -197,8 +207,12 @@ FakeWatch.prototype._handle = function (d, msg) {
     case MSG.SETTINGS:
       blob = d[keys.SETTINGS];
       if (!blob || blob.length !== 20 || blob[0] !== 1) { return this._status(CODE.BAD_FORMAT); }
-      if (blob[1] > 1 || blob[2] > 3 || blob[3] > 2 || blob[4] > 2 || blob[5] > 4 || blob[6] > 2 ||
-          [0, 5, 15, 30, 60, 180, 1440].indexOf(blob[7] | (blob[8] << 8)) < 0 || blob[9] > 1 || blob[10] > 1 || blob[11] > 15) {
+      /* settings_validate() (settings.c): schema, layout <= 1, font < GAL_FONT_COUNT (S8/D22: 6),
+       * clock_mode <= 2, leading_zero <= 2, text_color <= 4, outline <= 2, interval nella lista,
+       * order <= 1, shake_next <= 1, info_row <= 15, digit_style <= GAL_STYLE_FILL_3D (S8/D21). */
+      if (blob[1] > 1 || blob[2] > 5 || blob[3] > 2 || blob[4] > 2 || blob[5] > 4 || blob[6] > 2 ||
+          [0, 5, 15, 30, 60, 180, 1440].indexOf(blob[7] | (blob[8] << 8)) < 0 || blob[9] > 1 || blob[10] > 1 ||
+          blob[11] > 15 || blob[12] > 3) {
         return this._status(CODE.BAD_FORMAT);
       }
       this.settings = blob.slice(0, 18).map(function (x) { return x & 255; });

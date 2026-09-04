@@ -18,11 +18,16 @@ Screenshot dal gate di S6 (30/08/2026); tutti gli altri sono in `../../docs/desi
   gira solo su **PebbleOS ≥ 4.32.0**; compilando con SDK 4.17 basta fw ≥ 4.17.0
   (`../../PIANO-SVILUPPO-PEBBLE.md` §2.4). Il minimo **non è dichiarabile** in `package.json`: è
   l'orologio che rifiuta l'app con il popup «Incompatible SDK». Decisione **D5**: in S7 la build con
-  SDK 4.17 è risultata identica (memoria, log, emulatori 4.17 e 4.33.2) e la proposta è pubblicare
-  con 4.17; conferma in S8 sull'orologio reale (vedi `PIANO.md` §3 D5 e §6).
+  SDK 4.17 è risultata identica (memoria, log, emulatori 4.17 e 4.33.2), ma in campo PebbleOS
+  **4.32.0 è uscito il 29/07/2026** e **4.36.2 il 26/08/2026**, spinti dall'app al primo
+  abbinamento; la proposta aggiornata è quindi pubblicare con **SDK 4.33.1**, e si torna a 4.17 solo
+  se l'orologio dell'utente resta sotto 4.32. Conferma in S8 sull'orologio reale (`PIANO.md` §3 D5,
+  `../../docs/design/galleria-s8-hardware.md` §6).
 - **Telefono**, solo per caricare le foto: app Pebble per **Android ≥ 1.8.0.7** (04/08/2026), la
-  prima che apre il selettore di file nella pagina di configurazione. Su **iOS** il selettore lo
-  gestisce WebKit ma **non è mai stato provato** (`PIANO.md` §7).
+  prima che apre il selettore di file nella pagina di configurazione. Per lo sviluppo serve anche
+  **≥ 1.10.0**, la prima con il receiver che il trasporto `--adb` del `pebble` CLI usa per aprire
+  la Dev Connection senza toccare la UI (prima di quella versione resta `--phone <IP>`). Su **iOS**
+  il selettore lo gestisce WebKit ma **non è mai stato provato** (`PIANO.md` §7).
 - Senza telefono l'app funziona lo stesso: foto e impostazioni stanno nella memoria dell'orologio.
 
 ## Come si usa
@@ -41,31 +46,69 @@ configurazione, una colonna sola, dove:
    decisione D6). L'**anteprima ×2** mostra la foto «come sul vetro» oppure a colori nominali.
 3. Le tessere sono in **ordine di rotazione**: ▲ ▼ per riordinare, ✕ per eliminare; un badge dice se
    una foto è *da inviare*, *nuova* o *solo sull'orologio*.
-4. Sotto ci sono tutte le **impostazioni**: layout A o B, font, 12/24 h, zero iniziale, colore del
-   testo, contorno, intervallo di rotazione, ordine, «scuoti per la prossima», voci della riga info.
+4. Sotto ci sono tutte le **impostazioni**: layout A o B, font, **stile delle cifre**, 12/24 h, zero
+   iniziale, colore del testo, contorno, intervallo di rotazione, ordine, «scuoti per la prossima»,
+   voci della riga info.
 5. **Salva** manda tutto all'orologio. Un contatore mostra quanti KB stai per inviare: oltre il tetto
    del telefono il pulsante si disabilita e ti dice quante foto togliere.
 
 Il trasferimento è a chunk: durante la sync la riga info scrive «Foto k/n». Puoi uscire dalla pagina,
 riprende da solo.
 
+In cima alla pagina compare un **avviso** se l'orologio ha impiegato più di un secondo ad avviarsi
+(l'orologio dichiara il tempo di apertura della sua memoria dentro il messaggio di saluto), e in
+fondo c'è **sempre** la sezione ripiegabile **«Galleria si avvia lentamente?»** con la spiegazione e
+la procedura: sono le stesse due cose che trovi qui sotto.
+
 ### Sull'orologio
 
 - **Layout A** (default): cifre da 68 px su circa un terzo dello schermo, più una riga con passi,
   batteria e data (icona Bluetooth barrata al posto dei passi se il telefono non è connesso).
 - **Layout B**: solo l'ora, HH sopra MM, cifre da 96 px a tutto schermo.
-- **Font**: Anton (default), Bebas Neue, Barlow Condensed Bold e — solo nel layout A — il LECO 60 di
-  sistema.
+- **Font**: Anton (default), Bebas Neue, Barlow Condensed Bold, Francois One, Staatliches e — solo
+  nel layout A — il LECO 60 di sistema.
+- **Stile delle cifre**: *pieno* (come sempre), *trasparente* (dentro le cifre si vede la foto, con
+  un contorno spesso), *trasparente 3D* e *pieno 3D* (con un'ombra sfalsata in basso a destra). Su
+  **Pebble 2 Duo** lo schermo è in bianco e nero e l'ombra 3D non è disponibile: i due stili 3D
+  valgono come i corrispondenti piatti. Con il font LECO lo stile non si applica (resta pieno).
 - **Rotazione**: la foto cambia da sola a intervalli (5, 15, 30, 60, 180 minuti o una volta al
   giorno; default 30 min), in ordine sequenziale o casuale. Il calcolo dipende solo dall'ora, quindi
   a regime **non scrive nulla** in memoria.
 - **Scossa**: una scossa passa alla foto successiva (si può disattivare). La foto non cambia mentre
-  l'orologio non è in primo piano né durante una sincronizzazione.
+  l'orologio non è in primo piano né durante una sincronizzazione. Il salto **non viene conservato**:
+  vale fino al riavvio della watchface (quando esci e rientri, o riavvii l'orologio), poi la
+  rotazione riprende dal suo programma, che dipende solo dall'ora. È voluto: scrivere in memoria a
+  ogni scossa — ne bastano un centinaio al giorno di involontarie — è ciò che con il tempo rendeva
+  lento l'avvio (vedi sotto).
 - **Colore del testo**: calcolato sull'orologio a ogni cambio foto sulla fascia occupata dalle cifre;
   bianco o nero, con contorno automatico quando la foto è troppo mossa di luminanza. Si può anche
   forzare (bianco, nero, giallo pastello, blu Oxford).
 - Aggiornamento al **minuto**, mai i secondi, nessuna animazione, nessun timer continuo.
 - Con l'album vuoto partono le **2 foto demo** incluse nell'app.
+
+### Galleria si avvia lentamente?
+
+Se passando ad un'altra app e tornando indietro Galleria ci mette **qualche secondo** a comparire,
+non è un guasto: **la memoria dell'orologio si è riempita di vecchi dati**. Ogni volta che una foto
+viene sostituita, il vecchio contenuto resta nel file come spazio morto — l'orologio non lo libera
+mai da solo (lo ricompatta solo quando il file è quasi pieno) — e l'orologio deve scorrerlo tutto
+ogni volta che apre l'app.
+
+**La cura è svuotare quel file, e si fa dal telefono:**
+
+1. apri l'**app Pebble**;
+2. tocca **Galleria** nell'elenco delle app dell'orologio;
+3. scegli **Rimuovi** (⚠️ *non* «Aggiorna»: un aggiornamento conserva la memoria dell'app, una
+   rimozione la cancella);
+4. **reinstalla** Galleria.
+
+**Le tue foto sono al sicuro nel telefono**: dopo la reinstallazione tornano da sole sull'orologio in
+circa un minuto, insieme alle impostazioni.
+
+Con questa versione capita **molto più di rado**: l'app non scrive più nulla né a ogni scossa né a
+ogni collegamento col telefono. Numeri misurati su un Pebble Time 2: avvio **~0,3 s** con un file
+sano contro **~2,7 s** con un file gonfio; dopo la reinstallazione l'avvio è tornato a 0,31–0,36 s
+(`PIANO.md` §4, esito S8-perf).
 
 ## Limiti noti
 
@@ -75,6 +118,11 @@ riprende da solo.
   2 Duo (la tessera lo segnala con «manca il formato per questo orologio»).
 - **iOS mai provato** (né il selettore di file né il limite dell'URL di ritorno): il percorso certo
   oggi è Android. Vedi `PIANO.md` §7.
+- **La memoria dell'app non si rimpicciolisce mai da sola**: eliminare o sostituire foto non libera
+  spazio nel file dell'orologio (il firmware lo ricompatta solo quando è quasi pieno). Se l'avvio
+  diventa lento, la cura è rimuovere e reinstallare l'app: vedi «Galleria si avvia lentamente?».
+- Il salto di foto con la **scossa** non sopravvive al riavvio della watchface (scelta voluta: vedi
+  «Sull'orologio»).
 - Niente PNG sull'orologio in v1; il layout B non ha la riga info.
 - I passi della riga info si aggiornano al **tick del minuto** (mai i secondi): un cambiamento appare entro un minuto.
 - Le foto demo attuali sono wallpaper CC-BY-SA-4.0: **solo per i test**, vanno sostituite prima di
@@ -126,6 +174,38 @@ python3 ../../tools/galleria_browser.py open-emu     # Firefox headless via geck
 python3 ../../tools/photo_prep.py --out resources/photos --name demo_1 --stats foto.jpg
 ```
 
+### Sull'orologio reale (S8)
+
+Serve il telefono: l'orologio parla con il PC **attraverso l'app Pebble**. Nell'app: scheda
+dell'orologio → ⋯ → **Dev Connection**, e Settings → Connectivity → **Use LAN developer
+connection** (mostra l'IPv4 del telefono). Poi, con `IP` = quell'indirizzo:
+
+```bash
+pebble ping --phone IP                              # "Pong!" = collegamento ok
+pebble ping --phone IP -vvv 2>&1 | grep -i watchversion   # firmware e modello dell'orologio
+pebble install build_s8/galleria_p.pbw --phone IP --logs  # installa e resta attaccato ai log (il .pbw PRIMA delle opzioni: con --adb un percorso dopo il flag diventerebbe il seriale)
+pebble logs --phone IP                              # solo i log (Ctrl-C per chiudere)
+pebble screenshot --phone IP --no-open shot.png     # dal vetro; --no-correction = colori nominali
+```
+
+- **Alternative al trasporto**: `--adb` (app Android ≥ 1.10.0: forza la LAN da solo e dà anche
+  `adb logcat`; `tools/setup-adb.sh` e `tools/README.md` §15) e `--cloudpebble` (richiede
+  `pebble login`). ⚠️ `--phone` **senza IP** significa CloudPebble, non «il telefono».
+- **Chiudere i log senza perderli**: `timeout -s INT 600 pebble logs --phone IP > run_s8_x.log 2>&1`
+  — con SIGTERM il gestore di Ctrl-C del tool non gira e il log shipping resta acceso sull'orologio
+  (saltano anche gli `atexit`, come la rimozione dell'`adb forward`);
+  `timeout` esce 124 anche quando ha interrotto pulito.
+- Nessun comando `emu-*` funziona sull'orologio reale (sono dell'emulatore), né `pebble insert-pin`.
+- Riepilogo dei log e test card del gate:
+
+```bash
+python3 ../../tools/galleria_logstats.py run_s8_*.log --md   # 13 sezioni (tools/README.md §16)
+python3 ../../tools/gen_test_cards.py --check                # 18 card in ~/galleria-gate/cards (§17)
+```
+
+Procedura passo passo, con cosa fa Marco e cosa aspettarsi a ogni passo:
+`../../docs/design/galleria-s8-runbook-android.md`.
+
 Hook di debug (`GALLERIA_DEFINES="..." pebble build`), rigenerazione delle cifre e comandi completi:
 `CLAUDE.md` di questa cartella.
 
@@ -136,10 +216,10 @@ che invecchiano.
 ## Licenze
 
 - **Codice dell'app**: **TBD** — da decidere con l'autore prima della pubblicazione (S9).
-- **Font delle cifre**: Anton, Bebas Neue, Barlow Condensed Bold, **SIL Open Font License 1.1**
-  (testo integrale in `resources/fonts/`). I TTF non entrano nel `.pbw`: dell'app fanno parte solo le
-  immagini delle cifre. Credito facoltativo per lo store: «Cifre: Anton, Bebas Neue, Barlow
-  Condensed (SIL OFL 1.1)».
+- **Font delle cifre**: Anton, Bebas Neue, Barlow Condensed Bold, Francois One e Staatliches, tutti
+  **SIL Open Font License 1.1** (testo integrale e provenienza in `resources/fonts/`). I TTF non
+  entrano nel `.pbw`: dell'app fanno parte solo le immagini delle cifre. Credito facoltativo per lo
+  store: «Cifre: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1)».
 - **Foto demo**: wallpaper di Ubuntu, **CC-BY-SA-4.0** (dettagli e autori in
   `resources/photos/README.md`). Sono lì **solo per i test locali** e vanno sostituite con foto
   proprie o CC0 prima di pubblicare.
@@ -162,7 +242,7 @@ che invecchiano.
 > SDK 4.33.1). To load photos, open the Pebble app, tap Galleria, open its settings, then "Aggiungi
 > foto", crop, and Save — the watch shows "Foto k/n" while they transfer.
 >
-> Digits: Anton, Bebas Neue, Barlow Condensed (SIL OFL 1.1).
+> Digits: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1).
 
 *(Da rivedere in S9 insieme al firmware minimo definitivo — decisione D5 — e alle foto demo
 sostitutive; lo store non è localizzato, quindi la descrizione resta in un testo unico.)*

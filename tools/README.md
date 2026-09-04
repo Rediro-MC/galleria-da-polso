@@ -24,6 +24,9 @@ ImageMagick **non** è installato.
 | `galleria_browser.py` | **Firefox headless** via WebDriver (solo stdlib): pilota la config page di Galleria per il gate S6 — §12 |
 | `build_config_page.py` | Inlina le sorgenti della **config page** di Galleria in un unico HTML + `src/pkjs/config_page.js` (S6) — §13 |
 | `gen_font_previews.py` | Anteprime «12:34» a 1 bit dei tre font per la config page (`previews.js`, S6) — §14 |
+| `setup-adb.sh` | **adb** (Android platform-tools) in user space, per `pebble … --adb` sull'orologio reale (S8) — §15 |
+| `galleria_logstats.py` | **Riepilogo dei log** catturati sull'orologio reale di Galleria (solo stdlib) — §16 |
+| `gen_test_cards.py` | **Test card** dai numeri noti per soglie luma e LUT «vetro» di Galleria (Pillow) — §17 |
 | `upstream-py2/` | Originali Python 2 non modificati, tenuti solo come riferimento |
 | `palette/` | Palette ufficiale a 64 colori Pebble (`.gif`, `.act`, `.pal`) |
 | `test/` | SVG di prova e output PDC generato |
@@ -511,18 +514,48 @@ repo: generarle con `--preview --preview-dir` in una cartella temporanea.
 ## 10. `gen_digits.py` – cifre sprite per Galleria
 
 Genera da TTF le **strip** delle cifre grandi della watchface **Galleria** (design
-`docs/design/galleria.md` D3/D4 e §7, sessione S3) e l'header
-`apps/galleria/src/c/digit_metrics.h` che `src/c/ui_digits.c` include.
+`docs/design/galleria.md` D3/D4 e §7, sessione S3; **v2** = S8-stile, `docs/design/galleria-s8-stile.md`
+§3: anello spesso e ombra 3D) e l'header `apps/galleria/src/c/digit_metrics.h` che
+`src/c/ui_digits.c` include.
 
 Interprete: **`~/.local/share/uv/tools/pebble-tool/bin/python`** (freetype-py 2.5.1 su libfreetype 2.13.2 + Pillow 12.3).
 Il Python di sistema **non** ha freetype-py: con `python3` il tool non parte.
+
+### Novità della v2 (S8-stile)
+
+Su **emery** ogni glifo ha **tre** strati invece di due — riempimento, **anello spesso R px**,
+**ombra 3D profonda S px** — e il PNG ha **quattro** colori invece di tre (resta `2BitPalette`:
+2 bit/px). Con questi tre indici l'orologio ottiene i quattro stili di D21 cambiando **solo la
+palette**, senza una risorsa per stile: 0 Pieno, 1 Trasparente (riempimento `GColorClear`),
+2 Trasparente 3D, 3 Pieno 3D. Il generatore sa anche calcolare le righe peggiori del layout e si
+ferma se non entrano nello schermo (§ "Controlli di riga").
+
+Su **flint** (`~bw`) l'ombra **non esiste** (`S = 0`, **D26**) e la strip ha tre colori: nel `.pbi`
+di una piattaforma B/N la SDK riduce ogni pixel con `nearest_color_to_pebble2_palette` (luma →
+0/255, alpha → 0/255), quindi esistono solo `0x00`, `0xC0` e `0xFF`: il rosso dell'ombra
+diventerebbe nero e finirebbe **nello stesso indice dell'anello** (verificato in emulatore il
+04/09/2026: ombra e anello non più separabili a runtime, l'ombra usciva del colore dell'alone).
+Con `R = 1` e `S = 0` le strip `~bw` tornano **identiche byte per byte a quelle della v1**; sull'orologio
+gli stili 3D valgono come i corrispondenti stili piatti (2 → 1, 3 → 0).
+
+I **pixel del riempimento non cambiano** rispetto alla v1 (D24): stessa `px`, stesso `digit_h`,
+stesse larghezze del riempimento per Anton/Bebas/Barlow. Su emery cambiano `strip_h` (+2R+S),
+`strip_w` (ogni inchiostro cresce di 2R+S−2 = 4 px) e la posizione verticale (il riempimento parte
+dalla riga `R` invece che dalla riga 1); su flint `R = 1` e `S = 0` danno esattamente la geometria
+della v1 (`strip_h = rows_h + 2`, inchiostro = riempimento + 2).
+
+La v2 porta anche i **due font nuovi** di D22 — **Francois One** (chiave `francois`, risorse
+`DIGITS_FRANCOIS_A/B`) e **Staatliches** (chiave `staatliches`, `DIGITS_STAATLICHES_A/B`) — quindi
+le strip sono **20** (5 font × 2 taglie × 2 piattaforme) e `DIGITS_FONT_COUNT` vale 5. ⚠️ Le quattro
+risorse nuove vanno dichiarate in `apps/galleria/package.json` (`2BitPalette`,
+`spaceOptimization: "memory"`), altrimenti l'header cita `RESOURCE_ID_` che l'SDK non genera.
 
 ### Uso
 
 ```bash
 PY=~/.local/share/uv/tools/pebble-tool/bin/python
 
-# generazione completa (12 PNG + header + foglio di contatto per il controllo visivo)
+# generazione completa (20 PNG + header + foglio di contatto per il controllo visivo)
 # --fit-width --no-colon-b --pack = comando CANONICO di Galleria (lo cita anche digit_metrics.h)
 $PY tools/gen_digits.py \
     --fonts-dir apps/galleria/resources/fonts \
@@ -533,6 +566,9 @@ $PY tools/gen_digits.py \
 # solo la tabella delle metriche, nessun file scritto
 $PY tools/gen_digits.py --check --fit-width --no-colon-b --pack
 
+# autotest del contratto (§3.4, D25, D26): non legge i TTF e non scrive nulla
+$PY tools/gen_digits.py --selftest        # -> "selftest: 46 controlli, 0 falliti"
+
 # una sola combinazione (font,taglia,piattaforma; campi vuoti o `*` = tutti)
 $PY tools/gen_digits.py --only barlow,a,color --out /tmp/d --preview /tmp/d
 ```
@@ -542,12 +578,14 @@ $PY tools/gen_digits.py --only barlow,a,color --out /tmp/d --preview /tmp/d
 | `--fonts-dir DIR` | cartella dei TTF (default `apps/galleria/resources/fonts`) |
 | `--out DIR` | cartella delle strip PNG (default `apps/galleria/resources/digits`) |
 | `--header FILE` | header generato (default `apps/galleria/src/c/digit_metrics.h`) |
-| `--preview DIR` | scrive `DIR/digits_preview.png`: tutte le strip ×2 su fondo grigio, con i colori resi |
+| `--preview DIR` | scrive `DIR/digits_preview.png`: per ogni strip la **strip grezza** (4 colori su emery, 3 su flint) più i **4 stili di D21** (pieno, pieno 3D, trasparente, trasparente 3D) resi in bianco/nero **sopra un grigio medio** |
 | `--only F,T,P` | limita la generazione; con una selezione parziale l'**header non viene scritto** |
 | `--check` | stampa solo la tabella delle metriche e le segnalazioni, non scrive nulla |
-| `--fit-width` | se un glifo non entra nella sua cella — quella della strip, o quella del `':'` nel layout A — abbassa la pixel size invece di uscire con errore (vedi sotto) |
-| `--no-colon-b` | la taglia **B** viene generata **senza la cella del `':'`**: 10 celle invece di 11, e nell'header `ink[DIGITS_GLYPH_COLON] = { 0, 0 }`. Il layout B non disegna mai i due punti (S3/S7 D16). La taglia A non cambia di un byte |
-| `--pack` | strip **compatta**: i glifi vengono accostati e `strip_w` scende alla somma degli inchiostri (arrotondata a 4 px), invece delle celle fisse da `cell_w`. Stessi pixel di inchiostro, stessa `px`, stesso `digit_h`; `cell_w` nell'header resta il passo della griglia del layout (vedi sotto) |
+| `--selftest` | autotest del contratto **senza TTF**: griglia di riga con la regola di **riserva** di D25 (cifra più larga + anello, la sola che il generatore deve garantire), avviso di sporgenza, geometria di flint (D26), anello/ombra, `--pack`, autocontrolli della mappa, header. Non scrive nulla; esce 1 se un controllo fallisce |
+| `--fit-width` | se il **riempimento** di un glifo non entra nella sua cella — il passo del layout, o la cella del `':'` nel layout A — abbassa la pixel size invece di uscire con errore (vedi sotto). Anello e ombra **non** entrano nel vincolo (D24) |
+| `--no-colon-b` | la taglia **B** viene generata **senza il `':'`**: 10 glifi invece di 11, e nell'header `ink[DIGITS_GLYPH_COLON] = { 0, 0 }`. Il layout B non disegna mai i due punti (S3/S7 D16). La taglia A non cambia |
+| `--pack` | strip **compatta**: i glifi vengono accostati e `strip_w` scende alla somma degli inchiostri (arrotondata a 4 px), invece delle celle di lavoro. Stessi pixel, stessa `px`, stesso `digit_h`; `cell_w` nell'header resta il passo della griglia del layout (vedi sotto) |
+| `--allow-row-overflow` | **fuori contratto**: declassa ad AVVISO il controllo di riga (§ "Controlli di riga"). La riga sforata viene tagliata a destra da `ui_time.c`, che porta `x0` a 0. Serve solo per esplorare geometrie R/S diverse (`GEOM`); **non va usato per lo stato del repo**, e se usato finisce nella riga «Rigenerare con» dell'header |
 
 Il tool è **deterministico**: nessuna data, nessun percorso assoluto e nessun timestamp finisce
 nell'output (l'header cita `TOOL_VERSION` e il comando canonico con percorsi relativi), quindi due
@@ -559,6 +597,44 @@ $PY tools/gen_digits.py --out /tmp/d2 --header /tmp/d2.h --fit-width --no-colon-
 for f in /tmp/d1/*.png; do cmp "$f" "/tmp/d2/$(basename "$f")"; done; cmp /tmp/d1.h /tmp/d2.h
 ```
 
+Il comando canonico qui sopra è **lo stesso** che citano `digit_metrics.h` («Rigenerare con») e
+`apps/galleria/CLAUDE.md`: rieseguendolo si riottengono i 20 PNG e l'header in repo, byte per byte.
+
+### Geometria: `GEOM`, `strip_h` e le celle di lavoro
+
+`GEOM[(piattaforma, taglia)] = (cell_w, rows_h, R, S)`:
+
+| Piattaforma (tag) | Taglia | `cell_w` | `rows_h` (righe del riempimento) | `R` anello | `S` ombra | `strip_h` = `rows_h + 2R + S` | cella di lavoro `cell_w + 2R + S + 2` |
+|---|---|---|---|---|---|---|---|
+| `emery` (`~color`) | A | 40 | 66 | 2 | 2 | **72** | 48 |
+| `emery` (`~color`) | B | 64 | 94 | 2 | 2 | **100** | 72 |
+| `flint` (`~bw`) | A | 28 | 42 | 1 | **0** (D26) | **44** | 32 |
+| `flint` (`~bw`) | B | 48 | 62 | 1 | **0** (D26) | **64** | 52 |
+
+Il **riempimento** occupa le righe `R .. R + digit_h − 1`: sopra restano `R` righe per l'anello,
+sotto `R` righe di anello più `S` righe di ombra, e la strip torna esatta (`2R + S` righe in più
+delle `rows_h` della v1, che erano `strip_h − 2`; su flint `2R + S = 2`, cioè la strip della v1).
+Il `':'` resta dove lo mette il font rispetto alla baseline; se il suo anello+ombra uscirebbe dalla
+strip viene alzato (o abbassato) del minimo necessario, con segnalazione.
+
+Ogni glifo si disegna in una **cella di lavoro** larga `cell_w + 2R + S + 2`, con il riempimento
+centrato nella sottocella da `cell_w`: restano almeno `R+2` colonne libere a sinistra e `R+S+2` a
+destra. Se un pixel di anello o ombra uscisse dalla cella di lavoro (o dalla strip) è un
+**ERRORE**, non un avviso. Con `--pack` le celle di lavoro spariscono e restano solo gli
+inchiostri, accostati.
+
+### I tre strati
+
+| Strato | Costruzione |
+|---|---|
+| riempimento | bitmap monocromatica FreeType (`FT_LOAD_RENDER \| FT_LOAD_TARGET_MONO \| FT_LOAD_MONOCHROME`) |
+| anello | pixel a **distanza di Chebyshev 1..R** dal riempimento (R dilatazioni 8-connesse), meno il riempimento — spesso esattamente `R` px dove il glifo è libero |
+| ombra | unione degli **spostamenti diagonali** `(+k, +k)`, `k = 1..S`, di (riempimento ∪ anello), meno (riempimento ∪ anello) — sporge di `S` px a destra e in basso. **Su flint `S = 0`: lo strato non esiste** (D26) |
+
+Conseguenza sulle larghezze: `ink[k].w` (v2) = `riempimento + 2R + S`, cioè `ink[k].w` (v1)
+`− 2 + 2R + S`: **+4 px su emery, invariato su flint** (`2R + S = 2` come la v1). Un autocontrollo
+si ferma con errore se una strip con `S = 0` contiene pixel d'ombra.
+
 ### Formato della strip
 
 Una strip per **(font, taglia, piattaforma)**, nell'ordine `'0'..'9'` poi `':'`. Il glifo si
@@ -569,165 +645,273 @@ ha **10**, solo le cifre.
 
 Due disposizioni orizzontali:
 
-- **a celle fisse** (default): glifo `k` in `[k*cell_w, (k+1)*cell_w)`, inchiostro centrato nella
-  cella. `strip_w = celle × cell_w`, e fra un glifo e l'altro resta molto vuoto (le cifre sono
-  molto più strette del passo del layout: in Anton B su emery 489 px di inchiostro su 640).
+- **a celle di lavoro** (default): glifo `k` in `[k·(cell_w+2R+S+2), …)`, riempimento centrato.
+  Fra un glifo e l'altro resta molto vuoto (le cifre sono più strette del passo del layout).
 - **compatta** (`--pack`, comando canonico da S7): i glifi vengono copiati **adiacenti** da
   sinistra a destra nello stesso ordine, `ink[k].x` è l'offset progressivo e
   `strip_w = Σ ink[k].w` **arrotondata per eccesso a un multiplo di 4 px** (a 2 bit/px, 4 px = 1
   byte esatto: lo stride del PBI resta a byte interi). Le 0..3 colonne in coda sono trasparenti.
-  I pixel di inchiostro sono **identici** a quelli della strip a celle fisse: `pack_strip()` li
-  copia colonna per colonna dopo il disegno, quindi `px`, baseline, righe e `digit_h` non
-  cambiano; sparisce solo il vuoto fra i glifi.
+  I pixel sono **identici** a quelli della strip a celle di lavoro: `pack_strip()` li copia
+  colonna per colonna dopo il disegno, quindi `px`, baseline, righe e `digit_h` non cambiano.
 
 ⚠️ Con `--pack` **`cell_w` nell'header resta il passo della griglia del LAYOUT** (40/64 su emery,
-28/48 su flint), non la larghezza di una cella nel PNG — nella strip compatta le celle non
-esistono più. È il valore che `ui_time.c` (`prv_strip_fits`) confronta con `a_cell`/`b_cell` per
-rifiutare una strip che non corrisponde alla griglia cablata, ed è il vincolo che `pick_px` e
-`--fit-width` continuano a usare per la scelta della `px`.
+28/48 su flint), non la larghezza di una cella nel PNG. È il valore che `ui_time.c`
+(`prv_strip_fits`) confronta con `a_cell`/`b_cell` per rifiutare una strip che non corrisponde
+alla griglia cablata, ed è il vincolo che `pick_px` e `--fit-width` continuano a usare per la
+scelta della `px`.
 
-| Piattaforma (tag) | Taglia | `cell_w` × `strip_h` | glifi | `strip_w` celle fisse | `strip_w` con `--pack` | righe utili (`strip_h − 2`) | File |
-|---|---|---|---|---|---|---|---|
-| `emery` (`~color`) | A | 40 × 68 | 11 | 440 | 360 / 332 / 352 | 66 | `<font>_a~color.png` |
-| `emery` (`~color`) | B | 64 × 96 | 10 | 640 | 492 / 448 / 512 | 94 | `<font>_b~color.png` |
-| `flint` (`~bw`) | A | 28 × 44 | 11 | 308 | 248 / 216 / 252 | 42 | `<font>_a~bw.png` |
-| `flint` (`~bw`) | B | 48 × 64 | 10 | 480 | 328 / 300 / 344 | 62 | `<font>_b~bw.png` |
+`package.json` dichiara **10** risorse `DIGITS_<FONT>_<TAGLIA>` (cinque font × due taglie) con
+`"file": "digits/<font>_<taglia>.png"` (senza tag): sono i tag `~color`/`~bw` sul nome del file a
+far scegliere all'SDK la variante emery/flint.
 
-(`strip_w` con `--pack` dipende dal font: anton / bebas / barlow.)
+### Palette: quattro colori esatti (tre su flint)
 
-Senza `--no-colon-b` la taglia B torna a 11 glifi (`strip_w` a celle fisse 704 / 528). Senza
-`--pack` i 12 PNG e l'header escono **byte-identici** a quelli generati prima della compattazione
-(verificato con `cmp`): l'opzione non tocca nessun altro percorso del tool.
-
-Le righe utili sono `strip_h − 2`: una riga di contorno sopra e una sotto. Il campo `digit_h`
-dell'header **non** è questo numero ma l'altezza reale del riempimento (vedi sotto).
-`package.json` dichiara 6 risorse
-`DIGITS_<FONT>_<TAGLIA>` con `"file": "digits/<font>_<taglia>.png"` (senza tag): sono i tag
-`~color`/`~bw` sul nome del file a far scegliere all'SDK la variante emery/flint.
-
-### Palette: tre colori esatti
-
-I PNG sono **RGBA** (`mode "RGBA"`) con esattamente tre colori:
+I PNG sono **RGBA** (`mode "RGBA"`) con al massimo quattro colori — **tre** sulle strip `~bw`, dove
+`S = 0` e i pixel d'ombra non esistono (D26) — e l'autocontrollo prima di scrivere rifiuta un
+quinto colore, dimensioni diverse da quelle dell'header o un pixel d'ombra dove `S = 0`:
 
 | Pixel | RGBA | A runtime (`memoryFormat: "2BitPalette"`) |
 |---|---|---|
 | vuoto | `(0, 0, 0, 0)` | trasparente (alpha 0) |
-| riempimento | `(255, 255, 255, 255)` | `palette[i]` = colore del testo (bianco/nero/giallo/Oxford, D7) |
-| contorno | `(0, 0, 0, 255)` | `palette[i]` = alone, oppure `GColorClear` per spegnerlo |
+| riempimento | `(255, 255, 255, 255)` | `palette[i]` = colore del testo, oppure `GColorClear` negli stili trasparenti |
+| anello | `(0, 0, 0, 255)` | `palette[i]` = alone (stile Pieno) o colore del testo (stili trasparenti) |
+| ombra | `(255, 0, 0, 255)` | `palette[i]` = colore opposto negli stili 3D, `GColorClear` negli altri |
 
-Il contorno è la **dilatazione 8-connessa di 1 px** della maschera meno la maschera stessa, ritagliata
-alla cella e alla strip: l'alone costa **un solo blit** (`GCompOpSet`), non gli 8 `draw_text` sfalsati
-di S1. L'SDK genera la palette del `.pbi` in ordine arbitrario: `ui_digits.c` riconosce i due indici
-dal colore (`0xFF` bianco, `0xC0` nero), non dalla posizione.
+L'SDK genera la palette del `.pbi` in ordine arbitrario: `ui_digits.c` riconosce i tre indici
+**dal colore** (`0xFF` bianco = riempimento, `0xC0` nero = anello, `0xF0` rosso = ombra), non
+dalla posizione.
+
+⚠️ **Sulla variante `~bw` (flint) il quarto colore non esiste** (D26, verificato il 04/09/2026 con
+una build in emulatore): la SDK quantizza ogni pixel di una piattaforma B/N con
+`nearest_color_to_pebble2_palette`, nel `.pbi` restano solo `0x00`, `0xC0` e `0xFF`, e il rosso
+finisce **nello stesso indice dell'anello** — informazione persa nei dati, non solo nella palette
+(nessun altro colore aiuta: grigi e blu vengono spinti su bianco o nero). Per questo il generatore
+mette `S = 0` su flint, `ui_digits.c` non trova l'indice dell'ombra e gli stili 3D valgono come i
+piatti.
 
 ### Rasterizzazione e scelta della pixel size
 
 Come `fontgen.py` dell'SDK: `face.load_char(c, FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
 FT_LOAD_MONOCHROME)`, bitmap monocromatica (`pixel_mode == 1`, MSB-first, `pitch` in byte).
 
-- **`px`**: la più grande pixel size per cui `max(altezza dell'inchiostro di '0'..'9') ≤ strip_h − 2`.
+- **`px`**: la più grande pixel size per cui `max(altezza dell'inchiostro di '0'..'9') ≤ rows_h`.
   La ricerca sale da 1 e si ferma alla prima `px` che sfora, così il risultato non dipende da
   eventuali non monotonie del hinting oltre il limite. `set_pixel_sizes(0, px)` **non** dà cifre alte
   `px` (dipende da unitsPerEm e dal disegno del font): la `px` trovata è molto più grande
   dell'altezza ottenuta — in taglia A su emery 74 per Anton, 92 per Bebas, 84 per Barlow (dopo
-  `--fit-width`) — e finisce nel campo diagnostico `px`. I valori esatti sono nella tabella
-  "Valori misurati". Il campo `px` dell'header è `uint8_t`: se la ricerca superasse 255 il tool si
-  ferma con un errore invece di far troncare il valore al compilatore (oggi il massimo è 131).
-- **Baseline comune**: `baseline_row = 1 + max(bitmap_top delle cifre)`, ogni glifo va a
-  `y0 = baseline_row − bitmap_top`. La cifra più alta occupa quindi le righe `1..digit_h`.
-  Il `':'` resta dove lo mette il font rispetto alla baseline; se il suo contorno uscirebbe dalla
-  strip viene alzato (o abbassato) del minimo necessario, con segnalazione.
+  `--fit-width`) — e finisce nel campo diagnostico `px`. Il campo `px` dell'header è `uint8_t`: se
+  la ricerca superasse 255 il tool si ferma con un errore (oggi il massimo è 132, Staatliches B su
+  emery).
+- **Baseline comune**: `baseline_row = R + max(bitmap_top delle cifre)`, ogni glifo va a
+  `y0 = baseline_row − bitmap_top`. La cifra più alta occupa quindi le righe `R .. R + digit_h − 1`.
 - **Glifi considerati**: i vincoli di larghezza guardano solo i glifi effettivamente generati,
-  quindi con `--no-colon-b` la taglia B li valuta sulle sole cifre. Con i tre font attuali il `':'`
-  non è mai il glifo più largo, perciò nessuna `px` cambia (verificato: `--check --fit-width` e
-  `--check --fit-width --no-colon-b` danno le stesse `px` e gli stessi `digit_h`).
-- **Orizzontale**: `x0 = k*cell_w + (cell_w − (bw + 2)) // 2 + 1` con `bw = bitmap.width`:
-  inchiostro centrato nella cella con 1 px libero per il contorno. Se `bw + 2 > cell_w` il glifo non
-  ci sta ed è un **errore** (uscita 1), a meno di `--fit-width`. Con `--pack` il disegno resta
-  questo — la compattazione arriva **dopo**, e i vincoli di larghezza (`pick_px`, `--fit-width`)
-  continuano a guardare `cell_w`, cioè il passo del layout. Con `--fit-width` la ricerca della
-  `px` aggiunge, nella sola taglia A, anche il vincolo `bw(':') + 2 ≤ colon_cell` (16 su emery, 12 su
-  flint): la cella dei due punti è più stretta di `cell_w`, quindi un `':'` largo di un font futuro
-  fa scendere la `px` invece di sbordare sulle cifre. Con i tre font attuali non è vincolante
-  (`':'` 15/12/15 px su emery A, 10/9/12 su flint A) e nessuna `px` cambia.
+  quindi con `--no-colon-b` la taglia B li valuta sulle sole cifre. Con i cinque font attuali il
+  `':'` non è mai il glifo più largo, perciò non è lui a fissare la `px`.
+- **Orizzontale**: il riempimento è centrato nella sottocella da `cell_w` della cella di lavoro,
+  con almeno 1 px libero per lato **oltre** ad anello e ombra. Se `riempimento + 2 > cell_w` il
+  glifo non ci sta ed è un **errore** (uscita 1), a meno di `--fit-width`. **D24**: il vincolo
+  misura il **riempimento**, non `riempimento + 2R + S` — anello e ombra possono sporgere dal
+  passo della cella, perché `ui_time.c` (`prv_grid_steps`) allarga il passo della **griglia** — uguale
+  per tutte le cifre — al nucleo (`riempimento + 2R`) della cifra **più larga** del font più uno spazio
+  fra gli anelli di 2, 1 o 0 px, e in riserva a `max(cella, riempimento più largo + R)` (**D25, terza
+  versione**: il `+ R` tiene l'anello del glifo successivo fuori dal riempimento del precedente).
+  Con `--fit-width` la
+  ricerca aggiunge, nella sola taglia A, anche il vincolo `riempimento(':') + 2 ≤ colon_cell`
+  (16 su emery, 12 su flint).
+
+### Controlli di riga (spec S8-stile §3.4)
+
+Il generatore rifà il conto di `ui_time.c:prv_grid_steps` + `prv_place_row_fit` — **D25, terza
+versione** (05/09/2026, segnalazione dell'utente: con Francois One in stile trasparente le cifre si
+toccavano). La griglia resta **uniforme** — un solo passo per tutte le cifre e uno per il `':'`,
+come in D3/S3, così le cifre non si spostano al cambio di minuto — ma si **adatta al font**:
+
+- passo delle cifre = `max(cell_w, nucleo della cifra PIÙ LARGA + gap)`;
+- passo del `':'` = `max(colon_cell, nucleo del ':' + gap)`;
+- **nucleo** = `riempimento + 2R`, con riempimento = `ink[k].w − 2R − S`, cioè esattamente
+  `ui_digits_fill_width()` di `ui_digits.c`; il `gap` è lo spazio minimo che resta fra gli anelli di
+  due glifi adiacenti.
+
+Il `gap` viene provato **in quest'ordine** — 2, 1, 0 px (`RING_GAPS`) — e si tiene il primo per cui
+la riga intera (più `4 + PM 18` in 12 h) sta in `larghezza schermo − 2 × FIT_MARGIN`, con
+**`FIT_MARGIN = 2`** px liberi per lato. Se non basta nemmeno 0 si passa alla **regola di riserva**,
+`max(cella, riempimento più largo + R)`, che vale **sempre** (nessun margine richiesto): lascia gli
+anelli adiacenti o sovrapposti di 1 px, ma tiene comunque l'anello fuori dal riempimento del vicino.
+La riserva è l'**unica** regola che il generatore deve garantire: è quella su cui si ferma con errore
+(uscita 1, nessun file scritto) se la riga non entra nella larghezza dello schermo (200 px su emery,
+144 su flint). L'ombra può sporgere di 1 px nel margine interno del vicino (solo negli stili 3D).
+
+La griglia dipende **solo** da font, taglia e numero di glifi della riga, quindi è la stessa per
+tutti i minuti dell'ora (la versione con i passi proporzionali al singolo glifo è stata scartata:
+spostava le ore di ±4 px al cambio di minuto). Nell'etichetta di ogni riga (avvisi, errori e commento
+in testa a `digit_metrics.h`) il gap scelto compare come `[gap 2]` … `[gap 0]` oppure
+`[gap riserva]`. Il conto si fa sulle righe peggiori:
+
+| Riga | Passi | Limite |
+|---|---|---|
+| taglia A, 24 h `20:44` | griglia uniforme calcolata su `cell_w` (cifre) e `colon_cell` (`':'`), nessun gap fra le celle | larghezza schermo |
+| taglia A, 12 h `10:44` + 4 + `PM` | griglia uniforme su `cell_w − 2` (AM/PM) e `colon_cell`; `PM` = **18 px** su emery **e** su flint (Gothic 14 Bold, misurato: stesso font, stessa larghezza) | larghezza schermo |
+| taglia A, 12 h `09:44` + 4 + `PM` | come sopra: è la riga con lo **zero iniziale** (`GAL_LZ_ON`). Con la griglia uniforme è **larga quanto «10:44»** — il controllo serve per i **margini**, che si stringono perché lo `0` ha l'inchiostro più largo dell'`1` | larghezza schermo |
+| taglia B | `2 × passo della griglia + gap 8`, peggiore delle 100 coppie di cifre (`[gap 2]` per tutti i font) | larghezza schermo |
+
+Secondo controllo, **AVVISO** e non errore: il tool rifà anche il **centraggio** del blocco
+(`x0 = (schermo − blocco) / 2`, mai negativo, come `ui_time.c`) e la posizione dei pixel di ogni
+glifo come li disegna `ui_digits_draw` (`gx = x + (passo − nucleo) / 2` con `nucleo = ink − ombra`,
+divisione intera del C: il riempimento resta centrato nel passo e l'ombra sporge a destra), poi
+misura i **margini** fra i pixel disegnati e i bordi dello schermo. Un margine negativo vuol dire
+qualche pixel di anello o ombra tagliato dal layer al bordo: si segnala (nell'header e nella
+tabella), non si blocca.
+
+Nella tabella stampata le colonne `riga 1` / `riga 2` mostrano
+`larghezza/limite(inchiostro) margine_sx/margine_dx`, con `!` sulla larghezza quando sfora e sui
+margini quando sono negativi; il numero fra parentesi è la stessa riga misurata con l'**inchiostro
+intero**, cioè quanto misurerebbe con il passo su `max(passo, inchiostro)`. Le colonne stampate sono
+**due**: `riga 2` è la 12 h «10:44»; la 12 h «09:44» viene controllata lo stesso (errore, avvisi ed
+etichetta `[gap …]` compresi) ma non ha una colonna sua — con la griglia uniforme è larga **quanto
+«10:44»** per tutti e cinque i font, e cambiano solo i margini, più stretti (fino a 0 px con
+Staatliches su emery: lo `0` iniziale ha l'inchiostro più largo dell'`1`, ed è per questo che la riga
+viene controllata).
+
+Con la geometria di D20/D26 e i cinque font **tutte le righe entrano** e il comando canonico esce 0
+(nessun `--allow-row-overflow` nello stato del repo):
+
+| Riga | Larghezza | Limite | Margini peggiori (sx / dx) |
+|---|---|---|---|
+| emery A, 24 h `20:44` | 180 Bebas · 183 Anton · 192 Staatliches · 193 Francois One · **195 Barlow** (tutti `[gap 2]`) | 200 | 5 (Barlow, Francois One) / 2 (Barlow) |
+| emery A, 12 h `10:44`/`09:44` + PM | 194 Bebas · 195 Anton (`[gap 0]`) · **198 Barlow, Francois One, Staatliches** (`[gap riserva]`) | 200 | 0 (Staatliches in «09:44») / 1 (Barlow, Francois One, Staatliches) |
+| flint A, 24 h | 124 Anton, Bebas · 128 Staatliches · 132 Francois One · **134 Barlow** (tutti `[gap 2]`) | 144 | 7 (Barlow) / 6 (Barlow) |
+| flint A, 12 h + PM | 138 Bebas `[gap 2]` · 138 Anton `[gap 0]` · 138 Staatliches · **142 Barlow, Francois One** (`[gap riserva]`) | 144 | 1 (Francois One in «09:44») / 1 (Barlow, Francois One) |
+| taglia B (2 glifi + gap 8) | 136 Anton, Bebas, Staatliches · 138 Barlow · **140 Francois One** su emery; 104 su flint (tutti i font) | 200 / 144 | ≥ 29 emery, ≥ 23 flint |
+
+In **24 h** la riga sta larga e il gap scelto è sempre 2, quindi la larghezza **dipende dal font**
+anche a griglia piena — ma di un passo solo, quello della cifra più larga, ripetuto quattro volte. Su emery
+`nucleo + 2 = riempimento + 2R + 2` è **esattamente l'inchiostro** (`S = 2`), quindi la riga vale
+`4 × max(40, inchiostro della cifra più larga) + max(16, inchiostro del ':')`: 180 Bebas
+(`4 × 41 + 16`), 183 Anton (`4 × 41 + 19`, il `:` è largo 19), 192 Staatliches (`4 × 44 + 16`),
+193 Francois One (`4 × 44 + 17`), 195 Barlow (`4 × 44 + 19`) — la base della griglia nominale,
+`4 × 40 + 16 = 176`, resta solo dove nessun inchiostro la supera. Su flint `S = 0`, il gap 2 vale
+`inchiostro + 2`: 124 Anton e Bebas (griglia nominale `4 × 28 + 12`), 128 Staatliches, 132 Francois
+One, 134 Barlow (`4 × 30 + 14`).
+
+In **12 h** le celle scendono a 38 (26 su flint) e alla riga vanno tolti anche `4 + PM 18` e i
+`2 × FIT_MARGIN = 4` px di margine: sui 200 px di emery restano **174** px per i cinque glifi
+(**118** sui 144 di flint). Su emery il primo gap che ci sta è **0** per Bebas (`4 × 39 + 16 = 172`
+→ riga 194) e per Anton (`4 × 39 + 17 = 173` → 195); Barlow, Francois One e Staatliches, che hanno il
+riempimento più largo a 38 px, sforano anche con gap 0 (184–185 px di soli glifi contro i 174
+disponibili) e ricadono sulla **riserva** `riempimento più largo + R = 40`, cioè
+`4 × 40 + 16 + 22 = 198` per tutti e tre — solo lì gli anelli di due cifre larghe tornano a toccarsi,
+e solo in 12 h. Su flint: gap 2 per Bebas (138),
+gap 0 per Anton (138), riserva per Staatliches (138, la sua cifra più larga sta nella cella nominale)
+e per Barlow e Francois One (`4 × 27 + 12 + 22 = 142`). Il resto della sporgenza (anello e ombra) sta
+nei margini.
+
+⚠️ La colonna diagnostica fra parentesi è la stessa riga misurata **glifo per glifo** con
+l'inchiostro intero (`Σ max(cella, inchiostro)`), cioè la regola che D25 **non** usa: in 24 h la
+griglia uniforme sta sopra (195 contro 187 con Barlow, perché il passo del `4` vale anche per le
+altre cifre), in 12 h sta sotto (198 contro 206–208, perché nessuna riga entrerebbe: 201 Anton /
+206 Barlow / 207 Francois One / 208 Staatliches contro 200, solo Bebas resterebbe dentro con 196).
+Su flint l'inchiostro intero starebbe dentro per tutti (138–143 su 144), ma solo perché lì
+`2R + S = 2` (D26). Se cambiassero l'ordine dei gap, `FIT_MARGIN`, la regola di riserva o la
+geometria `R`/`S`, questo controllo va rifatto — e `RING_GAPS`/`FIT_MARGIN` del tool vanno tenuti
+uguali a quelli di `ui_time.c`.
 
 ### Metriche generate (`digit_metrics.h`)
 
 ```c
 #define DIGITS_GLYPHS 11
-typedef struct { uint16_t x; uint8_t w; } DigitInk;      /* inchiostro, contorno compreso */
-typedef struct {
-  uint16_t strip_w, strip_h;
-  uint8_t  cell_w, digit_h, px;   /* con --pack cell_w = passo della griglia del layout */
-  DigitInk ink[DIGITS_GLYPHS];                            /* '0'..'9', ':' */
+#define DIGITS_FONT_COUNT 5          /* = len(FONTS) nel tool: aggiungere un font = una riga */
+typedef struct __attribute__((packed)) { uint16_t x; uint8_t w; } DigitInk;   /* riempimento ∪ anello ∪ ombra; packed: 3 B */
+typedef struct __attribute__((packed)) {
+  uint16_t strip_w, strip_h;      /* strip_h = rows_h + 2·ring + shadow */
+  uint8_t  cell_w;                /* con --pack: passo della griglia del layout */
+  uint8_t  digit_h;               /* righe ring .. ring + digit_h − 1 */
+  uint8_t  ring, shadow;          /* R e S */
+  uint8_t  px;                    /* pixel size FreeType (diagnostica) */
+  DigitInk ink[DIGITS_GLYPHS];                          /* '0'..'9', ':' */
 } DigitStripMetrics;
-static const DigitStripMetrics DIGITS_METRICS[3][2];      /* [font][taglia], #if PBL_COLOR / #else */
-static const uint32_t         DIGITS_RESOURCE_IDS[3][2];  /* RESOURCE_ID_DIGITS_<FONT>_<TAGLIA> */
+static const DigitStripMetrics DIGITS_METRICS[DIGITS_FONT_COUNT][2];   /* #if PBL_COLOR / #else */
+static const uint32_t         DIGITS_RESOURCE_IDS[DIGITS_FONT_COUNT][2];
 ```
 
-`ink[k].x` è la prima colonna del glifo con inchiostro **o** contorno, `ink[k].w` la larghezza
-totale (contorno compreso): sono i due valori della sub-bitmap. Senza `--pack` è la prima colonna
-piena dentro la cella `k`; con `--pack` è l'offset progressivo (`ink[0].x == 0`, poi la somma
-delle larghezze precedenti). Indici: font 0 Anton, 1 Bebas Neue, 2 Barlow Condensed Bold;
-taglia 0 = A, 1 = B.
+La tabella `FONTS` del tool è **data-driven**: aggiungere un font è **una riga** in `FONTS` (chiave,
+nome, prefisso di risorsa, file TTF), e `DIGITS_FONT_COUNT` segue `len(FONTS)`. Indici: 0 Anton,
+1 Bebas Neue, 2 Barlow Condensed Bold, 3 Francois One, 4 Staatliches; taglia 0 = A, 1 = B.
+L'indice qui è l'**indice di strip**, non il valore dell'impostazione `font` (D22: `font` 3 = LECO,
+font di sistema, non ha strip, quindi indice di strip = `font < 3 ? font : font − 1`).
 
-Il controllo di sintassi su host dell'header (compila con
-`gcc -std=c99 -Wall -Wextra -Werror`, con e senza `-DPBL_COLOR`, definendo i sei
-`RESOURCE_ID_DIGITS_*` che sull'orologio genera l'SDK) verifica anche che gli offset siano
-progressivi e adiacenti e che `cell_w` valga 40/64 su emery e 28/48 su flint.
+`ink[k].x` è la prima colonna del glifo con **riempimento, anello o ombra**, `ink[k].w` la
+larghezza totale: sono i due valori della sub-bitmap. Senza `--pack` è la prima colonna piena
+dentro la cella di lavoro `k`; con `--pack` è l'offset progressivo (`ink[0].x == 0`, poi la somma
+delle larghezze precedenti).
 
 `DIGITS_GLYPHS` resta **11** anche con `--no-colon-b`: nella taglia B la voce del `':'`
 (`ink[DIGITS_GLYPH_COLON]`) vale `{ 0, 0 }`, cioè **glifo assente** — `ui_digits.c` salta i glifi
 con `w == 0` (nessuna sub-bitmap, `glyph[g] = NULL`; `ui_digits_draw` non disegna,
 `ui_digits_ink_width` ritorna 0). Il controllo `b.size.w == m->strip_w` al caricamento vale come
-prima ed è quello che accorge di un PNG rigenerato senza l'opzione (o viceversa).
+prima ed è quello che si accorge di un PNG rigenerato senza l'opzione (o viceversa).
 
-`digit_h` è l'**altezza reale del riempimento**: le cifre occupano le righe `1..digit_h` della
-strip, quindi il loro ultimo pixel di riempimento sta a `y + digit_h` quando la strip è disegnata
-a `y` (`ui_time.c` ci allinea la base di AM/PM, §3.1). Vale `strip_h − 2` ovunque **tranne** dove
-`--fit-width` ha dovuto abbassare la `px`: Barlow A 61 (emery) e 40 (flint), Barlow B 93 (emery).
-Le righe utili restano ricavabili da `strip_h − 2`; la perdita è anche nel commento della voce
-(`inchiostro 61 px su 66`) e nel blocco "Segnalazioni della generazione" in testa all'header.
+`digit_h` è l'**altezza reale del riempimento**: le cifre occupano le righe `ring .. ring + digit_h − 1`
+della strip (`ui_time.c` ci allinea la base di AM/PM, §3.1, con `strip_y = fill_y − ring`).
+Vale `rows_h` ovunque **tranne** dove `--fit-width` ha dovuto abbassare la `px`: Barlow A 61
+(emery) e 40 (flint) e Barlow B 93 (emery); Francois One A 61 (emery) e 41 (flint) e Francois One B
+61 (flint); Staatliches A 65 (emery).
 
-Valori misurati (30/08/2026, `--check --fit-width --no-colon-b --pack`; larghezze **contorno
-compreso**; `—` = glifo non generato). `px`, `digit_h` e le larghezze degli inchiostri sono gli
-stessi di S3: né `--no-colon-b` né `--pack` toccano la rasterizzazione — la prima toglie un
-glifo, la seconda sposta i glifi.
+Valori misurati (05/09/2026, dopo la **terza versione** di D25 — griglia uniforme adattata al font —
+con `--check --fit-width --no-colon-b --pack`, cioè il comando canonico; larghezze **anello e ombra
+compresi**; `—` = glifo non generato; fra parentesi i margini in px fra i pixel disegnati e i bordi
+dello schermo, sinistro/destro, poi il gap scelto fra gli anelli; la colonna «riga 12 h» è
+«10:44 PM» con `PM` = 18 px — «09:44 PM» misura uguale per tutti i font (stessa griglia) e cambia
+solo nei margini; le righe della taglia B stanno nella colonna «riga 24 h»). Per Anton/Bebas/Barlow `px`, `digit_h` e
+le larghezze del **riempimento** sono gli stessi di S3/S7: la v2 non tocca la rasterizzazione, e le
+sei strip `~bw` dei font vecchi sono **identiche byte per byte** a quelle della v1 (`R = 1`, `S = 0`).
 
-| font | piatt. | taglia | px | `digit_h` / righe utili | w max cifre | w `':'` | Σ ink | `strip_w` prima → dopo |
-|---|---|---|---|---|---|---|---|---|
-| anton | emery | A | 74 | 66 / 66 | 37 | 15 | 359 | 440 → **360** |
-| anton | emery | B | 107 | 94 / 94 | 53 | — | 489 | 640 → **492** |
-| anton | flint | A | 49 | 42 / 42 | 26 | 10 | 246 | 308 → **248** |
-| anton | flint | B | 70 | 62 / 62 | 35 | — | 326 | 480 → **328** |
-| bebas | emery | A | 92 | 66 / 66 | 37 | 12 | 332 | 440 → **332** |
-| bebas | emery | B | 131 | 94 / 94 | 51 | — | 448 | 640 → **448** |
-| bebas | flint | A | 58 | 42 / 42 | 23 | 9 | 216 | 308 → **216** |
-| bebas | flint | B | 86 | 62 / 62 | 34 | — | 300 | 480 → **300** |
-| barlow | emery | A | 84 | **61** / 66 | 40 | 15 | 350 | 440 → **352** |
-| barlow | emery | B | 130 | 93 / 94 | 61 | — | 512 | 640 → **512** |
-| barlow | flint | A | 58 | **40** / 42 | 28 | 12 | 249 | 308 → **252** |
-| barlow | flint | B | 86 | 62 / 62 | 41 | — | 343 | 480 → **344** |
+| font | piatt. | taglia | px | `digit_h` / `rows_h` | R/S | w max cifre | w `':'` | Σ ink | `strip_w × strip_h` | riga 24 h (margini, gap) | riga 12 h (margini, gap) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| anton | emery | A | 74 | 66 / 66 | 2/2 | 41 | 19 | 403 | **404 × 72** | 183 (9/8), gap 2 | 195 (9/3), gap 0 |
+| anton | emery | B | 107 | 94 / 94 | 2/2 | 57 | — | 529 | **532 × 100** | 136 (36/35), gap 2 | — |
+| anton | flint | A | 49 | 42 / 42 | 1/0 | 26 | 10 | 246 | **248 × 44** | 124 (11/11), gap 2 | 138 (8/3), gap 0 |
+| anton | flint | B | 70 | 62 / 62 | 1/0 | 35 | — | 326 | **328 × 64** | 104 (26/27), gap 2 | — |
+| bebas | emery | A | 92 | 66 / 66 | 2/2 | 41 | 16 | 376 | **376 × 72** | 180 (13/9), gap 2 | 194 (10/3), gap 0 |
+| bebas | emery | B | 131 | 94 / 94 | 2/2 | 55 | — | 488 | **488 × 100** | 136 (37/36), gap 2 | — |
+| bebas | flint | A | 58 | 42 / 42 | 1/0 | 23 | 9 | 216 | **216 × 44** | 124 (13/13), gap 2 | 138 (8/3), gap 2 |
+| bebas | flint | B | 86 | 62 / 62 | 1/0 | 34 | — | 300 | **300 × 64** | 104 (27/27), gap 2 | — |
+| barlow | emery | A | 84 | **61** / 66 | 2/2 | 44 | 19 | 394 | **396 × 72** | 195 (5/2), gap 2 | 198 (9/1), riserva |
+| barlow | emery | B | 130 | 93 / 94 | 2/2 | 65 | — | 552 | **552 × 100** | 138 (32/30), gap 2 | — |
+| barlow | flint | A | 58 | **40** / 42 | 1/0 | 28 | 12 | 249 | **252 × 44** | 134 (7/6), gap 2 | 142 (7/1), riserva |
+| barlow | flint | B | 86 | 62 / 62 | 1/0 | 41 | — | 343 | **344 × 64** | 104 (23/24), gap 2 | — |
+| francois | emery | A | 79 | **61** / 66 | 2/2 | 44 | 17 | 416 | **416 × 72** | 193 (5/3), gap 2 | 198 (6/1), riserva |
+| francois | emery | B | 123 | 94 / 94 | 2/2 | 66 | — | 595 | **596 × 100** | 140 (31/29), gap 2 | — |
+| francois | flint | A | 53 | **41** / 42 | 1/0 | 28 | 9 | 259 | **260 × 44** | 132 (8/7), gap 2 | 142 (4/1), riserva |
+| francois | flint | B | 79 | **61** / 62 | 1/0 | 40 | — | 359 | **360 × 64** | 104 (24/24), gap 2 | — |
+| staatliches | emery | A | 90 | **65** / 66 | 2/2 | 44 | 16 | 408 | **408 × 72** | 192 (6/3), gap 2 | 198 (13/1), riserva |
+| staatliches | emery | B | 132 | 94 / 94 | 2/2 | 63 | — | 552 | **552 × 100** | 136 (33/32), gap 2 | — |
+| staatliches | flint | A | 58 | 42 / 42 | 1/0 | 27 | 9 | 245 | **248 × 44** | 128 (10/10), gap 2 | 138 (11/3), riserva |
+| staatliches | flint | B | 86 | 62 / 62 | 1/0 | 40 | — | 343 | **344 × 64** | 104 (24/24), gap 2 | — |
 
-`strip_w = ceil(Σ ink / 4) × 4`: la coda trasparente è 0 px (Bebas ovunque, Barlow emery B) fino a
-3 px (Anton emery B). Le colonne di inchiostro dei 12 PNG sono state confrontate pixel per pixel
-con quelle delle strip a celle fisse (Pillow, `ink[k].x .. +w`): **identiche** in tutte e 12 le
-combinazioni, con `px` e `digit_h` invariati.
+(`strip_w = ceil(Σ ink / 4) × 4`; nessuna riga sfora: il limite è 200 px su emery e 144 su flint.)
+Le colonne di riempimento delle 12 strip dei tre font vecchi sono state confrontate **pixel per
+pixel** con quelle della v1 (Pillow, normalizzando su `ink[k].x + R` e sulla riga `R`): identiche in
+tutte e 12 le combinazioni, con `px` e `digit_h` invariati — e le 6 `~bw` sono anche `cmp`-identiche
+al file in `HEAD`. Su tutte e 20 le strip l'anello (Chebyshev 1..R ricalcolato a forza bruta) e
+l'ombra (spostamenti diagonali) corrispondono alla definizione in ogni glifo, il riempimento parte
+esattamente `R` colonne dopo `ink[k].x`, i PNG hanno le dimensioni dell'header e solo i colori
+ammessi (4 su emery, 3 su flint: nessun pixel d'ombra).
 
 ### `--fit-width`: il `'4'` di Barlow Condensed Bold
 
 Barlow Condensed Bold ha un `'4'` molto più largo delle altre cifre (42 px contro 35–37 alla `px`
-che riempie la taglia A di emery). Con `cell_w = 40` non entra nemmeno senza contorno: il tool si
+che riempie la taglia A di emery). Con `cell_w = 40` non entra nemmeno senza anello: il tool si
 ferma con
 
 ```
 ERRORE  barlow emery A     glifo '4' largo 42 px: 42 + 2 > cell_w 40
 ```
 
-`--fit-width` aggiunge alla ricerca il vincolo `bw + 2 ≤ cell_w` e abbassa la `px` **solo** delle
-combinazioni che non entrano (le altre dieci non cambiano di un byte): Barlow A scende a `px 84`
-su emery (inchiostro 61 px invece di 66) e a `px 58` su flint (40 invece di 42). Le perdite di
-altezza finiscono nel commento in testa a `digit_metrics.h`, insieme all'avviso sul layout 12 h.
+`--fit-width` aggiunge alla ricerca il vincolo `riempimento + 2 ≤ cell_w` e abbassa la `px`
+**solo** delle combinazioni che non entrano (le altre dieci non cambiano di un byte): Barlow A
+scende a `px 84` su emery (riempimento 61 px invece di 66) e a `px 58` su flint (40 invece di 42).
+Le perdite di altezza finiscono nel commento in testa a `digit_metrics.h`, insieme agli avvisi di
+layout.
 
 **Avviso di layout della taglia A** (design §3.1/§3.3): la griglia **non** è uniforme — il `':'` ha
 una cella più stretta delle cifre — e in 12 h si stringono di 2 px **solo le celle delle cifre**,
@@ -741,21 +925,17 @@ shrink), perché a 14/10 px il `':'` di Anton e Barlow non ci starebbe.
 | flint A, 24 h | 28 | 12 |
 | flint A, 12 h | 26 | **12** |
 
-Il tool confronta ogni glifo con la **sua** cella nei due layout — le cifre con `cell_w` (24 h) o
-`cell_w − 2` (12 h), il `':'` sempre con `colon_cell` — e segnala chi sfora. Con i tre font attuali
-sfora solo il `'4'` di Barlow, e solo in 12 h:
-
-```
-AVVISO  barlow emery A     layout 12 h (celle 38 cifre / 16 il ':'): glifi più larghi della cella: '4' 40>38
-AVVISO  barlow flint A     layout 12 h (celle 26 cifre / 12 il ':'): glifi più larghi della cella: '4' 28>26
-```
-
-In 24 h nessuno sfora, e nemmeno il `':'` sfora mai (15 ≤ 16 su emery, 12 ≤ 12 su flint): l'unico
-sforamento reale in 12 h è il `'4'` di Barlow Condensed Bold, 40 px su passo 38 (emery) e 28 su 26
-(flint). Non è un errore: è una scelta di layout. **NOTA:** dopo il fix di `ui_time.c` i glifi più
-larghi del passo ridotto ricevono l'**advance pieno** (la cella da 40 / 28 px) invece di quello
-stretto, quindi il `'4'` non si sovrappone più ai vicini — l'avviso resta una segnalazione del
-disallineamento fra inchiostro e passo nominale, non di una sovrapposizione.
+Il tool confronta ogni glifo con la **sua** cella nei due layout e segnala chi sfora. Su emery
+sforano molti più glifi che nella v1 — in 12 h quasi tutte le cifre — perché `ink[k].w` è cresciuto
+di 4 px, mentre su flint gli avvisi sono gli stessi della v1 (`2R + S = 2`). Non è un errore: è la
+sporgenza prevista da D24, e con **D25** è la **griglia** ad assorbirla: `prv_grid_steps` misura il
+nucleo (`riempimento + 2R`) della cifra **più larga** del font, gli aggiunge 2, 1 o 0 px di spazio fra
+gli anelli — il primo gap che fa stare la riga — e in riserva usa `riempimento più largo + R`, dove
+gli anelli si toccano ma nessuno morde il riempimento del vicino. Il passo così calcolato vale per
+**tutte** le cifre: in 24 h su emery il `4` di Barlow (nucleo 42, gap 2 → 44) porta la griglia da 40
+a 44 px, in 12 h la riserva la porta a 40; il `':'` ha il suo passo, calcolato allo stesso modo (in
+24 h su emery: 19 px con Anton e Barlow, 17 con Francois One, 16 con Bebas e Staatliches). Il
+controllo che conta davvero è quello **di riga**, qui sopra.
 
 ### Costo delle strip
 
@@ -767,45 +947,38 @@ byte in heap                =              ceil(strip_w / 4) × strip_h (pixel) 
                                                                    (la strip + le 11 sub-bitmap)
 ```
 
-Le voci di S3 (`A` e `B` a 11 celle) sono **misurate** su `build/<piatt>/app_resources.pbpack`
-(tabella a 16 B per voce dopo un header di 12 B, contenuto da 0x100C) — **non** la dimensione dei
-`.reso` in `build/`, che sono wrapper pickle di waf e pesano ~390 B in più a file. Tutte le altre
-colonne sono **calcolate** con la formula qui sopra e vanno confermate alla prima build.
+Tutte le colonne sono **calcolate** con la formula (le misure su `app_resources.pbpack` sono di S3)
+e vanno confermate alla prima build.
 
-| voce nel pbpack | A, 11 celle (S3) | B, 11 celle (S3) | B, 10 celle (`--no-colon-b`) | A `--pack` (S7) | B `--pack` (S7) |
-|---|---|---|---|---|---|
-| emery, anton | 7.496 (mis.) | 16.912 (mis.) | 15.376 (calc.) | **6.136** (calc.) | **11.824** (calc.) |
-| emery, bebas | 7.496 | 16.912 | 15.376 | **5.660** | **10.768** |
-| emery, barlow | 7.496 | 16.912 | 15.376 | **6.000** | **12.304** |
-| flint, anton | 3.404 (mis.) | 8.464 (mis.) | 7.696 (calc.) | **2.744** (calc.) | **5.264** (calc.) |
-| flint, bebas | 3.404 | 8.464 | 7.696 | **2.392** | **4.816** |
-| flint, barlow | 3.404 | 8.464 | 7.696 | **2.788** | **5.520** |
+| voce nel pbpack | v1 `--pack` (S7) | **v2** (anello + ombra) | Δ |
+|---|---|---|---|
+| emery, anton A / B | 6.136 / 11.824 | **7.288 / 13.316** | +1.152 / +1.492 |
+| emery, bebas A / B | 5.660 / 10.768 | **6.784 / 12.216** | +1.124 / +1.448 |
+| emery, barlow A / B | 6.000 / 12.304 | **7.144 / 13.816** | +1.144 / +1.512 |
+| emery, francois A / B | — | **7.504 / 14.916** | font nuovo |
+| emery, staatliches A / B | — | **7.360 / 13.816** | font nuovo |
+| flint, anton A / B | 2.744 / 5.264 | **2.744 / 5.264** | **0** (D26: `R = 1`, `S = 0` = v1) |
+| flint, bebas A / B | 2.392 / 4.816 | **2.392 / 4.816** | **0** |
+| flint, barlow A / B | 2.788 / 5.520 | **2.788 / 5.520** | **0** |
+| flint, francois A / B | — | **2.876 / 5.776** | font nuovo |
+| flint, staatliches A / B | — | **2.744 / 5.520** | font nuovo |
 
-(Fino a S3 le sei voci di una piattaforma erano identiche fra i font: le celle avevano larghezza
-fissa. Con `--pack` ogni font ha la sua larghezza.)
+**pbpack**: le sei risorse dei tre font vecchi passano da 52.692 a **60.564 B** su emery
+(**+7.872 B**) e restano **23.524 B** su flint (le strip `~bw` non cambiano). Con **dieci** risorse
+(cinque font) il totale calcolato è **104.160 B** (101,7 KiB) su emery e **40.440 B** (39,5 KiB) su
+flint: dentro il budget risorse (≤ 256 KB) ma da confermare alla prima build.
 
-**pbpack, sei risorse** (calcolato): emery **52.692 B** (51,5 KiB) contro 68.616 con le celle fisse
-a 10 celle, cioè **−15.924 B**; flint **23.524 B** (23,0 KiB) contro 33.300, cioè **−9.776 B**. Sul
-budget risorse (≤ 256 KB) restano quindi ~15,5 KB liberi in più su emery.
+**Heap**: in RAM è residente **una sola** strip per taglia caricata (quella del font attivo), e il
+numero di `GBitmap` (strip + 11 sub-bitmap) non cambia. Su emery i pixel crescono di `+1.152 B`
+(taglia A, Anton) e `+1.492 B` (taglia B, Anton) rispetto alla v1; **su flint non crescono affatto**.
+Il caso peggiore è **Francois One in taglia B su emery**: 14.900 B di pixel, cioè 3.092 B in più
+della strip B di Anton della v1. Il gate S7 lasciava ≈ 43.472 B liberi nel layout B su emery
+(calcolato): con la v2 ci si attende ≈ 41.980 B con Anton e ≈ 40.380 B con Francois One, appena
+sopra l'obiettivo dei 40 KB — **da confermare in emulatore** (rischio §8 della spec S8-stile: se
+non basta, `S = 1` nella taglia B).
 
-**Heap**: in RAM è residente **una sola** strip per taglia caricata (quella del font attivo);
-`--pack` toglie esattamente i byte dei pixel delle colonne vuote, perché il numero di `GBitmap`
-(strip + 11 sub-bitmap) non cambia. Risparmi calcolati, per font:
-
-| | emery A (era 7.480 B di pixel) | emery B (era 15.360) | flint A (era 3.388) | flint B (era 7.680) |
-|---|---|---|---|---|
-| anton | 6.120 → **−1.360** | 11.808 → **−3.552** | 2.728 → **−660** | 5.248 → **−2.432** |
-| bebas | 5.644 → **−1.836** | 10.752 → **−4.608** | 2.376 → **−1.012** | 4.800 → **−2.880** |
-| barlow | 5.984 → **−1.496** | 12.288 → **−3.072** | 2.772 → **−616** | 5.504 → **−2.176** |
-
-Con il font predefinito (Anton) e il layout B — il caso critico dell'obiettivo O1 di S7, heap
-libero ≥ 40 KB su emery — sono **+3.552 B** di heap libero (e altri +1.360 B quando la Quick View
-tiene caricata anche la taglia A, cioè +4.912 B in totale); nel layout A sono +1.360 B. Il gate S7
-misurava 39.920 B liberi dopo il primo render in layout B: con le strip compatte ci si attende
-**≈ 43.472 B** (calcolato), sopra l'obiettivo. Su flint il layout B guadagna 2.432 B con Anton.
-
-I 12 PNG passano da 29.981 B a 28.212 B in tutto, ma è la dimensione del sorgente: quello che
-conta è il PBI generato dall'SDK.
+I 20 PNG pesano 57.507 B in tutto, ma è la dimensione del sorgente: quello che conta è il PBI
+generato dall'SDK.
 
 ---
 
@@ -875,10 +1048,15 @@ pebble emu-app-config --emulator emery      # apre http://localhost:8765/config.
 
 Campi di `--settings` (stessi intervalli di `settings_validate()` in `apps/galleria/src/c/settings.c`;
 un valore fuori intervallo è un **errore**, non viene sostituito in silenzio dal default):
-`layout` 0..1, `font` 0..3, `clock_mode` 0..2, `leading_zero` 0..2, `text_color` 0..4,
-`outline` 0..2, `interval_min` ∈ {0, 5, 15, 30, 60, 180, 1440}, `order` 0..1, `shake_next` 0..1,
-`info_row` 0..15. Default: `30` per `interval_min`, `1` per `shake_next`, `15` per `info_row`, `0`
-per tutto il resto.
+`layout` 0..1, `font` **0..5** (0 Anton, 1 Bebas Neue, 2 Barlow Condensed Bold, **3 LECO**,
+**4 Francois One**, **5 Staatliches**: D22, S8-stile), `clock_mode` 0..2, `leading_zero` 0..2,
+`text_color` 0..4, `outline` 0..2, `interval_min` ∈ {0, 5, 15, 30, 60, 180, 1440}, `order` 0..1,
+`shake_next` 0..1, `info_row` 0..15, `digit_style` **0..3** (0 pieno, 1 trasparente, 2 trasparente
+3D, 3 pieno 3D: D21, S8-stile). Default: `30` per `interval_min`, `1` per `shake_next`, `15` per
+`info_row`, `0` per tutto il resto (`digit_style` compreso).
+
+⚠️ Il server accetta `digit_style` 2 e 3 anche per uno scenario flint: la normalizzazione di D26
+(2 → 1, 3 → 0, dove l'ombra non esiste) sta nella **config page**, non nel dev server.
 
 Gli elenchi di `--slots` e `--order` devono essere ben formati: un pezzo vuoto (`0,,1`, `3,`) è un
 **errore**, non viene saltato in silenzio — sulla riga di comando un refuso va segnalato. Il
@@ -916,7 +1094,7 @@ stdout: `14:31:14.118  GET     /photo/0.raw6 -> 200  34200 B  0.2 ms`; anche que
 | `GET /config.html` | pagina di prova (o il file di `--page`), `text/html; charset=utf-8` |
 | `GET /state.json` | **pool** (`--album`, o server nudo): payload **completo** `{v:1, full:true, seq, settings?, order, deleted:[], photos:[…], hooks:{scenario}}` — `settings` compare solo dopo `--settings` o un Save: senza, il PKJS (`album.settingsSet`) non sovrascrive le impostazioni dell'orologio. **Relay** (`--relay`, o `--page-dir` senza `--album`): `{v:1, seq, settings?, hooks:{scenario}}`, **senza `full`** e senza `photos`/`order`/`deleted`, così il PKJS lo applica come delta vuoto e non elimina nessuno slot |
 | `GET /save.json` | quello che il PKJS legge dopo un Save. Prima di ogni Save — e in modalità pool — è l'**alias** di `/state.json`, come in S5b; dopo un Save della **config page vera** è il payload che la pagina ha mandato, con `seq` e `hooks` aggiunti e **senza `full`** (il PKJS lo applica come delta). Un Save della pagina di prova azzera il payload tenuto da parte e riporta `/save.json` allo stato del server |
-| `GET /pool.json` | `{pool:[{i, name, photo_id, crc6, crc1, preview, preview_flint}…], slots_max:12, settings_defaults:{layout:0, …, interval_min:30, shake_next:1, info_row:15}}` — `settings_defaults` sono i 10 default di `settings_set_defaults()` (unica fonte: `SETTINGS_SPEC`): la pagina li usa quando `state.json` non porta `settings` |
+| `GET /pool.json` | `{pool:[{i, name, photo_id, crc6, crc1, preview, preview_flint}…], slots_max:12, settings_defaults:{layout:0, …, interval_min:30, shake_next:1, info_row:15}}` — `settings_defaults` sono gli 11 default di `settings_set_defaults()` (unica fonte: `SETTINGS_SPEC`): la pagina li usa quando `state.json` non porta `settings` |
 | `GET /photo/<k>.raw6` \| `.raw1` | byte dello slot `k` (`application/octet-stream`); con `?b64=1` → **base64url senza padding** come testo. 404 se lo slot è vuoto |
 | `GET /preview/<i>.png` | anteprima ×2 (resa "come sul vetro") della foto `i` del **pool**; `?flint=1` = versione 1 bit |
 | `POST /save` = `POST /state.json` | due corpi possibili, distinti dal campo **`deleted`** (vedi «Payload della config page vera» più sotto). **Pagina di prova**: corpo `{v?: 1, settings?, order?, photos?: [{slot, src}], scenario?}` → stato sostituito nei campi presenti, `seq + 1`, risposta `{"ok":true,"seq":N}`; errore → 400 `{"ok":false,"error":"…"}`. La validazione è severa allo stesso modo a **tutti e tre** i livelli: un campo sconosciuto in cima, dentro `settings` e dentro una voce di `photos` (che vuole esattamente `slot` e `src`) danno tutti e tre 400 (un refuso della pagina non deve diventare un save a metà); `{"v": true}` è 400 come `{"v": 2}`. Corpo senza `Content-Length` (`Transfer-Encoding: chunked`) → 411; `Content-Length` più grande del corpo davvero inviato → **408** dopo 15 s (`DevHandler.timeout`), senza lasciare il thread appeso; `Content-Length` assente, non numerico, negativo o oltre 8 MiB → **400**. In tutti e tre i casi (411, 408, 400) la risposta porta `Connection: close` e la connessione **si chiude**: il corpo non letto non deve diventare la "richiesta" successiva della keep-alive (prima, `{}` + `GET` sullo stesso socket dava un `501 Unsupported method ('{}GET')` e la `GET` non veniva mai servita); un client keep-alive (`http.client`, `curl`) riapre da sé alla richiesta dopo |
@@ -965,7 +1143,7 @@ sempre —; `photos` è l'unico facoltativo e non è ammesso nient'altro.
 |---|---|
 | `v` | l'**intero** `1`: `2`, `true` e `1.0` sono tutti 400 |
 | `deleted`, `order` | liste di interi 0..11, senza doppioni |
-| `settings` | **tutti e 10** i campi, negli intervalli di `settings_validate()` |
+| `settings` | **tutti e 11** i campi (`digit_style` compreso da S8-stile), negli intervalli di `settings_validate()` |
 | `photos` | al più **12** voci, ognuna con **tutti** i campi `slot`, `photo_id`, `fmt`, `len`, `crc`, `data`, `name` (più `thumb`, facoltativo) |
 | `photos.slot` | 0..11, **unico** dentro `photos`; può però comparire anche in `deleted` (una foto nuova su uno slot appena eliminato nello stesso Save) |
 | `photos.photo_id` | intero 1..2³¹−1 |
@@ -1018,7 +1196,7 @@ ignora. La pagina non usa `localStorage` (sul telefono girerebbe da un'origine o
 
 Senza `--settings` `state.json` non porta `settings` e la pagina parte dai **default del server**
 (`pool.json.settings_defaults`), dicendolo in testa («impostazioni: default (non ancora salvate)»).
-Il primo **Salva** manda tutti e 10 i campi: da lì `settings` compare in `state.json` (`settings_set`)
+Il primo **Salva** manda tutti e 11 i campi: da lì `settings` compare in `state.json` (`settings_set`)
 e il dev server diventa l'**autorità** delle impostazioni, come il telefono dopo il primo Save
 (design §5.1) — quelle eventualmente scritte sull'orologio (p.es. con `GALLERIA_DEBUG_SETTINGS_SAVE`)
 vengono sovrascritte al `HELLO` successivo. «Annulla» non le tocca. La pagina costruisce i campi una
@@ -1026,7 +1204,7 @@ volta sola (`dataset.built`, marcato **a costruzione finita**: un errore a metà
 re-render né lascia campi doppi) e ha un fallback per campo sui default. Elementi con `id` (per i
 test): `head`, `err`, `msg`, `pool`, `order`, `settings` (i campi sono `s_<chiave>`: `s_layout`,
 `s_font`, `s_clock_mode`, `s_leading_zero`, `s_text_color`, `s_outline`, `s_interval_min`,
-`s_order`, `s_shake_next`, `s_info_row`), `scenario`, `save`, `cancel`.
+`s_order`, `s_shake_next`, `s_info_row`, `s_digit_style`), `scenario`, `save`, `cancel`.
 
 ### Autotest (`--selftest`)
 
@@ -1046,7 +1224,7 @@ copia buona + avviso). Copre anche gli errori di riga di comando (`--page` su un
 `--dump-json` con un valore ignoto: messaggio, mai un traceback) e, con un sottoprocesso vero, che
 **SIGTERM** rimuova la cartella temporanea.
 
-Casi aggiunti con i fix F13/F15 del code review (29/08/2026): `pool.json.settings_defaults` (= i 10
+Casi aggiunti con i fix F13/F15 del code review (29/08/2026): `pool.json.settings_defaults` (= gli 11
 default di `SETTINGS_SPEC`) e il primo Save senza `--settings` che fa comparire `settings` in
 `state.json`; la **keep-alive** — su un socket grezzo, `POST /save` con `Content-Length`
 `9000000`/`abc`/`-1` e `POST /nope` seguiti da una `GET` nello stesso invio → una sola risposta
@@ -1382,3 +1560,280 @@ Deterministico — nessuna data e nessun percorso finiscono nell'output (Pillow 
 dentro `make -C apps/galleria/test pagecheck`. In `page.html` il tag è
 `<script src="previews.js" data-optional="1">`: se il file manca l'inlining non fallisce e la pagina
 si costruisce lo stesso, senza anteprime.
+
+---
+
+## 15. `setup-adb.sh` – adb in user space
+
+Installa gli **Android platform-tools** (cioè `adb`) senza `sudo` e senza toccare il sistema: servono
+alla sessione S8 per il trasporto `pebble … --adb`, che parla con l'app Pebble su Android tramite
+`adb shell am broadcast` + `adb forward` invece che con l'IP del telefono
+(`docs/design/galleria-s8-hardware.md` §2.1).
+
+```bash
+~/ProgettiClaude/Pebble/tools/setup-adb.sh          # idempotente: se adb c'è già non riscarica nulla
+~/ProgettiClaude/Pebble/tools/setup-adb.sh --force  # (o FORCE=1) riscarica e riestrae comunque
+ADB_ZIP_URL=… ADB_DEST=… ~/ProgettiClaude/Pebble/tools/setup-adb.sh   # sorgente/destinazione diverse
+```
+
+Cosa fa, nell'ordine: scarica `platform-tools-latest-linux.zip` da `dl.google.com` (con `curl`, in
+mancanza `wget`), verifica che sia uno zip e che contenga `platform-tools/adb`, lo estrae in
+**`~/.local/android-platform-tools/platform-tools`**, crea il symlink
+**`~/.local/bin/adb`** (cartella già nel `PATH` grazie a `tools/pebble-env.sh`, §8) e stampa
+`adb version`. Se `~/.local/bin` non è nel `PATH` della shell corrente lo dice e ricorda di caricare
+`pebble-env.sh`. Nessuna dipendenza Python; servono solo `curl`/`wget` e `unzip`.
+
+### Wireless debugging in 4 comandi
+
+Questa VM **non ha bus USB** e il telefono non è raggiungibile in ingresso: l'unica via è il
+*Wireless debugging* di Android 11+ (Opzioni sviluppatore → Debug wireless), che si usa così — il
+telefono deve essere sulla stessa Wi‑Fi dell'host:
+
+```bash
+adb pair 192.168.0.42:37115 123456     # 1. una volta sola: porta e codice a 6 cifre da "Accoppia dispositivo"
+adb connect 192.168.0.42:41283         # 2. PORTA DIVERSA: quella mostrata sotto "Debug wireless"
+adb devices                            # 3. deve comparire "192.168.0.42:41283   device"
+pebble install build_s8/galleria_p.pbw --adb --logs   # 4. (o `pebble ping --adb`; il .pbw PRIMA di --adb: un percorso subito dopo il flag verrebbe letto come seriale)
+```
+
+Insidie, tutte verificate in S8 §2.1:
+
+- le **due porte sono diverse**: quella di `adb pair` è della finestra di accoppiamento, quella di
+  `adb connect` è del servizio — e **cambia a ogni riattivazione** del debug wireless, quindi il
+  passo 2 va rifatto ogni volta (il passo 1 no).
+- **niente mDNS attraverso il NAT** della VM: `adb pair`/`adb connect` con il nome
+  `adb-…_adb-tls-connect._tcp` non funziona, va scritto l'IP.
+- il receiver che `--adb` usa (`coredevices.coreapp.DEV_CONNECTION`, permesso `DUMP`) esiste
+  **dall'app Android 1.10.0**: con versioni precedenti resta solo `--phone <IP>` (che richiede però
+  i due interruttori nell'app: *Dev Connection* e *Use LAN developer connection*).
+- `--adb` **forza la LAN da solo**, senza toccare la UI dell'app, e in più dà `adb logcat`: è la via
+  da preferire quando l'app è aggiornata. `--phone` **senza IP** significa invece CloudPebble, non
+  «il telefono».
+- a fine sessione conviene spegnere il debug wireless sul telefono (`adb disconnect` non basta).
+
+> Nota: `export ADB_SERVER_SOCKET=tcp:<IP host>:5037` serve solo nel caso diverso in cui il server
+> `adb` (e quindi il telefono, magari via cavo) stia su **un altro PC**; in questa VM non serve.
+
+---
+
+## 16. `galleria_logstats.py` – riepilogo dei log dell'orologio
+
+Trasforma uno o più log catturati sull'orologio (`pebble install --logs`/`pebble logs` redirezionati
+in `run_s8_*.log`) in un riepilogo leggibile, senza contare le righe a mano. **Solo stdlib**
+(Python ≥ 3.10). Contratto: `docs/design/galleria-s8-hardware.md` §2.4; formati delle righe: §2.3.
+
+```bash
+python3 tools/galleria_logstats.py run_s8_2.log                    # riepilogo a schermo
+python3 tools/galleria_logstats.py run_s8_*.log --md                # tabelle markdown da incollare
+python3 tools/galleria_logstats.py run_s8_3.log --json -            # solo JSON su stdout
+python3 tools/galleria_logstats.py run_s8_7.log --threshold-ms 10 --since 10:20:00 --until 10:40:00
+python3 tools/galleria_logstats.py --selftest                       # campioni incorporati
+```
+
+| Opzione | Effetto |
+|---|---|
+| `file …` | uno o più log; più file vengono letti **in fila** e ciascun record ricorda da quale viene |
+| `--md` | tabelle markdown, per `docs/design/galleria-s8-risultati.md` |
+| `--json PATH` | riepilogo strutturato con chiavi stabili (`versione`, una chiave per sezione); `-` = stdout **al posto** del testo |
+| `--since HH:MM:SS`, `--until HH:MM:SS` | finestra oraria; orari impossibili o `since` > `until` = errore |
+| `--threshold-ms N` | soglia dei render lenti nella sezione 7 (default 10, cioè il criterio O4) |
+| `--selftest` | campioni incorporati + asserzioni, poi esce |
+
+Uscite: **0** anche con righe di formato sconosciuto (i log S5a–S6 sono più vecchi) e con un file
+vuoto («nessun evento riconosciuto»); **2** per argomenti errati o file inesistente; **1** solo se
+`--selftest` fallisce.
+
+### Le 13 sezioni
+
+1. **Avvii** — `heap main` con orario; un avvio non preceduto da `heap deinit` nello stesso file è un
+   **riavvio spontaneo**, in evidenza; `App fault!` con le due righe PC/LR ripulite dagli ANSI.
+2. **Orologio** — `watch: fw a.b.c model=n` e la riga `ui_time:` (content size, BT, locale, schermo,
+   area non ostruita, layout, font, mode, fascia).
+3. **Heap per fase** — `main`, `init`, `window_load`, `after first render`, `services`, `unsub`,
+   `qv`, `shake`, `sync_end`, `tick`, `deinit`: primo, ultimo, minimo libero, delta e — per
+   `heap tick` — campioni e pendenza in B/ora.
+4. **Init** — `storage: quota=`, `settings:`, `sync: open(…)`.
+5. **Sync** — una riga per `sync: end` (slot, code, n, commit, photo, `ch max`/`avg`, heap), la
+   `sync: gap` accostata, la stima `photo − avg×n` (BLE + telefono), il conteggio dei `sync: msg=`
+   per tipo con i `code≠0` in evidenza, la durata di ogni sync e i WARNING (`idle`, `outbox`,
+   `inbox dropped`, `dict_write`).
+6. **Foto da persist** — righe `photo: slot … persist crc …`: min/media/max/p95 dei ms, `MISMATCH` ed
+   errori `read` contati (soglia di decisione O3: lettura > 200 ms).
+7. **Rendering (build M)** — `draw:` raggruppato per (`mode`, `full`) con min/media/max/p95, il campo
+   `info`, quanti superano `--threshold-ms`, e `tick:`.
+8. **Rotazione** — righe `rot(…)` per motivo (init/tick/shake/focus/sync), con ultimo slot e `bad`.
+9. **Colore** — tabella `luma(…)` (mean, bad w/b, `fg`, alone) e conteggio delle decisioni per `fg`.
+10. **BT e batteria** — transizioni `bt: connected=` e righe `batt:` con la pendenza in %/h (è il
+    numero di O7).
+11. **PKJS** — conteggio per tag (`[album]`, `[sync]`, `[config]`, `[dev]`), eventi chiave con orario
+    e statistica degli ack dei chunk, con la nota che l'app Android ne perde a raffica.
+12. **Anomalie** — tutte le righe WARNING/ERROR deduplicate, con conteggio, prima occorrenza e file C
+    che le ha emesse.
+13. **Avvio/uscita (build M)** — le due righe di temporizzazione di `main.c` (vedi sotto): una riga
+    per avvio con i campi di `init:` e di `deinit:`, poi min/media/max/p95 di ogni campo su tutti gli
+    avvii dei file letti, e la riga di migrazione dello schema del manifest se c'è. Con una build di
+    produzione la sezione resta vuota («nessuna riga `init:`/`deinit:`»): non è un errore.
+
+#### Le righe della sezione 13
+
+```
+main.c:141> init: open=12 man=0 sto=13 set=1 mod=7 win=7 syn=2 tot=33 ms
+main.c:177> deinit: mod=1 fl=0 win=0 tot=2 ms
+storage.c:160> storage: manifest schema 1 -> 2 migrated (settings 1 shake 1)
+```
+
+Le prime due le emette solo la build M (`GALLERIA_DEFINES="GALLERIA_DEBUG_TIMING=1"`), una per
+avvio, in fondo a `prv_init`/`prv_deinit`; sono millisecondi.
+
+| Campo | Che cosa misura |
+|---|---|
+| `init: open` | la **prima** chiamata a persist: il firmware apre il file (due scansioni) e legge la chiave 0 |
+| `init: man` | la ricerca del manifest |
+| `init: sto` | `storage_init` per intero — **comprende `open` e `man`** |
+| `init: set` | `settings_init` |
+| `init: mod` | `model_init`, compresa la lettura della foto (già misurata dalla riga `photo: slot k persist crc ok … ms` della sezione 6) |
+| `init: win` | `window_create` + `window_stack_push`, cioè il `window_load` (layout, strip delle cifre) |
+| `init: syn` | `sync_init` (l'`app_message_open`: il suo esito sta nella riga `sync: open(…)` della sezione 4) |
+| `init: tot` | tutta `prv_init` |
+| `deinit: mod` | `model_deinit` |
+| `deinit: fl` | `storage_flush` (scrittura delle impostazioni rimaste in sospeso) |
+| `deinit: win` | `window_destroy` + `ui_photo_deinit` |
+| `deinit: tot` | tutta `prv_deinit` |
+
+Il tool aggiunge una colonna **`resto`**, che non è nel log: `tot − (sto+set+mod+win+syn)` per
+`init:` e `tot − (mod+fl+win)` per `deinit:`, cioè quanto avanza dentro `tot` (`open` e `man` non
+si sommano: stanno **dentro** `sto`). Se venisse negativo il riepilogo lo dice a chiare lettere
+(«resto negativo su N riga/e»).
+
+La riga `storage: manifest schema a -> b migrated (…)` è invece di **produzione** e compare una
+volta sola, al primo avvio dopo l'aggiornamento che cambia lo schema: è informativa e non finisce
+fra le anomalie della sezione 12. Da lì in poi la riga `storage: quota=… schema=N …` della sezione
+4 riporta il numero nuovo (`schema=2`).
+
+### Convenzioni di lettura
+
+- Il riepilogo **ragiona per avvii**: un segmento nuovo comincia a ogni `heap main` e a ogni file
+  nuovo. Anche la sezione 13 è divisa così: il `deinit:` di un avvio precede il `heap main` di
+  quello dopo, quindi cade nella stessa riga del suo `init:`; se il log comincia (o finisce) a
+  metà, una riga della tabella può avere solo l'uno o solo l'altro. Pendenze di heap e batteria, durate delle sync e stato BT non attraversano mai un riavvio,
+  perché a cavallo di un riavvio la differenza non vorrebbe dire niente. Se una fase copre più avvii
+  la tabella lo dice (colonna `avvii`) e mette `n/d` al posto dei delta.
+- Gli orari hanno risoluzione **1 s**, quindi ogni durata ricavata dal log è dichiarata **±1 s**; il
+  tempo è reso monotono attraverso la mezzanotte e fra file consecutivi.
+- La stima `photo − avg×n` esce **`n/d`** quando sarebbe negativa: vuol dire che il campo `photo` di
+  quella riga non è attendibile, non che la sync sia andata male.
+- `[PHONESIM] [WARNING]` (pypkjs, solo in emulatore) è contato a parte e non è mai un'anomalia; le
+  righe informative `digits: font=…` e `photo: bitmap …`/`resource … loaded=` nemmeno.
+- Le tabelle lunghe (luma, foto, eventi PKJS, batteria) sono tagliate a 40 righe nel testo e nel
+  markdown, con la nota «(+ altre N righe: vedi --json)»: il JSON è sempre completo.
+
+### Esempio (reale, `test/fixtures/logs/run_s7_emery_b_synced.log`)
+
+```
+Galleria — riepilogo dei log
+  file: run_s7_emery_b_synced.log (73 righe)
+  righe: 73 totali, 23 orologio, 48 pkjs (0 PHONESIM), 0 fault, 2 ignorate
+  filtri: --threshold-ms 10
+…
+=== 5. Sync ===
+  ora       slot  code  n  commit  photo  ch max  ch avg  photo-avg*n  heap free  gap
+  --------  ----  ----  -  ------  -----  ------  ------  -----------  ---------  ---
+  10:46:51  0     0 OK  9  2       669    49      18      507          39712      -
+  10:46:51  1     0 OK  9  5       0      103     54      n/d          39712      -
+  foto concluse: 2 ok, 0 fallite
+  ch avg: n=2 min 18 media 36.0 max 54 p95 54 ; ch max: n=2 min 49 media 76.0 max 103 p95 103
+  inizio    fine      durata s (+/-1)  foto (END)  file                       nota
+  --------  --------  ---------------  ----------  -------------------------  ----
+  10:46:50  10:46:52  2                2           run_s7_emery_b_synced.log
+  nessun WARNING di sync (idle/outbox/inbox/dict_write)
+```
+
+### Test
+
+`make -C apps/galleria/test logstats` (dentro `make all`) esegue `galleria_logstats.py --selftest`
+— **113** controlli sui campioni incorporati (orologio, pypkjs con prefisso
+`./src/pkjs/index.js:97:0`, app Android con prefisso `Galleria:97`, PKJS senza prefisso, righe
+estranee, ANSI, un riavvio spontaneo, un `App fault!`, le righe `init:`/`deinit:` e la migrazione
+del manifest) — e poi `apps/galleria/test/test_logstats.py`, **260** controlli che lanciano il tool
+sulle 13 fixture di `apps/galleria/test/fixtures/logs/` e confrontano i numeri con quelli contati a
+mano. Le due fixture della build M del 04/09/2026 sono `run_s8_emu_m_init_emery.log` (riga `init:`
+e migrazione dello schema 1 → 2) e `run_s8_emu_m_deinit_restart.log` (il `deinit:` di un avvio e
+l'`init:` di quello dopo); sulle altre 11 la sezione 13 deve restare vuota e tutti gli altri numeri
+identici a prima. In tutto ~3 s.
+
+---
+
+## 17. `gen_test_cards.py` – test card per soglie luma e LUT
+
+Genera le immagini di prova del gate S8: invece di giudicare a occhio se il colore automatico del
+testo ha ragione su una foto qualunque, si mandano all'orologio **card dai numeri noti**, costruite
+con i soli colori esatti della palette (canali 0/85/170/255) e a **strisce verticali di larghezza
+pari** — così il campionamento della luma (1 px su 2) dà percentuali esatte e le stesse valgono per
+tutte le fasce. Dipendenze: **Pillow** + stdlib. Regola di riferimento: `apps/galleria/src/c/luma.h`
+e `luma.c`; contratto: `docs/design/galleria-s8-hardware.md` §2.5.
+
+```bash
+python3 tools/gen_test_cards.py                    # 18 PNG in ~/galleria-gate/cards/ (fuori dal repo)
+python3 tools/gen_test_cards.py --check            # le genera e le verifica con photo_prep.py
+python3 tools/gen_test_cards.py --out /tmp/cards --emery   # solo le card emery, altrove
+python3 tools/gen_test_cards.py --selftest         # autotest del tool (416 controlli, ~1 s)
+```
+
+| Opzione | Effetto |
+|---|---|
+| `--out DIR` | cartella delle card (default `~/galleria-gate/cards`, creata se manca) |
+| `--emery` / `--flint` | solo le card di una piattaforma (default: tutte e 18) |
+| `--check` | dopo la scrittura verifica ogni card e stampa la tabella; **uscita 1** se una previsione discorda |
+| `--verbose` | con `--check`, stampa anche l'output di `photo_prep.py` |
+| `--selftest` | autotest su cartella temporanea, poi esce |
+
+Le 18 card (tutte PNG 200×228; quelle flint sono a tutta larghezza, perché la config page per un
+Pebble 2 Duo **non** ritaglia un 144×168 1:1 ma riscala il sotto-rettangolo di rapporto 144:168):
+
+| Card | Contenuto | Testo atteso | Alone |
+|---|---|---|---|
+| `c1_black` | tinta unita idx 0 (Y 0) | BIANCO | no |
+| `c2_white` | tinta unita idx 63 (Y 255) | NERO | no |
+| `c3_gray104` | tinta unita idx 42 `#AAAAAA` (Y 104) | NERO | no |
+| `c4_y77` | idx 53 `#FF5555` (Y 77 = soglia, confronto stretto) | NERO | no |
+| `c5_y25` | idx 32 `#AA0000` (Y 25 = soglia, confronto stretto) | BIANCO | no |
+| `c6_tie_halo` | metà idx 21 / metà idx 42: pareggio 50/50, media 63 | NERO | SI |
+| `c7a_halo12`, `c7b_halo15`, `c7c_halo18` | 12/15/18 % di colonne bianche su fondo nero | BIANCO | no, no, SI |
+| `c8a_hyst_hold`, `c8b_hyst_flip` | prova dell'**isteresi**: si caricano in layout B, poi si passa ad A | vedi sotto | |
+| `palette64` | i 64 colori in tasselli 24×28 (idx = riga·8 + colonna, origine 4,2) — per O6 | BIANCO | SI |
+| `gray4` | 4 bande da 50 px (idx 0/21/42/63) per la LUT sui neutri — per O6 | NERO | SI |
+| `f1_black`, `f2_white` | flint, tutto nero / tutto bianco | BIANCO, NERO | SI (sempre su flint) |
+| `f3_5050` | flint, 3 strisce bianche (72 colonne su 144): pareggio, media 127 | NERO | SI |
+| `f4_40w`, `f5_60w` | flint, blocco bianco di 60 / 88 colonne su 144 (**41,7 %** e **61,1 %**) | BIANCO, NERO | SI |
+
+Le c8 sono l'unica prova che non si legge a freddo: `c8a_hyst_hold` **resta** bianca passando da B ad
+A (20 < 15 + 10 di isteresi), `c8b_hyst_flip` **passa** a nero (30 ≥ 15 + 10); la previsione di
+`photo_prep.py`, che l'isteresi non la modella, dice NERO per entrambe, ed è quello il valore in
+tabella. La prova va fatta con il **testo di dimensione normale**: con ExtraLarge la fascia A passa
+da 106 a 110 px e i conti cambiano (il tool lo scrive sotto la tabella).
+
+`--check` esegue, per ogni card e per ogni fascia,
+`python3 tools/photo_prep.py --dither none --bw-dither none --stats --band-h <fascia> --out <tmp>
+<card>.png` (§9) e confronta bad w/b, Y medio, colore e alone con l'atteso: oggi **21 righe, 0
+discordanti** in ~2 s. Verifica **anche** che la copia di `LUMA_SUN` e delle 5 soglie dentro il tool
+coincida con `luma.c`/`luma.h`, e se divergono esce 1 dicendo quale: dopo una ritaratura delle soglie
+(O5) vanno aggiornate la copia nel tool **e** rigenerate card e tabella. Il test completo è
+`python3 apps/galleria/test/test_cards.py` (91 controlli: lancia da sé `--selftest` e `--check` in una
+cartella temporanea, e si salta con un messaggio se Pillow manca).
+
+### Come mandare le card all'orologio
+
+Si copiano sul telefono (`adb push ~/galleria-gate/cards /sdcard/Pictures/GalleriaCards/`, §15) e si
+inviano dalla config page **una per volta**. Perché i numeri attesi valgano, nell'editor:
+
+- **dithering «Nessuno»**, **gamma 1**, **schiarisci le ombre (lift) 0**;
+- **«Ottimizza per il vetro» SPENTO** (com'è oggi di default);
+- **nessuno zoom né spostamento**: la card è già 200×228, basta il pulsante **«Adatta»**.
+
+Con «Ottimizza per il vetro» acceso `palette64` perde 41 tasselli su 64 (43 colori invece di 64) e
+l'esperimento O6 verrebbe fatto su una card corrotta; con uno zoom o un ritaglio anche di 1 px la
+pagina ricampiona con LANCZOS e **tutte** le percentuali cambiano. Se la riga `luma(photo)` sul vetro
+non coincide con la tabella di `--check`, è successa una di queste due cose: riaprire l'editor con la
+cornice più larga possibile e premere «Adatta» (l'orientamento del telefono non conta: la cornice è
+comunque limitata a 300 px). Lo stesso avviso lo stampa
+il tool a ogni esecuzione.

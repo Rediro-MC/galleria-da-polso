@@ -15,7 +15,8 @@
  *                        deletes ['slot:CODE'], photoCodes ['slot:CODE' per ogni foto fallita], error? }
  * provider.onReadyFailed(why)               (opzionale: JS_READY non consegnato, o nessun HELLO dopo i rinvii)
  * hooks (solo test): beforeData(photo, offset, n) → 'skip' | 'dup' | 'stop' | undefined
- * hello = { proto, format, maxChunk, settingsCrc (null se l'orologio non lo manda), slots[12] }
+ * hello = { proto, format, maxChunk, settingsCrc (null se l'orologio non lo manda), openMs (v1.9,
+ *            perf 04/09: ms dell'apertura del file persist sull'orologio; null se non lo manda), slots[12] }
  *
  * Regole (D9): JS_READY → HELLO atteso entro 10 s dall'ACK (l'HELLO nasce solo dal JS_READY e l'outbox
  * dell'orologio non ritenta): 2 rinvii di JS_READY, poi provider.onReadyFailed (retry lungo di index.js);
@@ -35,6 +36,14 @@
  * vanno inviati come int32 con segno (x | 0): il JS li serializza a 4 byte, l'orologio li rilegge
  * come uint32. */
 var keys = require('message_keys');
+
+/* S8 (bug trovato sull'orologio reale, 30/08/2026): pypkjs consegna il payload IN INGRESSO con le
+ * chiavi NUMERICHE ("10000"…), l'app Core Devices (PKJSApp.toJSData) le rimappa nei NOMI ("MSG"…).
+ * gv() legge entrambe le forme; in uscita restano le chiavi numeriche (accettate da entrambi). */
+function gv(p, name) {
+  var v = p[keys[name]];
+  return (v === undefined) ? p[name] : v;
+}
 
 var MSG = {
   JS_READY: 1, HELLO: 2, SYNC_REQUEST: 3, SYNC_READY: 4, PHOTO_BEGIN: 5, PHOTO_DATA: 6,
@@ -187,13 +196,16 @@ function parseSlots(arr) {
 }
 
 function parseHello(p) {
-  var c = p[keys.CRC];
+  var c = gv(p, 'CRC'), om = gv(p, 'OPEN_MS');
   return {
-    proto: p[keys.PROTO] | 0,
-    format: p[keys.FORMAT] | 0,           // PHOTO_FMT_* nativo dell'orologio (1 raw6, 2 raw1)
-    maxChunk: p[keys.MAX_CHUNK] | 0,
+    proto: gv(p, 'PROTO') | 0,
+    format: gv(p, 'FORMAT') | 0,           // PHOTO_FMT_* nativo dell'orologio (1 raw6, 2 raw1)
+    maxChunk: gv(p, 'MAX_CHUNK') | 0,
     settingsCrc: (c === undefined || c === null) ? null : (c & 0xFFFF),   // S5b: CRC-16 delle impostazioni
-    slots: parseSlots(p[keys.SLOTS])
+    /* v1.9 (perf 04/09): ms impiegati dal firmware ad aprire il file persist. Un orologio vecchio non
+     * manda il campo -> null (la config page non mostra nessun avviso), 0 = non misurato. */
+    openMs: (om === undefined || om === null) ? null : (om & 0xFFFF),
+    slots: parseSlots(gv(p, 'SLOTS'))
   };
 }
 
@@ -626,14 +638,15 @@ function sendEnd() {
 
 function onMessage(e) {
   var p = e.payload || {};
-  var msg = p[keys.MSG] | 0;
+  var msg = gv(p, 'MSG') | 0;
   touchWatchdog();
   switch (msg) {
     case MSG.HELLO: {
       clearHelloTimer();                /* F5: l'HELLO è arrivato, con qualunque PROTO: nessun rinvio */
       s.helloPending = false;
       var hello = parseHello(p);
-      s.log('[sync] HELLO proto=' + hello.proto + ' maxChunk=' + hello.maxChunk + ' slots=' +
+      s.log('[sync] HELLO proto=' + hello.proto + ' maxChunk=' + hello.maxChunk +
+            ' open=' + (hello.openMs === null ? '-' : hello.openMs + 'ms') + ' slots=' +
             hello.slots.map(function (x) { return x.state ? x.crc.toString(16) : '-'; }).join(','));
       if (hello.proto !== PROTO) {
         s.log('[sync] protocollo ' + hello.proto + ' non supportato (atteso ' + PROTO + ')');
@@ -655,11 +668,11 @@ function onMessage(e) {
        * messaggio (revisione S5a): pulizia solo se lo consumiamo davvero. */
       if (!s.readyHandler) { s.log('[sync] SYNC_READY ripetuto: ignorato'); break; }
       cancelWait();
-      s.readyHandler(p[keys.MAX_CHUNK] | 0);
+      s.readyHandler(gv(p, 'MAX_CHUNK') | 0);
       break;
     case MSG.STATUS: {
-      var rt = p[keys.REPLY_TO];
-      var st = { code: p[keys.CODE] | 0, slot: p[keys.SLOT] | 0, offset: (p[keys.OFFSET] | 0) >>> 0,
+      var rt = gv(p, 'REPLY_TO');
+      var st = { code: gv(p, 'CODE') | 0, slot: gv(p, 'SLOT') | 0, offset: (gv(p, 'OFFSET') | 0) >>> 0,
                  replyTo: (rt === undefined || rt === null) ? null : (rt & 0xFF) };
       s.log('[sync] STATUS ' + codeName(st.code) + ' slot=' + st.slot + ' offset=' + st.offset +
             (st.replyTo === null ? '' : ' re=' + st.replyTo));
@@ -689,7 +702,7 @@ function onMessage(e) {
       break;
     }
     default:
-      s.log('[sync] messaggio ignoto MSG=' + msg);
+      s.log('[sync] messaggio ignoto MSG=' + msg + ' chiavi=' + Object.keys(p).slice(0, 4).join(','));
   }
 }
 

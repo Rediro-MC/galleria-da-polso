@@ -12,6 +12,10 @@
   <p id="watch"></p>
   <p id="kb" class="kb"></p>
   <p id="status" class="warn" style="display:none"></p>
+  <div id="slow" class="warn" style="display:none">
+    <p id="slowLead"></p>
+    <div id="slowFix"></div>
+  </div>
 </header>
 
 <section id="photos">
@@ -45,6 +49,7 @@
   <p id="settingsNote" class="warn" style="display:none">Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi.</p>
   <p class="row"><label for="s_layout" class="rlab">Layout</label> <select id="s_layout"></select></p>
   <p class="row"><label for="s_font" class="rlab">Font</label> <select id="s_font"></select> <img id="fontPreview" class="fontprev" alt="" style="display:none"></p>
+  <p class="row"><label for="s_digit_style" class="rlab">Stile cifre</label> <select id="s_digit_style"></select></p>
   <p class="row"><label for="s_clock_mode" class="rlab">Formato ora</label> <select id="s_clock_mode"></select></p>
   <p class="row"><label for="s_leading_zero" class="rlab">Zero iniziale</label> <select id="s_leading_zero"></select></p>
   <p class="row"><label for="s_interval_min" class="rlab">Intervallo foto</label> <select id="s_interval_min"></select></p>
@@ -61,6 +66,15 @@
     </span>
     <input type="hidden" id="s_info_row" value="15">
   </p>
+</section>
+
+<section id="help">
+  <h2>Aiuto</h2>
+  <p class="row"><button type="button" id="helpBtn" class="btn small" aria-expanded="false" aria-controls="helpBody">Galleria si avvia lentamente?</button></p>
+  <div id="helpBody" style="display:none">
+    <p id="helpWhy" class="help"></p>
+    <div id="helpFix"></div>
+  </div>
 </section>
 
 <footer id="footer">

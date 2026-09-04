@@ -1,0 +1,92 @@
+[10:45:01] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:01] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:01] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=1 slot=0 demo=255 valid=2 bad=0
+[10:45:01] model.c:246> heap shake: used=60272 free=44688
+[10:45:04] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:04] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:04] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=2 slot=1 demo=255 valid=2 bad=0
+[10:45:04] model.c:246> heap shake: used=60272 free=44688
+[10:45:06] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:07] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:07] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=3 slot=0 demo=255 valid=2 bad=0
+[10:45:07] model.c:246> heap shake: used=60272 free=44688
+[10:45:09] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:09] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:09] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=4 slot=1 demo=255 valid=2 bad=0
+[10:45:09] model.c:246> heap shake: used=60272 free=44688
+[10:45:12] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:12] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:12] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=5 slot=0 demo=255 valid=2 bad=0
+[10:45:12] model.c:246> heap shake: used=60272 free=44688
+[10:45:15] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:15] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:15] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=6 slot=1 demo=255 valid=2 bad=0
+[10:45:15] model.c:246> heap shake: used=60272 free=44688
+[10:45:17] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:17] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:17] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=7 slot=0 demo=255 valid=2 bad=0
+[10:45:17] model.c:246> heap shake: used=60272 free=44688
+[10:45:20] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:20] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:20] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=8 slot=1 demo=255 valid=2 bad=0
+[10:45:20] model.c:246> heap shake: used=60272 free=44688
+[10:45:23] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:23] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:23] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=9 slot=0 demo=255 valid=2 bad=0
+[10:45:23] model.c:246> heap shake: used=60272 free=44688
+[10:45:26] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 0 ms heap 60272/44688
+[10:45:26] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:26] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=10 slot=1 demo=255 valid=2 bad=0
+[10:45:26] model.c:246> heap shake: used=60272 free=44688
+[10:45:28] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:28] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:28] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=11 slot=0 demo=255 valid=2 bad=0
+[10:45:28] model.c:246> heap shake: used=60272 free=44688
+[10:45:31] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:31] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:31] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=12 slot=1 demo=255 valid=2 bad=0
+[10:45:31] model.c:246> heap shake: used=60272 free=44688
+[10:45:34] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:34] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:34] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=13 slot=0 demo=255 valid=2 bad=0
+[10:45:34] model.c:246> heap shake: used=60272 free=44688
+[10:45:37] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:37] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:37] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=14 slot=1 demo=255 valid=2 bad=0
+[10:45:37] model.c:246> heap shake: used=60272 free=44688
+[10:45:39] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:39] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:39] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=15 slot=0 demo=255 valid=2 bad=0
+[10:45:39] model.c:246> heap shake: used=60272 free=44688
+[10:45:42] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:42] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:42] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=16 slot=1 demo=255 valid=2 bad=0
+[10:45:42] model.c:246> heap shake: used=60272 free=44688
+[10:45:45] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:45] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:45] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=17 slot=0 demo=255 valid=2 bad=0
+[10:45:45] model.c:246> heap shake: used=60272 free=44688
+[10:45:47] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:47] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:47] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=18 slot=1 demo=255 valid=2 bad=0
+[10:45:47] model.c:246> heap shake: used=60272 free=44688
+[10:45:50] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 60272/44688
+[10:45:50] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=0(0/65) mean=22 fg=ff halo=0
+[10:45:50] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=19 slot=0 demo=255 valid=2 bad=0
+[10:45:50] model.c:246> heap shake: used=60272 free=44688
+[10:45:53] ui_photo.c:178> photo: slot 1 persist crc ok 134 ch 7 ms heap 60272/44688
+[10:45:53] ui_time.c:665> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=1(98/1) mean=242 fg=c0 halo=0
+[10:45:53] model.c:108> rot(shake): t=29801445 int=30 ord=0 shk=20 slot=1 demo=255 valid=2 bad=0
+[10:45:53] model.c:246> heap shake: used=60272 free=44688
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer
+[10:45:58] pkjs> [PHONESIM] [WARNING] Exception decoding QemuInboundPacket.footer

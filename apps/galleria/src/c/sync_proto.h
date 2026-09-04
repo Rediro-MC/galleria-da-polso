@@ -27,7 +27,7 @@
 enum SyncMsg {
   SYNC_MSG_NONE         = 0,
   SYNC_MSG_JS_READY     = 1,    /* telefono → orologio: PKJS pronto */
-  SYNC_MSG_HELLO        = 2,    /* orologio → telefono: PROTO, FORMAT, MAX_CHUNK, CRC (impostazioni), SLOTS */
+  SYNC_MSG_HELLO        = 2,    /* orologio → telefono: PROTO, FORMAT, MAX_CHUNK, CRC (impostazioni), OPEN_MS, SLOTS */
   SYNC_MSG_SYNC_REQUEST = 3,    /* → : COUNT foto da inviare (+ OFFSET opz. = foto già concluse: "Foto k/n"
                                    riprende da lì dopo un BUSY, F3; assente = PKJS vecchio → 0) */
   SYNC_MSG_SYNC_READY   = 4,    /* ← : MAX_CHUNK (stato SYNCING) */
@@ -103,6 +103,7 @@ typedef struct {
   uint8_t        reply_to;    /* STATUS (S5b, v1.7): SyncMsg del messaggio a cui risponde → il telefono
                                  scarta gli STATUS di copie ritrasmesse attribuendoli al passo giusto */
   uint16_t       max_chunk;
+  uint16_t       open_ms;     /* HELLO (v1.9, perf 04/09): ms dell'apertura del file persist (storage_open_ms) */
   uint16_t       settings_crc;/* HELLO (S5b, v1.7): CRC-16/CCITT-FALSE dei primi 18 B di GalSettings
                                  correnti → il telefono manda SETTINGS solo se il suo CRC è diverso */
   uint32_t       offset;
@@ -117,12 +118,12 @@ typedef enum {
 } SyncAction;
 
 #define SYNC_SLOTS_BYTES     (GAL_MAX_SLOTS * 5)   /* HELLO.SLOTS: 12 × {state u8, crc32 u32 LE} */
-/* Byte di valore del HELLO (PROTO u8 + FORMAT u8 + MAX_CHUNK u16 + CRC u16 + SLOTS) = 67: l'outbox di
- * sync.c è dict_calc_buffer_size(6, 1, 1, 1, 2, 2, SYNC_SLOTS_BYTES) = 1 + 6·7 + 67 = 110 B (F4). Il test
- * host pinna solo il VALORE atteso (110): sync.c non è compilato su host, quindi la guardia reale per
+/* Byte di valore del HELLO (PROTO u8 + FORMAT u8 + MAX_CHUNK u16 + CRC u16 + OPEN_MS u16 + SLOTS) = 69 (v1.9):
+ * l'outbox di sync.c è dict_calc_buffer_size(7, 1, 1, 1, 2, 2, 2, SYNC_SLOTS_BYTES) = 1 + 7·7 + 69 = 119 B (F4).
+ * Il test host pinna solo il VALORE atteso (69/119): sync.c non è compilato su host, quindi la guardia reale per
  * un campo aggiunto senza aggiornare la chiamata di sync_init è il WARNING (tripwire) di prv_pump_one
  * al primo HELLO in emulatore. Un campo in più nel HELLO va aggiunto QUI, in sync_init e nel pin. */
-#define SYNC_HELLO_VALUE_BYTES (1 + 1 + 1 + 2 + 2 + SYNC_SLOTS_BYTES)
+#define SYNC_HELLO_VALUE_BYTES (1 + 1 + 1 + 2 + 2 + 2 + SYNC_SLOTS_BYTES)   /* v1.9: + OPEN_MS u16 */
 #define SYNC_IDLE_TIMEOUT_MS 30000                 /* silenzio in SYNCING → IDLE (foto in corso abbandonata) */
 #define SYNC_MAX_CHUNK_BYTES (16u * GAL_CHUNK_BYTES)  /* 4.096 B: 16 chunk persist per messaggio (D9 rivista in S5a) */
 #define SYNC_QUOTA_PCT       75                    /* stima di occupazione ammessa in PHOTO_BEGIN */

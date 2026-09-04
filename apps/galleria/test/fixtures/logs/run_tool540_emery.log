@@ -1,0 +1,21 @@
+Installing app...
+App install succeeded.
+[12:04:57] main.c:14> heap main: used=24 free=106040
+[12:04:57] storage.c:140> storage: quota=1048576 album=1 schema=1 manifest=persist valid=2
+[12:04:57] settings.c:93> settings: defaults layout=0 font=0 interval=30 order=0 shake=1
+[12:04:57] ui_photo.c:178> photo: slot 0 persist crc ok 134 ch 5 ms heap 45664/60400
+[12:04:57] model.c:108> rot(init): t=29801524 int=30 ord=0 shk=0 slot=0 demo=255 valid=2 bad=0
+[12:04:57] ui_time.c:721> ui_time: cs=2 bt=1 loc=en_US 200x228 unob=228 lay=0 font=0 mode=1 band=106
+[12:04:57] ui_time.c:671> luma(photo): m=1 b=0+106 h=106 ph=1 w=1 bad=13(13/59) mean=32 fg=ff halo=0
+[12:04:57] main.c:14> heap window_load: used=52576 free=53488
+[12:04:57] sync.c:437> sync: open(4153/110) -> 0 chunk=4096 heap 58992/47072 (cost 4364)
+[12:04:57] main.c:14> heap init: used=58992 free=47072
+[12:04:57] ui_time.c:631> heap after first render: used=58992 free=47072
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [album] pronto (dev server http://localhost:8765): 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [dev] dev server non raggiungibile (HTTP 0 HTTPConnectionPool(host='localhost', port=8765): Max retries exceeded with url: /state.json (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8765): Failed to establish a new connection: [Errno 111] Connection refused"))): parto con l'album locale
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [sync] JS_READY
+[12:04:57] sync.c:343> sync: msg=1 f=0 -> act=1 out=2 code=0 off=0 st=0 heap 47152
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [sync] HELLO proto=1 maxChunk=4096 slots=1016b83c,f23a62,-,-,-,-,-,-,-,-,-,-
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [album] piano: 0 foto, 0 eliminazioni, ordine no, impostazioni mai impostate
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [sync] fine: {"photosOk":0,"photosFailed":0,"settings":null,"order":null,"deletes":[],"photoCodes":[]}
+[12:04:57] pkjs> ./src/pkjs/index.js:97:0 [album] 2 foto [0:61 1:61] ordine [0,1] eliminazioni [] settings crc 0x7ee7
