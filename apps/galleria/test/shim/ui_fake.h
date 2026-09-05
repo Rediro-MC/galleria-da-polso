@@ -3,7 +3,7 @@
  *   ui_photo_native_format, ui_photo_size, ui_photo_is_loaded, ui_photo_load_persist,
  *   ui_photo_load_resource, ui_time_photo_changed e (S7, per sync.c) ui_time_tick,
  *   ui_time_layout_changed, ui_time_style_changed, ui_time_request_full_redraw,
- *   ui_time_set_sync_progress.
+ *   ui_time_set_sync_progress e (S10, D37) ui_time_lang_changed.
  * Contratto riprodotto (ui_photo.h): load_persist ritorna false SENZA toccare il bitmap se meta non è
  * VALID nel formato nativo con la lunghezza attesa; con lo slot nella maschera di guasto ritorna
  * false E azzera il bitmap (chunk mancante / CRC, come sull'orologio); altrimenti true e bitmap
@@ -42,7 +42,13 @@ int      shim_ui_full_redraw_calls(void);
 int      shim_ui_progress_calls(void);
 int      shim_ui_progress_index(void);                  /* -1 se nessuna chiamata dal reset */
 int      shim_ui_progress_count(void);                  /* -1 se nessuna chiamata dal reset */
-/* Somma delle ui_time_* di stile/layout/tick/redraw: utile per "nessuna notifica alla UI". */
+/* S10 (D37): chiamate a ui_time_lang_changed (sync_env_settings_changed con GalSettings.lang diverso). */
+int      shim_ui_lang_calls(void);
+/* Posizione (1 = per prima) della PRIMA chiamata a ui_time_lang_changed fra le notifiche ui_time_*
+ * (tick/layout/style/full_redraw/lang) dal reset; 0 se non e' stata chiamata. Pinna il contratto D37
+ * "prima dei rami esistenti" di sync_env_settings_changed. */
+int      shim_ui_lang_order(void);
+/* Somma delle ui_time_* di stile/layout/tick/redraw/lang (S10): utile per "nessuna notifica alla UI". */
 int      shim_ui_time_calls(void);
 /* Somma delle chiamate che toccano il bitmap o la UI (persist + resource + photo_changed): deve
  * restare ferma durante un hold di sync (F1). */

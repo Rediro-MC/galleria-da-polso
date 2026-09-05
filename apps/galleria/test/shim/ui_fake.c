@@ -13,6 +13,7 @@ static bool     s_resource_ok;
 
 static int      s_persist_calls, s_resource_calls, s_changed_calls;
 static int      s_tick_calls, s_layout_calls, s_style_calls, s_full_calls, s_progress_calls;
+static int      s_lang_calls, s_lang_order, s_ui_seq;   /* S10: ui_time_lang_changed + ordine fra le notifiche */
 static int      s_progress_index, s_progress_count;
 static uint8_t  s_last_slot;
 static uint16_t s_last_generation;
@@ -69,19 +70,34 @@ void ui_time_photo_changed(void) {
  * si contano le chiamate e si registrano gli ultimi argomenti. */
 
 void ui_time_tick(const struct tm *t) {
+  s_ui_seq++;
   s_tick_calls++;
 }
 
 void ui_time_layout_changed(void) {
+  s_ui_seq++;
   s_layout_calls++;
 }
 
 void ui_time_style_changed(void) {
+  s_ui_seq++;
   s_style_calls++;
 }
 
 void ui_time_request_full_redraw(void) {
+  s_ui_seq++;
   s_full_calls++;
+}
+
+/* S10 (D37): chiamata da sync_env_settings_changed quando cambia GalSettings.lang (sull'orologio ricalcola il
+ * separatore delle migliaia, riformatta la data e ridisegna la fascia info). Qui si conta e si annota la
+ * posizione fra le notifiche ui_time_* (1 = per prima: il contratto dice "prima dei rami esistenti"). */
+void ui_time_lang_changed(void) {
+  s_ui_seq++;
+  s_lang_calls++;
+  if (s_lang_order == 0) {
+    s_lang_order = s_ui_seq;
+  }
 }
 
 void ui_time_set_sync_progress(uint8_t index, uint8_t count) {
@@ -115,6 +131,9 @@ void shim_ui_reset_counters(void) {
   s_progress_calls = 0;
   s_progress_index = -1;
   s_progress_count = -1;
+  s_lang_calls = 0;
+  s_lang_order = 0;
+  s_ui_seq = 0;
 }
 
 void     shim_ui_set_native_format(uint8_t fmt)        { s_fmt = fmt; }
@@ -136,4 +155,6 @@ int      shim_ui_full_redraw_calls(void)               { return s_full_calls; }
 int      shim_ui_progress_calls(void)                  { return s_progress_calls; }
 int      shim_ui_progress_index(void)                  { return s_progress_index; }
 int      shim_ui_progress_count(void)                  { return s_progress_count; }
-int      shim_ui_time_calls(void)                      { return s_tick_calls + s_layout_calls + s_style_calls + s_full_calls; }
+int      shim_ui_lang_calls(void)                      { return s_lang_calls; }
+int      shim_ui_lang_order(void)                      { return s_lang_order; }
+int      shim_ui_time_calls(void)                      { return s_tick_calls + s_layout_calls + s_style_calls + s_full_calls + s_lang_calls; }

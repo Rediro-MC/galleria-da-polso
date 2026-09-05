@@ -14,6 +14,7 @@
 #include "luma.h"
 #include "settings.h"
 #include "timefmt.h"
+#include "datefmt.h"
 #include "gal_log.h"
 
 _Static_assert(GAL_FONT_LECO == 3 && DIGITS_FONT_COUNT + 1 == GAL_FONT_COUNT,
@@ -29,6 +30,9 @@ _Static_assert(GAL_FONT_LECO == 3 && DIGITS_FONT_COUNT + 1 == GAL_FONT_COUNT,
 #define BOLT_H          14
 #define BOLT_GAP        2
 #define MAX_GLYPHS      5     /* "HH:MM" */
+#define SYNC_GAP        3     /* S10 (D32): spazio fra l'icona di sync e "k/n" */
+#define SYNC_ICON_B     14    /* icona di sync nel layout B (Gothic 14 Bold) e su flint: alta come il font (a 12 px l'anello da 2 px sembrava una U; gate S10) */
+#define SYNC_THIN       PBL_IF_BW_ELSE(true, false)   /* tratto 1 px su flint, 2 px (arco) su emery */
 #define AMPM_SHRINK     2     /* in 12 h le celle delle CIFRE (non del ':') si stringono di 2 px per AM/PM (§3.1) */
 
 /* Modalità di rendering effettiva = impostazioni + strip caricate + area non ostruita. */
@@ -41,6 +45,7 @@ typedef struct {
   int16_t leco_y, leco_h;       /* box del testo ora: (0, leco_y, w, leco_h) */
   int16_t leco_bottom;          /* riga sotto l'ultimo pixel delle cifre LECO (misurata sugli screenshot) */
   int16_t info_y, info_h;       /* riga info (solo layout A) */
+  int16_t sync_icon;            /* S10: lato dell'icona di sync nella riga info (16, 20 con ExtraLarge, 12 su flint) */
   /* layout A con sprite: PRIMA RIGA DEL RIEMPIMENTO (la strip parte `ring` righe più su: S8-stile, D20),
    * passo delle celle in 24 h (cifra, due punti) */
   int16_t a_fill_y, a_cell, a_colon;
@@ -68,8 +73,8 @@ static char  s_time_buf[TIMEFMT_HHMM_BUFSZ];
 static char  s_ampm_buf[3];
 static char  s_steps_buf[16];
 static char  s_batt_buf[8];
-static char  s_date_buf[24];
-static char  s_sync_buf[16];     /* "Foto 255/255" (S5a) */
+static char  s_date_buf[24];     /* >= DATEFMT_BUFSZ (S10): "Dim 31 Juill." + NUL */
+static char  s_sync_buf[8];      /* "255/255" (S5a; S10: senza parole, D32) */
 static uint8_t s_sync_index, s_sync_count;
 static bool  s_connected = true;
 static bool  s_steps_ok;
@@ -78,7 +83,7 @@ static char  s_thousands_sep = '.';
 
 /* Posizioni calcolate al tick (GSize memorizzate: regola 12). */
 static GRect s_rc_time, s_rc_ampm, s_rc_left, s_rc_batt, s_rc_date;
-static GRect s_rc_sync_b;        /* R10 (S9): "Foto k/n" in basso a sinistra della fascia MM nel layout B */
+static GRect s_rc_sync_b;        /* R10 (S9): icona + "k/n" in basso a sinistra della fascia MM nel layout B (S10: icona compresa) */
 static bool  s_show_bt_icon, s_show_left, s_show_batt, s_show_date, s_show_sync;
 /* Sprite: riga 1 (unica in A / HH in B) e riga 2 (MM in B). */
 static GlyphPos s_row1[MAX_GLYPHS], s_row2[MAX_GLYPHS];
@@ -93,6 +98,8 @@ static GColor s_fg, s_bg;
 static bool   s_halo;
 /* Offset dell'alone del testo di sistema: i primi 4 "a croce" (font piccoli), tutti e 8 per LECO. */
 static const int8_t HALO_OFFS[8][2] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1} };
+
+_Static_assert(sizeof(s_date_buf) >= DATEFMT_BUFSZ, "s_date_buf deve contenere la data piu' lunga di datefmt (S10)");
 
 static const GPathInfo s_bolt_info = {
   .num_points = 7,
@@ -127,10 +134,12 @@ static void prv_compute_layout(Layer *root) {
       s_lay.info_font = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
       s_lay.info_y = 80;
       s_lay.info_h = 28;
+      s_lay.sync_icon = 20;                     /* D32: altezza del font della riga (Gothic 24) */
     } else {
       s_lay.info_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
       s_lay.info_y = 82;
       s_lay.info_h = 22;
+      s_lay.sync_icon = 16;                     /* Gothic 18 */
     }
     s_lay.a_fill_y = 9;   s_lay.a_cell = 40; s_lay.a_colon = 16;    /* §3.1: 40|40|16|40|40 = 176, x0 12; riempimento da y 9 (strip 8 con anello 1, 7 con anello 2) */
     s_lay.b_hh_fill_y = 13; s_lay.b_mm_fill_y = 121; s_lay.b_cell = 64; s_lay.b_gap = 8;   /* §3.2: strip a 12/120 con anello 1, 11/119 con anello 2 */
@@ -142,6 +151,7 @@ static void prv_compute_layout(Layer *root) {
     s_lay.info_font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
     s_lay.info_y = 56;
     s_lay.info_h = 18;
+    s_lay.sync_icon = SYNC_ICON_B;              /* Gothic 14 */
     s_lay.a_fill_y = 7;   s_lay.a_cell = 28; s_lay.a_colon = 12;    /* §3.3: 28|28|12|28|28 = 124, x0 10; riempimento da y 7 */
     s_lay.b_hh_fill_y = 13; s_lay.b_mm_fill_y = 93; s_lay.b_cell = 48; s_lay.b_gap = 8;
   }
@@ -375,14 +385,14 @@ static void prv_shift_row(GlyphPos *row, uint8_t n, int16_t dx) {
   }
 }
 
-/* R10 (S9): durante la sync il layout B mostra "Foto k/n" in basso a SINISTRA della fascia MM, con il font di
+/* R10 (S9): durante la sync il layout B mostra icona + "k/n" in basso a SINISTRA della fascia MM, con il font di
  * AM/PM; misurato fuori da update_proc (regola 12). Sta 2 righe piu' in basso del "PM" (§3.2): il contatore cade
- * SOTTO la prima cifra dei minuti e con il margine del PM le sue lettere toccherebbero l'ombra 3D (righe 217-218 su
- * emery); senza discendenti ("Foto 0-9/") l'ultima riga di inchiostro resta dentro lo schermo. D13 resta: fuori
- * sync solo cifre. */
+ * SOTTO la prima cifra dei minuti e con il margine del PM toccherebbe l'ombra 3D (righe 217-218 su emery); senza
+ * lettere ("0-9/", S10 D32) niente discendenti: l'ultima riga di inchiostro resta dentro lo schermo. D13 resta:
+ * fuori sync solo cifre. Il rettangolo comprende l'icona (SYNC_ICON_B a MARGIN_X) e il testo dopo SYNC_GAP. */
 static void prv_layout_sync_b(void) {
   const GSize sz = prv_measure(s_sync_buf, s_lay.ampm_font, s_lay.info_h);
-  s_rc_sync_b = GRect(MARGIN_X, s_lay.full.size.h - sz.h, sz.w + 2, sz.h + 2);
+  s_rc_sync_b = GRect(MARGIN_X, s_lay.full.size.h - sz.h, SYNC_ICON_B + SYNC_GAP + sz.w + 2, sz.h + 2);
 }
 
 /* Posiziona ora + AM/PM centrati orizzontalmente (blocco unico) secondo la modalità. */
@@ -461,15 +471,15 @@ static void prv_layout_info(void) {
   const int16_t w = s_lay.full.size.w;
   const int16_t usable = w - 2 * MARGIN_X;
 
-  s_show_sync = s_sync_index > 0;                                /* S5a: "Foto k/n" al posto di passi/BT */
+  s_show_sync = s_sync_index > 0;                                /* S5a: icona di sync + "k/n" al posto di passi/BT */
   s_show_bt_icon = !s_show_sync && (st->info_row & GAL_INFO_BT) && !s_connected;
   s_show_left = s_show_sync || s_show_bt_icon || (st->info_row & GAL_INFO_STEPS);
   s_show_batt = (st->info_row & GAL_INFO_BATTERY) != 0;
   s_show_date = (st->info_row & GAL_INFO_DATE) != 0;
 
   int16_t left_w = 0;
-  if (s_show_sync) {
-    left_w = prv_measure(s_sync_buf, s_lay.info_font, s_lay.info_h).w;
+  if (s_show_sync) {                                             /* S10 (D32): icona + 3 px + testo */
+    left_w = (int16_t)(s_lay.sync_icon + SYNC_GAP + prv_measure(s_sync_buf, s_lay.info_font, s_lay.info_h).w);
   } else if (s_show_bt_icon) {
     left_w = BT_ICON_W;
   } else if (s_show_left) {
@@ -507,8 +517,16 @@ static void prv_layout_info(void) {
 /* ---------------------------------------------------------------- dati */
 
 static void prv_format_date(const struct tm *t, uint8_t level) {
+  const uint8_t lang = settings_get()->lang;
+  if (lang != GAL_LANG_AUTO) {
+    /* S10 (D34): lingua forzata → tabelle proprie (identiche ai pack) e formato per lingua, indici clampati */
+    datefmt_format(s_date_buf, sizeof(s_date_buf), lang, (uint8_t)t->tm_wday, (uint8_t)t->tm_mday,
+                   (uint8_t)t->tm_mon, level);
+    return;
+  }
+  /* auto: strftime del firmware (language pack dell'orologio: coincide con notifiche e calendario) */
   char wd[8] = "";
-  char mon[8] = "";
+  char mon[12] = "";                   /* "Juill." del pack francese = 7 B con NUL (S10) */
   strftime(wd, sizeof(wd), "%a", t);
   strftime(mon, sizeof(mon), "%b", t);
   switch (level) {
@@ -516,6 +534,26 @@ static void prv_format_date(const struct tm *t, uint8_t level) {
     case 1:  snprintf(s_date_buf, sizeof(s_date_buf), "%s %d", wd, t->tm_mday); break;
     default: snprintf(s_date_buf, sizeof(s_date_buf), "%d", t->tm_mday); break;
   }
+}
+
+/* S10 (D34): separatore delle migliaia dei passi. Lingua forzata → tabella di datefmt (en ',', it/de '.',
+ * fr ' '); auto → prefisso del locale di sistema con la stessa tabella e '.' per QUALUNQUE altro locale
+ * (es, pt, nl, …: com'era prima di S10 — gal_lang_from_locale manda gli sconosciuti su EN solo per la lingua
+ * della pagina). Corregge il bug pregresso "fr → punto". Chiamata in init e in ui_time_lang_changed. */
+static bool prv_locale_is(const char *loc, char a, char b) {
+  return loc && loc[0] == a && loc[1] == b;
+}
+
+static void prv_update_thousands_sep(void) {
+  const uint8_t lang = settings_get()->lang;
+  if (lang != GAL_LANG_AUTO) {
+    s_thousands_sep = datefmt_thousands_sep(lang);
+    return;
+  }
+  const char *loc = i18n_get_system_locale();
+  const bool known = prv_locale_is(loc, 'e', 'n') || prv_locale_is(loc, 'i', 't')
+                  || prv_locale_is(loc, 'd', 'e') || prv_locale_is(loc, 'f', 'r');
+  s_thousands_sep = known ? datefmt_thousands_sep(gal_lang_from_locale(loc)) : '.';
 }
 
 static void prv_format_battery(void) {
@@ -570,6 +608,48 @@ static void prv_draw_bt_icon(GContext *ctx, GPoint o) {
   graphics_context_set_stroke_color(ctx, s_fg);
   graphics_context_set_stroke_width(ctx, 3);
   prv_draw_bt_lines(ctx, o);
+  graphics_context_set_stroke_width(ctx, 1);
+}
+
+/* S10 (D32): icona di sincronizzazione = freccia circolare nel box size×size con origine o: arco in senso
+ * orario da SYNC_ARC_START gradi (0 = ore 12) fino alla base della punta, poi punta TRIANGOLARE PIENA con il
+ * vertice a SYNC_ARC_END e la base `head` px dentro e fuori il raggio, `back` gradi indietro lungo l'arco
+ * (back = 480/size: 40° a 12 px, 30° a 16, 24° a 20 → punta lunga ≈ 4 px in tutte le taglie). La punta sta
+ * vicino alla diagonale alto-sinistra del box, dove c'è più spazio: sporge di ≤ 1,3 px a sinistra (dentro
+ * MARGIN_X) e ≤ 1 px in alto, come l'alone dell'icona BT. Solo primitive dell'SDK e aritmetica intera
+ * (gpoint_from_polar = sin/cos_lookup); il GPath è STATICO (niente gpath_create) e i suoi 3 vertici vengono
+ * ricalcolati a ogni disegno: nessuna allocazione, niente float. Tratti: arco 2 px su emery, 1 con `thin`
+ * (flint). Alone (s_halo): arco con tratto +2 e contorno del triangolo (3 px → 1 px attorno) nel colore
+ * opposto, prima del disegno nel colore del testo, come prv_draw_bt_icon e il fulmine della batteria. */
+#define SYNC_ARC_START  40
+#define SYNC_ARC_END    335
+
+static GPoint s_sync_tri[3];                                        /* vertice, base dentro, base fuori */
+static GPath  s_sync_head = { .num_points = 3, .points = s_sync_tri };
+
+static void prv_draw_sync_icon(GContext *ctx, GPoint o, int16_t size, bool thin) {
+  const GRect box = GRect(o.x, o.y, size, size);
+  const int16_t head = (size >= 20) ? 3 : 2;                        /* semi-apertura radiale della punta */
+  const int32_t back = (size > 0) ? 480 / size : 30;                /* gradi indietro per la base della punta */
+  const int32_t a_start = DEG_TO_TRIGANGLE(SYNC_ARC_START);
+  const int32_t a_tip = DEG_TO_TRIGANGLE(SYNC_ARC_END);
+  const int32_t a_base = DEG_TO_TRIGANGLE(SYNC_ARC_END - back);
+  s_sync_tri[0] = gpoint_from_polar(box, GOvalScaleModeFitCircle, a_tip);
+  s_sync_tri[1] = gpoint_from_polar(grect_inset(box, GEdgeInsets(head)), GOvalScaleModeFitCircle, a_base);
+  s_sync_tri[2] = gpoint_from_polar(grect_inset(box, GEdgeInsets(-head)), GOvalScaleModeFitCircle, a_base);
+  const uint8_t arc_w = thin ? 1 : 2;
+  if (s_halo) {
+    graphics_context_set_stroke_color(ctx, s_bg);
+    graphics_context_set_stroke_width(ctx, (uint8_t)(arc_w + 2));
+    graphics_draw_arc(ctx, box, GOvalScaleModeFitCircle, a_start, a_base);
+    graphics_context_set_stroke_width(ctx, 3);
+    gpath_draw_outline(ctx, &s_sync_head);
+  }
+  graphics_context_set_stroke_color(ctx, s_fg);
+  graphics_context_set_stroke_width(ctx, arc_w);
+  graphics_draw_arc(ctx, box, GOvalScaleModeFitCircle, a_start, a_base);
+  graphics_context_set_fill_color(ctx, s_fg);
+  gpath_draw_filled(ctx, &s_sync_head);
   graphics_context_set_stroke_width(ctx, 1);
 }
 
@@ -680,8 +760,13 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
     case MODE_B_SPRITE:
       prv_draw_row(ctx, DIGITS_SIZE_B, s_row1, s_row1_n, s_row1_y);
       prv_draw_row(ctx, DIGITS_SIZE_B, s_row2, s_row2_n, s_row2_y);
-      if (s_sync_index) {              /* R10: contatore della sync dentro la fascia dinamica (y >= band_y) */
-        prv_draw_text(ctx, s_sync_buf, s_lay.ampm_font, s_rc_sync_b, false);
+      if (s_sync_index) {              /* R10: icona + contatore della sync dentro la fascia dinamica (y >= band_y) */
+        GRect rc = s_rc_sync_b;
+        prv_draw_sync_icon(ctx, GPoint(rc.origin.x, (int16_t)(rc.origin.y + (rc.size.h - 2 - SYNC_ICON_B) / 2))   /* 14 px: righe 214..227, l'ultima e' la 227 (revisione S10) */,
+                           SYNC_ICON_B, SYNC_THIN);
+        rc.origin.x += SYNC_ICON_B + SYNC_GAP;
+        rc.size.w -= SYNC_ICON_B + SYNC_GAP;
+        prv_draw_text(ctx, s_sync_buf, s_lay.ampm_font, rc, false);
       }
       break;
     default:   /* MODE_A_SPRITE, MODE_B_QV */
@@ -701,8 +786,18 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
 #ifdef GALLERIA_DEBUG_TIMING
     time_ms(&ti_s, &ti_ms);
 #endif
-    if (s_show_sync) {
-      prv_draw_text(ctx, s_sync_buf, s_lay.info_font, s_rc_left, false);
+    if (s_show_sync) {                           /* S10 (D32): icona a MARGIN_X, poi "k/n" dopo SYNC_GAP */
+      const int16_t size = s_lay.sync_icon;
+      const int16_t extra = s_halo ? 1 : 0;      /* l'alone/la punta sbordano di 1 px dal box (come BT) */
+      int16_t oy = s_rc_left.origin.y + (s_lay.info_h - size) / 2;
+      if (oy + size + extra > s_lay.band_h) {
+        oy = s_lay.band_h - size - extra;        /* guardia: mai fuori dalla fascia dinamica */
+      }
+      prv_draw_sync_icon(ctx, GPoint(s_rc_left.origin.x, oy), size, SYNC_THIN);
+      GRect rc = s_rc_left;
+      rc.origin.x += size + SYNC_GAP;
+      rc.size.w -= size + SYNC_GAP;
+      prv_draw_text(ctx, s_sync_buf, s_lay.info_font, rc, false);
     } else if (s_show_bt_icon) {
       const int16_t extra = s_halo ? 1 : 0;      /* l'alone sborda di 1 px dal box dell'icona */
       int16_t oy = s_rc_left.origin.y + (s_lay.info_h - BT_ICON_H) / 2;
@@ -818,7 +913,7 @@ void ui_time_init(Window *window) {
   s_unob_h = layer_get_unobstructed_bounds(s_root).size.h;
 
   const char *loc = i18n_get_system_locale();
-  s_thousands_sep = (loc && loc[0] == 'e' && loc[1] == 'n') ? ',' : '.';
+  ui_time_lang_changed();              /* S10: separatore + riga corta `ui_time: lang=%u sep=%d` (con s_layer NULL fa solo questo) */
 
   s_batt = battery_state_service_peek();
   prv_format_battery();
@@ -830,6 +925,8 @@ void ui_time_init(Window *window) {
   prv_load_strips();                 /* strip sprite in heap (window_load; poi solo prv_refresh_mode) */
   prv_pick_mode();
   /* Una riga all'init: cs=content size, loc=locale, unob=altezza non ostruita, lay/font=impostazioni */
+  /* Formato di 80 caratteri: il firmware tronca il CORPO di APP_LOG a 87 (197 righe mozze nei log reali, revisione S10);
+   * la lingua sta nella riga corta `ui_time: lang= sep=` di ui_time_lang_changed(). */
   APP_LOG(APP_LOG_LEVEL_INFO, "ui_time: cs=%d bt=%d loc=%s %dx%d unob=%d lay=%u font=%u sty=%u mode=%u band=%d",
           (int)s_lay.content_size, (int)s_connected, loc ? loc : "?",
           (int)s_lay.full.size.w, (int)s_lay.full.size.h, (int)s_unob_h,
@@ -974,17 +1071,30 @@ void ui_time_layout_changed(void) {
   ui_time_band_changed();
 }
 
+void ui_time_lang_changed(void) {
+  prv_update_thousands_sep();
+  APP_LOG(APP_LOG_LEVEL_INFO, "ui_time: lang=%u sep=%d", (unsigned)settings_get()->lang, (int)s_thousands_sep);
+  if (!s_layer) {
+    return;
+  }
+  if (prv_mode_is_a()) {               /* la riga info (passi con separatore, data) esiste solo nel layout A */
+    prv_read_steps();                  /* i passi vanno riformattati con il separatore nuovo (evento raro) */
+    prv_layout_info();                 /* riformatta la data (prv_format_date) e riposiziona le celle */
+    layer_mark_dirty(s_layer);
+  }
+}
+
 void ui_time_set_sync_progress(uint8_t index, uint8_t count) {
   if (index == s_sync_index && count == s_sync_count) {
     return;
   }
   s_sync_index = index;
   s_sync_count = count;
-  if (index) {
+  if (index) {                          /* S10 (D32): niente parole, l'icona dice "sync" */
     if (count) {
-      snprintf(s_sync_buf, sizeof(s_sync_buf), "Foto %u/%u", (unsigned)index, (unsigned)count);
+      snprintf(s_sync_buf, sizeof(s_sync_buf), "%u/%u", (unsigned)index, (unsigned)count);
     } else {
-      snprintf(s_sync_buf, sizeof(s_sync_buf), "Foto %u", (unsigned)index);
+      snprintf(s_sync_buf, sizeof(s_sync_buf), "%u", (unsigned)index);
     }
   }
   if (!s_layer) {

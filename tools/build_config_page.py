@@ -17,6 +17,10 @@ Regole di inlining:
     (`</script` in un .js, `</style` in un .css; l'incrocio e' innocuo), ne' — nei .js — un
     `<!--` seguito da un `<script` (il parser entra in «script data double escaped»);
   * l'ordine dei tag resta quello di page.html (atteso: pipeline -> page_core -> previews -> page);
+  * passo i18n (S10, D35): nell'HTML finito il NOME di ogni chiave di traduzione diventa il suo
+    INDICE in `apps/galleria/i18n/messages.json` — nelle chiamate a T dei .js e negli attributi
+    `data-i18n`/`data-i18n-title` del markup — cosi' l'artefatto non porta nessun testo e nessun
+    nome di chiave; una chiave che non esiste e' un errore;
   * oltre 64 KB (65.536 B) di HTML inlinato = errore (obiettivo: < 60 KB, avviso oltre);
   * output riproducibile: nessuna data, nessun percorso assoluto, fine riga sempre \n.
 Gli `<script>`/`<style>` gia' inline e i commenti HTML non vengono toccati (e il loro corpo
@@ -49,6 +53,7 @@ SCRIPT_ORDER = ('pipeline.js', 'page_core.js', 'previews.js', 'page.js')
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DIR = os.path.normpath(os.path.join(_HERE, '..', 'apps', 'galleria', 'src', 'pkjs', 'config'))
 DEFAULT_OUT = os.path.normpath(os.path.join(_HERE, '..', 'apps', 'galleria', 'src', 'pkjs', 'config_page.js'))
+DEFAULT_MESSAGES = os.path.normpath(os.path.join(_HERE, '..', 'apps', 'galleria', 'i18n', 'messages.json'))
 
 HEADER = ('/* GENERATO da tools/build_config_page.py (S6): non modificare a mano. '
           'Sorgenti: src/pkjs/config/. Dimensione HTML: %d B. */\n')
@@ -94,6 +99,91 @@ _NOOP_LINK_TYPE = ('', 'text/css')
 _EXTERNAL_RE = re.compile(r'(?:src|href)=["\'](?:https?:)?//', re.I)
 _IMPORT_RE = re.compile(r'@import\b', re.I)
 _STORAGE_RE = re.compile(r'\b(?:localStorage|sessionStorage)\s*[.\[]|document\s*\.\s*cookie')
+
+
+# S10 (D35): `T('chiave'` -> `T(7`; `data-i18n="chiave"` -> `data-i18n="7"`. Il lookbehind
+# evita di prendere un identificatore che finisce per T (es. `INT('x')` o `obj.T('x')`).
+_T_CALL_RE = re.compile(r'''(?<![A-Za-z0-9_$.])(T\(\s*)(['"])([A-Za-z0-9_]+)\2''')
+_I18N_ATTR_RE = re.compile(r'(data-i18n(?:-title)?=")([A-Za-z0-9_]+)(")')
+
+
+def messages_path(dir_path):
+    """messages.json accanto alle sorgenti (src/pkjs/config -> ../../../i18n), o quello di default."""
+    cand = os.path.normpath(os.path.join(dir_path, '..', '..', '..', 'i18n', 'messages.json'))
+    return cand if os.path.isfile(cand) else DEFAULT_MESSAGES
+
+
+def load_message_keys(path):
+    """Nomi delle chiavi nell'ordine del file (i campi `_…` sono commenti). L'indice e' la
+    posizione: lo stesso che build_i18n.py mette negli array di i18n.js."""
+    try:
+        with io.open(path, encoding='utf-8') as fh:
+            pairs = json.load(fh, object_pairs_hook=lambda p: p)
+    except OSError as exc:
+        raise PageBuildError('non riesco a leggere i messaggi %s (%s)' % (_short(path), exc))
+    except ValueError as exc:
+        raise PageBuildError('%s non e\' JSON valido: %s' % (_short(path), exc))
+    if not isinstance(pairs, list):
+        raise PageBuildError('%s: in cima serve un oggetto { "chiave": {…} }' % _short(path))
+    keys = [k for k, _ in pairs if not k.startswith('_')]
+    if len(set(keys)) != len(keys):
+        raise PageBuildError('%s ha chiavi doppie: esegui «python3 tools/build_i18n.py --check»'
+                             % _short(path))
+    return keys
+
+
+_I18N_KEYS_RE = re.compile(r'keys:\s*\[(.*?)\]', re.S)
+
+
+def _check_i18n_module(messages, keys, warn=None):
+    """Revisione S10: l'artefatto scrive INDICI, il PKJS spedisce gli array di src/pkjs/i18n.js: se
+    i due nascono da messages.json diversi (pebble build senza `make -C test pagecheck`) la pagina
+    mostrerebbe testi sbagliati senza errori. Qui si pretende che l'elenco `keys` del modulo
+    generato coincida con messages.json; il rimedio e' `python3 tools/build_i18n.py`."""
+    module = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(messages))), 'src', 'pkjs', 'i18n.js')
+    if not os.path.isfile(module):
+        # Nessun modulo accanto (copie di prova, selftest): niente da confrontare. Nel repo il modulo c'e' sempre
+        # (index.js lo richiede) e build_i18n.py --check nel pagecheck lo tiene aggiornato.
+        (warn or _default_warn)('avviso: %s assente, salto il confronto artefatto/dizionari' % _short(module))
+        return
+    try:
+        with io.open(module, 'r', encoding='utf-8') as fh:
+            text = fh.read()
+        m = _I18N_KEYS_RE.search(text)
+        found = json.loads('[' + m.group(1).strip().rstrip(',') + ']') if m else None
+    except (OSError, ValueError) as exc:
+        raise PageBuildError('%s illeggibile (%s): eseguire python3 tools/build_i18n.py' % (_short(module), exc))
+    if found != list(keys):
+        raise PageBuildError('%s non e\' allineato a %s (%d chiavi contro %d): eseguire python3 tools/build_i18n.py'
+                             % (_short(module), _short(messages), len(found or []), len(keys)))
+
+
+def i18n_pass(html, messages, warn=None):
+    """(HTML con gli indici al posto dei nomi, quante sostituzioni). Se non c'e' niente da
+    convertire torna l'HTML com'e' senza nemmeno aprire messages.json."""
+    warn = warn or _default_warn
+    if not (_T_CALL_RE.search(html) or _I18N_ATTR_RE.search(html)):
+        return html, 0
+    if not os.path.isfile(messages):
+        raise PageBuildError('la pagina usa chiavi di traduzione ma manca %s (S10, D35)'
+                             % _short(messages))
+    keys = load_message_keys(messages)
+    _check_i18n_module(messages, keys, warn)
+    index = dict((k, i) for i, k in enumerate(keys))
+    count = [0]
+
+    def sub(name, text, pos):
+        if name not in index:
+            raise PageBuildError('riga %d: la chiave di traduzione «%s» non esiste in %s '
+                                 '(aggiungerla e rilanciare build_i18n.py)'
+                                 % (text.count('\n', 0, pos) + 1, name, _short(messages)))
+        count[0] += 1
+        return str(index[name])
+
+    out = _T_CALL_RE.sub(lambda m: m.group(1) + sub(m.group(3), html, m.start()), html)
+    src = out                                     # gli indici sono piu' corti dei nomi: nuove posizioni
+    out = _I18N_ATTR_RE.sub(lambda m: m.group(1) + sub(m.group(2), src, m.start()) + m.group(3), src)
+    return out, count[0]
 
 
 def _default_warn(msg):
@@ -305,10 +395,11 @@ def _order_check(used, warn):
              % (' -> '.join(expected), ' -> '.join(known)))
 
 
-def inline_page(dir_path, entry=ENTRY, warn=None, strip=True):
+def inline_page(dir_path, entry=ENTRY, warn=None, strip=True, messages=None):
     """HTML autosufficiente dalle sorgenti in dir_path. Lancia PageBuildError su ogni errore.
     strip=True (default): righe di commento intere, righe vuote e indentazione tolte dagli asset
-    (S6, _strip_text); l'HTML perde solo righe vuote e commenti su una riga."""
+    (S6, _strip_text); l'HTML perde solo righe vuote e commenti su una riga.
+    messages: messages.json del passo i18n (default: quello accanto alle sorgenti, S10 D35)."""
     warn = warn or _default_warn
     dir_path = os.path.abspath(dir_path)
     if not os.path.isdir(dir_path):
@@ -410,6 +501,7 @@ def inline_page(dir_path, entry=ENTRY, warn=None, strip=True):
         i = m.end()
 
     result = ''.join(out)
+    result, _ = i18n_pass(result, messages or messages_path(dir_path), warn)
     _order_check(used, warn)
     _page_lint(result, warn)
     err = page_size_check(result)
@@ -428,9 +520,9 @@ def render_module(html):
             + 'module.exports = ' + json.dumps(html, ensure_ascii=True) + ';\n')
 
 
-def build_module(dir_path, entry=ENTRY, warn=None, strip=True):
+def build_module(dir_path, entry=ENTRY, warn=None, strip=True, messages=None):
     """(html, testo del modulo) dalle sorgenti."""
-    html = inline_page(dir_path, entry=entry, warn=warn, strip=strip)
+    html = inline_page(dir_path, entry=entry, warn=warn, strip=strip, messages=messages)
     return html, render_module(html)
 
 
@@ -473,6 +565,8 @@ def build_parser():
                     help="scrive anche l'HTML inlinato (per aprirlo nel browser o darlo a --page)")
     ap.add_argument('--check', action='store_true',
                     help='non scrive nulla: 0 se --out coincide con la rigenerazione, 1 se manca o differisce')
+    ap.add_argument('--messages', default=None, metavar='FILE',
+                    help='messages.json del passo i18n (default: quello accanto alle sorgenti)')
     ap.add_argument('--no-strip', action='store_true',
                     help='non togliere righe di commento/vuote e indentazione dagli asset (default: le toglie)')
     ap.add_argument('--selftest', action='store_true',
@@ -485,7 +579,7 @@ def main(argv=None):
     if args.selftest:
         return selftest()
     try:
-        html, js = build_module(args.dir, strip=not args.no_strip)
+        html, js = build_module(args.dir, strip=not args.no_strip, messages=args.messages)
     except PageBuildError as exc:
         sys.stderr.write('build_config_page: errore: %s\n' % exc)
         # M2-bis F8: l'output NON viene toccato, quindi resta la versione precedente. Senza
@@ -870,6 +964,38 @@ def selftest():
         w5 = []
         inline_page(base, warn=w5.append)
         check('pagina pulita: nessun avviso di lint', w5 == [], repr(w5))
+
+        # --- 10c. passo i18n (S10, D35): chiavi -> indici ------------------------
+        msg = os.path.join(tmp, 'messages.json')
+        _write_text(msg, '{\n  "_note": "commento",\n'
+                         '  "uno": { "it": "Uno", "en": "One", "de": "Eins", "fr": "Un" },\n'
+                         '  "due": { "it": "Due {0}", "en": "Two {0}", "de": "Zwei {0}", "fr": "Deux {0}" }\n}\n')
+        i18n_dir = _mkpage(os.path.join(tmp, 'i18n'),
+                           html=_T_HTML.replace('<p id="p">Città — prova</p>',
+                                                '<p id="p" data-i18n="uno" data-i18n-title="due"></p>'),
+                           extra={'page.js': 'var GalPage = { a: T(\'uno\'), b: T("due", 1), c: obj.T(\'uno\') };\n'})
+        hi = inline_page(i18n_dir, warn=lambda _m: None, messages=msg)
+        check('T(\'chiave\') -> indice', 'a: T(0)' in hi, hi[hi.find('GalPage'):][:70])
+        check('T("chiave") -> indice (anche doppi apici)', 'b: T(1, 1)' in hi)
+        check('obj.T(\'x\') non viene toccato', "c: obj.T('uno')" in hi)
+        check('data-i18n -> indice', 'data-i18n="0"' in hi and 'data-i18n-title="1"' in hi)
+        check('nessun nome di chiave rimasto nel markup ne\' nelle chiamate a T',
+              "a: T('uno'" not in hi and 'data-i18n="uno"' not in hi and 'data-i18n-title="due"' not in hi)
+        try:
+            inline_page(_mkpage(os.path.join(tmp, 'i18n_bad'),
+                                extra={'page.js': 'var x = T(\'manca\');\n'}),
+                        warn=lambda _m: None, messages=msg)
+            check('chiave inesistente -> errore', False, 'nessun errore')
+        except PageBuildError as exc:
+            check('chiave inesistente -> errore', 'manca' in str(exc) and 'non esiste' in str(exc), str(exc))
+        try:
+            inline_page(i18n_dir, warn=lambda _m: None, messages=os.path.join(tmp, 'nessun_messaggio.json'))
+            check('messages.json assente con chiavi in pagina -> errore', False, 'nessun errore')
+        except PageBuildError as exc:
+            check('messages.json assente con chiavi in pagina -> errore', 'manca' in str(exc), str(exc))
+        check('pagina senza chiavi: messages.json non serve',
+              isinstance(inline_page(base, warn=lambda _m: None,
+                                     messages=os.path.join(tmp, 'nessun_messaggio.json')), str))
 
         # --- 11. riproducibilita' (anche con CRLF e BOM nelle sorgenti) ----------
         a = inline_page(base, warn=lambda _m: None)

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -19,52 +19,53 @@
 </header>
 
 <section id="photos">
-  <h2>Foto</h2>
+  <h2 data-i18n="sec_photos"></h2>
   <p id="photosCap" class="help"></p>
   <div id="tiles"></div>
   <p class="row">
-    <label id="add" class="btn" for="file">Aggiungi foto</label>
+    <label id="add" class="btn" for="file" data-i18n="add_photo"></label>
     <input type="file" id="file" accept="image/*">
-    <span id="addHelp" class="help">scegli dalla Libreria</span>
+    <span id="addHelp" class="help"></span>
   </p>
 </section>
 
 <section id="editor" style="display:none">
-  <h2>Ritaglio</h2>
+  <h2 data-i18n="sec_crop"></h2>
   <p id="editName" class="help"></p>
   <div id="cropWrap"><canvas id="crop"></canvas></div>
-  <p class="help">Trascina per spostare, due dita o rotellina per ingrandire.</p>
-  <p class="row"><label for="zoom" class="rlab">Zoom</label> <input type="range" id="zoom" min="1" max="4" step="0.01" value="1"> <button type="button" id="fit" class="btn small">Adatta</button></p>
-  <p class="row"><label for="gamma" class="rlab">Luminosità (gamma)</label> <input type="range" id="gamma" min="0.5" max="2" step="0.05" value="1"> <span id="gammaVal" class="val">1,00</span></p>
-  <p class="row"><label for="lift" class="rlab">Schiarisci le ombre (lift)</label> <input type="range" id="lift" min="0" max="0.3" step="0.01" value="0"> <span id="liftVal" class="val">0,00</span></p>
-  <p class="row"><label for="dither" class="rlab">Dithering</label> <select id="dither"></select></p>
-  <p class="row" id="sunlightRow"><label><input type="checkbox" id="sunlight"> Ottimizza per il vetro</label></p>
-  <p class="row" id="previewModeRow"><label for="previewMode" class="rlab">Anteprima</label> <select id="previewMode"><option value="sun">come sul vetro</option><option value="nominal">colori nominali</option></select></p>
+  <p class="help" data-i18n="crop_hint"></p>
+  <p class="row"><label for="zoom" class="rlab" data-i18n="lbl_zoom"></label> <input type="range" id="zoom" min="1" max="4" step="0.01" value="1"> <button type="button" id="fit" class="btn small" data-i18n="btn_fit"></button></p>
+  <p class="row"><label for="gamma" class="rlab" data-i18n="lbl_gamma"></label> <input type="range" id="gamma" min="0.5" max="2" step="0.05" value="1"> <span id="gammaVal" class="val"></span></p>
+  <p class="row"><label for="lift" class="rlab" data-i18n="lbl_lift"></label> <input type="range" id="lift" min="0" max="0.3" step="0.01" value="0"> <span id="liftVal" class="val"></span></p>
+  <p class="row"><label for="dither" class="rlab" data-i18n="lbl_dither"></label> <select id="dither"></select></p>
+  <p class="row" id="sunlightRow"><label><input type="checkbox" id="sunlight"> <span data-i18n="opt_sunlight"></span></label></p>
+  <p class="row" id="previewModeRow"><label for="previewMode" class="rlab" data-i18n="lbl_preview"></label> <select id="previewMode"><option value="sun" data-i18n="opt_prev_sun"></option><option value="nominal" data-i18n="opt_prev_nominal"></option></select></p>
   <div class="prevwrap"><canvas id="preview"></canvas></div>
   <p id="etime" class="help"></p>
-  <p class="row"><button type="button" id="addOk" class="btn primary">Aggiungi all'album</button> <button type="button" id="addCancel" class="btn">Annulla ritaglio</button></p>
+  <p class="row"><button type="button" id="addOk" class="btn primary" data-i18n="btn_add_ok"></button> <button type="button" id="addCancel" class="btn" data-i18n="btn_add_cancel"></button></p>
 </section>
 
 <section id="settings">
-  <h2>Impostazioni</h2>
-  <p id="settingsNote" class="warn" style="display:none">Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi.</p>
-  <p class="row"><label for="s_layout" class="rlab">Layout</label> <select id="s_layout"></select></p>
-  <p class="row"><label for="s_font" class="rlab">Font</label> <select id="s_font"></select> <img id="fontPreview" class="fontprev" alt="" style="display:none"></p>
-  <p class="row"><label for="s_digit_style" class="rlab">Stile cifre</label> <select id="s_digit_style"></select></p>
-  <p id="s_style_hint" class="help" style="display:none">Per lo stile trasparente rendono meglio Francois One e Staatliches (Anton in layout A tende a chiudersi).</p>
-  <p id="styleFlintHelp" class="help" style="display:none">Su Pebble 2 Duo il contorno delle cifre è di 1 px: sulle foto molto dettagliate l'ora si legge male. Con quelle conviene lo stile pieno.</p>
-  <p class="row"><label for="s_clock_mode" class="rlab">Formato ora</label> <select id="s_clock_mode"></select></p>
-  <p class="row"><label for="s_leading_zero" class="rlab">Zero iniziale</label> <select id="s_leading_zero"></select></p>
-  <p class="row"><label for="s_interval_min" class="rlab">Intervallo foto</label> <select id="s_interval_min"></select></p>
-  <p class="row"><label for="s_order" class="rlab">Ordine</label> <select id="s_order"></select></p>
-  <p class="row"><label><input type="checkbox" id="s_shake_next"> Scossa = foto successiva</label></p>
-  <p class="row"><label for="s_text_color" class="rlab">Colore testo</label> <select id="s_text_color"></select></p>
-  <p class="row"><label for="s_outline" class="rlab">Contorno</label> <select id="s_outline"></select></p>
-  <p class="row"><span class="rlab">Riga info:</span>
+  <h2 data-i18n="sec_settings"></h2>
+  <p id="settingsNote" class="warn" style="display:none" data-i18n="settings_note"></p>
+  <p class="row"><label for="s_lang" class="rlab" data-i18n="lbl_lang"></label> <select id="s_lang"></select></p>
+  <p class="row"><label for="s_layout" class="rlab" data-i18n="lbl_layout"></label> <select id="s_layout"></select></p>
+  <p class="row"><label for="s_font" class="rlab" data-i18n="lbl_font"></label> <select id="s_font"></select> <img id="fontPreview" class="fontprev" alt="" style="display:none"></p>
+  <p class="row"><label for="s_digit_style" class="rlab" data-i18n="lbl_digit_style"></label> <select id="s_digit_style"></select></p>
+  <p id="s_style_hint" class="help" style="display:none" data-i18n="style_hint"></p>
+  <p id="styleFlintHelp" class="help" style="display:none" data-i18n="style_flint_help"></p>
+  <p class="row"><label for="s_clock_mode" class="rlab" data-i18n="lbl_clock_mode"></label> <select id="s_clock_mode"></select></p>
+  <p class="row"><label for="s_leading_zero" class="rlab" data-i18n="lbl_leading_zero"></label> <select id="s_leading_zero"></select></p>
+  <p class="row"><label for="s_interval_min" class="rlab" data-i18n="lbl_interval"></label> <select id="s_interval_min"></select></p>
+  <p class="row"><label for="s_order" class="rlab" data-i18n="lbl_order"></label> <select id="s_order"></select></p>
+  <p class="row"><label><input type="checkbox" id="s_shake_next"> <span data-i18n="opt_shake_next"></span></label></p>
+  <p class="row"><label for="s_text_color" class="rlab" data-i18n="lbl_text_color"></label> <select id="s_text_color"></select></p>
+  <p class="row"><label for="s_outline" class="rlab" data-i18n="lbl_outline"></label> <select id="s_outline"></select></p>
+  <p class="row"><span class="rlab" data-i18n="lbl_info_row"></span>
     <span class="opts">
-      <label><input type="checkbox" id="s_info_row_b0"> passi</label>
-      <label><input type="checkbox" id="s_info_row_b1"> batteria</label>
-      <label><input type="checkbox" id="s_info_row_b2"> data</label>
+      <label><input type="checkbox" id="s_info_row_b0"> <span data-i18n="opt_info_steps"></span></label>
+      <label><input type="checkbox" id="s_info_row_b1"> <span data-i18n="opt_info_battery"></span></label>
+      <label><input type="checkbox" id="s_info_row_b2"> <span data-i18n="opt_info_date"></span></label>
       <label><input type="checkbox" id="s_info_row_b3"> Bluetooth</label>
     </span>
     <input type="hidden" id="s_info_row" value="15">
@@ -72,8 +73,8 @@
 </section>
 
 <section id="help">
-  <h2>Aiuto</h2>
-  <p class="row"><button type="button" id="helpBtn" class="btn small" aria-expanded="false" aria-controls="helpBody">Galleria si avvia lentamente?</button></p>
+  <h2 data-i18n="sec_help"></h2>
+  <p class="row"><button type="button" id="helpBtn" class="btn small" aria-expanded="false" aria-controls="helpBody" data-i18n="help_btn"></button></p>
   <div id="helpBody" style="display:none">
     <p id="helpWhy" class="help"></p>
     <div id="helpFix"></div>
@@ -81,8 +82,8 @@
 </section>
 
 <footer id="footer">
-  <button type="button" id="save" class="btn primary">Salva</button>
-  <button type="button" id="cancel" class="btn">Esci senza salvare</button>
+  <button type="button" id="save" class="btn primary" data-i18n="btn_save"></button>
+  <button type="button" id="cancel" class="btn" data-i18n="btn_cancel"></button>
   <p id="msg"></p>
 </footer>
 

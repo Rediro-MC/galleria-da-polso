@@ -1214,24 +1214,34 @@ static void test_album_changes_idle(void) {
 
 /* Prima di ogni caso model_deinit() disiscrive il tap service lasciando shake_next = 1: cosi'
  * una chiamata a model_settings_changed si vede come una sottoscrizione in piu'. */
-static void env_case(const char *name, GalSettings before, GalSettings now,
-                     int tick, int layout, int style, int full, int model) {
+/* S10 (D37): `lang` = chiamate attese a ui_time_lang_changed (0/1); se 1 deve essere la PRIMA notifica
+ * ui_time_* (shim_ui_lang_order() == 1: "prima dei rami esistenti"). I casi pre-S10 passano da env_case
+ * (lang atteso 0): cosi' ogni caso vecchio pinna anche che un cambio NON di lingua non la notifica. */
+static void env_case_l(const char *name, GalSettings before, GalSettings now,
+                       int lang, int tick, int layout, int style, int full, int model) {
   CHECK(settings_apply(&now));
   storage_flush();                           /* niente debounce pendente (un solo timer nello shim) */
   model_deinit();
   shim_ui_reset_counters();
   const int sub0 = shim_accel_tap_subscribes();
   sync_env_settings_changed(&before);
-  if (shim_ui_tick_calls() != tick || shim_ui_layout_calls() != layout
+  if (shim_ui_lang_calls() != lang || shim_ui_tick_calls() != tick || shim_ui_layout_calls() != layout
       || shim_ui_style_calls() != style || shim_ui_full_redraw_calls() != full
-      || shim_accel_tap_subscribes() - sub0 != model) {
+      || shim_accel_tap_subscribes() - sub0 != model || shim_ui_lang_order() != (lang ? 1 : 0)) {
     printf("  (caso %s)\n", name);
   }
+  CHECK_EQ(shim_ui_lang_calls(), lang);
+  CHECK_EQ(shim_ui_lang_order(), lang ? 1 : 0);     /* D37: ui_time_lang_changed per prima */
   CHECK_EQ(shim_ui_tick_calls(), tick);
   CHECK_EQ(shim_ui_layout_calls(), layout);
   CHECK_EQ(shim_ui_style_calls(), style);
   CHECK_EQ(shim_ui_full_redraw_calls(), full);
   CHECK_EQ(shim_accel_tap_subscribes() - sub0, model);
+}
+
+static void env_case(const char *name, GalSettings before, GalSettings now,
+                     int tick, int layout, int style, int full, int model) {
+  env_case_l(name, before, now, 0, tick, layout, style, full, model);
 }
 
 static void test_env_settings(void) {
@@ -1292,6 +1302,32 @@ static void test_env_settings(void) {
   CHECK(settings_apply(&s));
   storage_flush();
   env_case("shake 0 -> 1", s, base, 0, 0, 0, 1, 1);
+
+  /* --- S10 (D31/D37): GalSettings.lang --- */
+  for (uint8_t l = GAL_LANG_EN; l <= GAL_LANG_FR; l++) {
+    s = base; s.lang = l;
+    env_case_l("lang auto -> forzata", base, s, 1, 0, 0, 0, 1, 0);   /* lang_changed + redraw prudente */
+  }
+  s = base; s.lang = GAL_LANG_IT;
+  env_case_l("lang it -> auto", s, base, 1, 0, 0, 0, 1, 0);          /* anche il ritorno ad auto notifica */
+  {
+    GalSettings fr = base; fr.lang = GAL_LANG_FR;
+    s = base; s.lang = GAL_LANG_DE;
+    env_case_l("lang fr -> de", fr, s, 1, 0, 0, 0, 1, 0);            /* forzata -> forzata */
+    env_case_l("lang de -> de", s, s, 0, 0, 0, 0, 1, 0);             /* lang identico: nessuna notifica */
+  }
+  s = base; s.lang = GAL_LANG_FR; s.clock_mode = GAL_CLOCK_12H;
+  env_case_l("lang+clock", base, s, 1, 1, 0, 0, 1, 0);               /* lang PRIMA del tick */
+  s = base; s.lang = GAL_LANG_FR; s.layout = GAL_LAYOUT_B;
+  env_case_l("lang+layout", base, s, 1, 0, 1, 0, 0, 0);              /* il redraw completo del layout vince */
+  s = base; s.lang = GAL_LANG_DE; s.text_color = GAL_TEXT_YELLOW;
+  env_case_l("lang+colore", base, s, 1, 0, 0, 1, 0, 0);
+  s = base; s.lang = GAL_LANG_EN; s.interval_min = 60;
+  env_case_l("lang+intervallo", base, s, 1, 0, 0, 0, 1, 1);          /* il modello ricalcola lo slot */
+  s = base; s.lang = GAL_LANG_IT; s.info_row = GAL_INFO_DATE;
+  env_case_l("lang+info_row", base, s, 1, 1, 0, 0, 1, 0);
+  CHECK(settings_apply(&base));
+  storage_flush();
 }
 
 /* --- SETTINGS end-to-end (messaggio dal telefono) --- */
@@ -1336,6 +1372,101 @@ static void test_settings_message(void) {
   CHECK(deliver());
   CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
   CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+
+  /* --- S10 (D31/D37): byte 13 del blob = lang. de (3) via SETTINGS -> OK, applicata, ui_time_lang_changed
+   * UNA volta e per PRIMA, poi il redraw prudente; niente layout/style/tick. --- */
+  shim_ui_reset_counters();
+  s = *settings_get();
+  s.lang = GAL_LANG_DE;
+  s.crc16 = 0;
+  memcpy(blob, &s, sizeof(blob));
+  CHECK_EQ(blob[13], GAL_LANG_DE);                 /* posizione sul filo (D31): byte 13 */
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(last()->reply_to, SYNC_MSG_SETTINGS);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  CHECK_EQ(shim_ui_lang_calls(), 1);
+  CHECK_EQ(shim_ui_lang_order(), 1);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  CHECK_EQ(shim_ui_layout_calls(), 0);
+  CHECK_EQ(shim_ui_style_calls(), 0);
+  CHECK_EQ(shim_ui_tick_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* il HELLO successivo porta il CRC con la lingua nuova (e non quello dei default, 0x7EE7) */
+  js_ready();
+  m = shim_am_last_sent();
+  CHECK(m != NULL);
+  if (m) {
+    CHECK_EQ(m->crc, crc16_ccitt((const uint8_t *)settings_get(), (uint32_t)(sizeof(GalSettings) - 2)));
+    CHECK(m->crc != 0x7EE7);
+  }
+  ack_all();
+  /* lo stesso blob di nuovo: OK, ma lang identico -> nessuna notifica di lingua */
+  shim_ui_reset_counters();
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(shim_ui_lang_calls(), 0);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  ack_all();
+  storage_flush();
+  /* lang 5 (fuori 0..4): BAD_FORMAT, lang resta de, nessuna notifica */
+  shim_ui_reset_counters();
+  blob[13] = 5;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  CHECK_EQ(shim_ui_lang_calls(), 0);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* lang 255: idem */
+  shim_ui_reset_counters();
+  blob[13] = 255;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* fr (4) con reserved[] != 0 (PKJS di uno schema futuro): reserved NON e' validato -> OK, lang 4 */
+  shim_ui_reset_counters();
+  blob[13] = GAL_LANG_FR;
+  blob[14] = 0xAA;
+  blob[17] = 0x55;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_FR);
+  CHECK_EQ(settings_get()->reserved[0], 0xAA);
+  CHECK_EQ(settings_get()->reserved[3], 0x55);
+  CHECK_EQ(shim_ui_lang_calls(), 1);
+  CHECK_EQ(shim_ui_lang_order(), 1);
+  ack_all();
+  storage_flush();
+  /* ritorno ad auto (0): notificato anche questo (l'orologio torna a strftime e al locale di sistema) */
+  shim_ui_reset_counters();
+  blob[13] = GAL_LANG_AUTO;
+  blob[14] = 0;
+  blob[17] = 0;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_AUTO);
+  CHECK_EQ(shim_ui_lang_calls(), 1);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
   ack_all();
   storage_flush();
 }

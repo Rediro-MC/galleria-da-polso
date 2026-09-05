@@ -253,10 +253,10 @@ FakeWatch.prototype._handle = function (d, msg) {
       if (!blob || blob.length !== 20 || blob[0] !== 1) { return this._status(CODE.BAD_FORMAT); }
       /* settings_validate() (settings.c): schema, layout <= 1, font < GAL_FONT_COUNT (S8/D22: 6),
        * clock_mode <= 2, leading_zero <= 2, text_color <= 4, outline <= 2, interval nella lista,
-       * order <= 1, shake_next <= 1, info_row <= 15, digit_style <= GAL_STYLE_FILL_3D (S8/D21). */
+       * order <= 1, shake_next <= 1, info_row <= 15, digit_style <= GAL_STYLE_FILL_3D (S8/D21), lang <= 4 (S10/D31). */
       if (blob[1] > 1 || blob[2] > 5 || blob[3] > 2 || blob[4] > 2 || blob[5] > 4 || blob[6] > 2 ||
           [0, 5, 15, 30, 60, 180, 1440].indexOf(blob[7] | (blob[8] << 8)) < 0 || blob[9] > 1 || blob[10] > 1 ||
-          blob[11] > 15 || blob[12] > 3) {
+          blob[11] > 15 || blob[12] > 3 || blob[13] > 4) {
         return this._status(CODE.BAD_FORMAT);
       }
       this.settings = blob.slice(0, 18).map(function (x) { return x & 255; });

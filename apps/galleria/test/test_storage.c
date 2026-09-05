@@ -2264,6 +2264,169 @@ static void test_init_edges(void) {
   }
 }
 
+
+/* ---- 19. S10 (D31): GalSettings.lang al byte 13 (ex reserved[0]) ----
+ * Contratti: offset 13, reserved[4] a seguire, CRC dei default INVARIATO (0x7EE7: lo stesso pin di
+ * test_album.js, cosi' un orologio gia' sincronizzato non riceve una SETTINGS inutile), settings_validate
+ * con lang <= 4 (reserved mai validati), round trip in persist, record con lang fuori intervallo ->
+ * default, blob pre-S10 (byte 13 = 0) -> auto, gal_lang_from_locale (settings.h, pura). */
+
+static void test_settings_lang(void) {
+  fresh(QUOTA_OK);
+  settings_init();                                     /* nessun record: default in RAM */
+  GalSettings def;
+  settings_set_defaults(&def);
+
+  /* layout del blob sul filo e in persist */
+  CHECK_EQ(offsetof(GalSettings, digit_style), 12);
+  CHECK_EQ(offsetof(GalSettings, lang), 13);
+  CHECK_EQ(offsetof(GalSettings, reserved), 14);
+  CHECK_EQ(sizeof(def.reserved), 4);
+  CHECK_EQ(offsetof(GalSettings, crc16), 18);
+  CHECK_EQ(sizeof(GalSettings), 20);
+  CHECK_EQ(GAL_LANG_AUTO, 0);
+  CHECK_EQ(GAL_LANG_EN, 1);
+  CHECK_EQ(GAL_LANG_IT, 2);
+  CHECK_EQ(GAL_LANG_DE, 3);
+  CHECK_EQ(GAL_LANG_FR, 4);
+
+  /* default: auto, reserved a zero, CRC-16 dei 18 B = 0x7EE7 (pin condiviso con il PKJS) */
+  CHECK_EQ(def.lang, GAL_LANG_AUTO);
+  for (uint8_t i = 0; i < sizeof(def.reserved); i++) {
+    CHECK_EQ(def.reserved[i], 0);
+  }
+  CHECK_EQ(crc16_ccitt((const uint8_t *)&def, (uint32_t)sizeof(GalSettings) - 2u), 0x7EE7);
+  {
+    uint8_t b[sizeof(GalSettings)];
+    memcpy(b, &def, sizeof(b));
+    CHECK_EQ(b[13], 0);
+    CHECK_EQ(settings_get()->lang, GAL_LANG_AUTO);
+    CHECK_EQ(crc16_ccitt((const uint8_t *)settings_get(), (uint32_t)sizeof(GalSettings) - 2u), 0x7EE7);
+  }
+
+  /* settings_validate: esattamente i valori 0..4 passano */
+  {
+    int ok = 0, bad = 0;
+    for (unsigned l = 0; l < 256u; l++) {
+      GalSettings s = def;
+      s.lang = (uint8_t)l;
+      if (settings_validate(&s)) { ok++; } else { bad++; }
+    }
+    CHECK_EQ(ok, 5);
+    CHECK_EQ(bad, 251);
+    GalSettings s = def;
+    s.lang = GAL_LANG_FR;
+    CHECK(settings_validate(&s));
+    s.lang = (uint8_t)(GAL_LANG_FR + 1);
+    CHECK(!settings_validate(&s));
+    /* reserved[] NON validato: orologio nuovo + PKJS di uno schema futuro deve passare */
+    s.lang = GAL_LANG_FR;
+    memset(s.reserved, 0xEE, sizeof(s.reserved));
+    CHECK(settings_validate(&s));
+    /* lang e' dentro il confronto "identiche" di settings_apply e di settings_eq_payload */
+    GalSettings a = def, b = def;
+    b.lang = GAL_LANG_IT;
+    CHECK(!settings_eq_payload(&a, &b));
+  }
+
+  /* settings_apply: lang 5 rifiutata senza timer ne' scritture, RAM intatta */
+  {
+    GalSettings bad5 = *settings_get();
+    bad5.lang = 5;
+    CHECK(!settings_apply(&bad5));
+    CHECK(!shim_timer_pending());
+    CHECK_EQ(shim_write_count(), 0);
+    CHECK_EQ(settings_get()->lang, GAL_LANG_AUTO);
+  }
+
+  /* lang 3 (+ intervallo 60 per vedere che il resto viaggia insieme): debounce, UNA scrittura,
+   * byte 13 del record = 3, CRC ricalcolato (!= 0x7EE7), rilettura e riavvio con la lingua salva */
+  GalSettings de = *settings_get();
+  de.lang = GAL_LANG_DE;
+  de.interval_min = 60;
+  CHECK(settings_apply(&de));
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  CHECK(shim_timer_pending());
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);                     /* chiave 0 + manifest */
+  GalSettings out;
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.lang, GAL_LANG_DE);
+  {
+    const uint8_t *p = key_bytes(GAL_KEY_MANIFEST) + offsetof(GalManifest, settings);
+    CHECK_EQ(p[13], GAL_LANG_DE);
+    uint16_t pc = 0;
+    memcpy(&pc, p + sizeof(GalSettings) - 2u, sizeof(pc));
+    CHECK_EQ(pc, crc16_ccitt(p, (uint32_t)sizeof(GalSettings) - 2u));
+    CHECK(pc != 0x7EE7);
+  }
+  CHECK(storage_init());
+  settings_init();
+  CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
+  CHECK_EQ(settings_get()->interval_min, 60);
+  /* identiche: nessuna scrittura; solo lang diversa: e' un cambiamento */
+  {
+    const int w = shim_write_count();
+    CHECK(settings_apply(&de));
+    CHECK(!shim_timer_pending());
+    CHECK_EQ(shim_write_count(), w);
+    GalSettings fr = de;
+    fr.lang = GAL_LANG_FR;
+    CHECK(settings_apply(&fr));
+    CHECK(shim_timer_pending());
+    storage_flush();
+    CHECK_EQ(shim_write_count(), w + 1);
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.lang, GAL_LANG_FR);
+  }
+
+  /* record in persist con lang 7 e CRC del manifest valido: record buono ma impostazioni ai default */
+  uint8_t tmp[sizeof(GalManifest)];
+  memcpy(tmp, key_bytes(GAL_KEY_MANIFEST), sizeof(tmp));
+  tmp[offsetof(GalManifest, settings) + 13] = 7;
+  manifest_fix_crc(tmp);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  CHECK(storage_init());
+  settings_init();
+  CHECK_EQ(settings_get()->lang, GAL_LANG_AUTO);
+  CHECK_EQ(settings_get()->interval_min, def.interval_min);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &def));
+
+  /* record scritto da un firmware pre-S10 (byte 13 = 0, era reserved[0]): lang auto, il resto vale */
+  tmp[offsetof(GalManifest, settings) + 13] = 0;
+  manifest_fix_crc(tmp);
+  CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  CHECK(storage_init());
+  settings_init();
+  CHECK_EQ(settings_get()->lang, GAL_LANG_AUTO);
+  CHECK_EQ(settings_get()->interval_min, 60);
+
+  /* gal_lang_from_locale (settings.h, D33): prefisso en/it/de/fr -> 1..4, tutto il resto -> EN, mai 0 */
+  {
+    static const struct { const char *loc; uint8_t lang; } T[] = {
+      { "it_IT", GAL_LANG_IT }, { "it", GAL_LANG_IT }, { "ita", GAL_LANG_IT }, { "it-CH", GAL_LANG_IT },
+      { "de_DE", GAL_LANG_DE }, { "de", GAL_LANG_DE }, { "de_AT", GAL_LANG_DE },
+      { "fr_FR", GAL_LANG_FR }, { "fr", GAL_LANG_FR }, { "fr_CA", GAL_LANG_FR },
+      { "en_US", GAL_LANG_EN }, { "en_GB", GAL_LANG_EN }, { "en", GAL_LANG_EN },
+      { "es_ES", GAL_LANG_EN }, { "pt_BR", GAL_LANG_EN }, { "ru_RU", GAL_LANG_EN }, { "zh_CN", GAL_LANG_EN },
+      { "nl_NL", GAL_LANG_EN }, { "i", GAL_LANG_EN }, { "d", GAL_LANG_EN }, { "f", GAL_LANG_EN },
+      { "", GAL_LANG_EN }, { "i18n", GAL_LANG_EN }, { "dx", GAL_LANG_EN }, { "fi_FI", GAL_LANG_EN },
+      { "IT_IT", GAL_LANG_EN },   /* maiuscole: non e' un locale che il firmware produce (comportamento pinnato) */
+    };
+    for (size_t i = 0; i < sizeof(T) / sizeof(T[0]); i++) {
+      const uint8_t got = gal_lang_from_locale(T[i].loc);
+      if (got != T[i].lang) {
+        printf("  gal_lang_from_locale(\"%s\") = %u, atteso %u\n", T[i].loc, got, T[i].lang);
+      }
+      CHECK_EQ(got, T[i].lang);
+      CHECK(got >= GAL_LANG_EN && got <= GAL_LANG_FR);
+    }
+    CHECK_EQ(gal_lang_from_locale(NULL), GAL_LANG_EN);
+  }
+  storage_flush();
+}
+
 int main(void) {
   shim_set_log(getenv("GALLERIA_TEST_VERBOSE") != NULL);
   test_sizes();
@@ -2284,6 +2447,7 @@ int main(void) {
   test_pending_then_commit();
   test_timer_retries();
   test_init_edges();
+  test_settings_lang();
   printf("storage: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

@@ -1,5 +1,7 @@
 # Galleria — pubblicazione con `pebble publish` (S9, P3)
 
+> **PUBBLICATA il 05/09/2026 alle 20:41** con il comando di §4 (esito in `apps/galleria/publish_010.log`, file locale): app **`cdf80cc3bf6745b1a310e4c8`**, pagina https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8, dashboard https://appstore-api.repebble.com/dashboard. Verificato via API (`/api/v1/apps/id/<id>`): title «Galleria for Pebble», type watchface, author «Rediro», category «Faces» (assegnata dal server), `visible: true`, release 0.1.0 con le note, `source` = repo GitHub, descrizione completa; **screenshot emery e flint online** (`hardware_platforms[].images.screenshot`); **`icon_image`/`list_image` vuoti** subito dopo la creazione (per una watchface lo store usa lo screenshot; da ricontrollare in dashboard dopo qualche minuto: il tool parlava di «icon generation may take ~2 min»). Il repo sorgente è **pubblico** dalla stessa sera (storia riscritta prima del push).
+>
 > Preparato al banco il **5 settembre 2026** leggendo il **sorgente del pebble-tool 5.0.40 installato**
 > (`~/.local/share/uv/tools/pebble-tool/lib/python3.13/site-packages/pebble_tool/`, d'ora in poi `<PT>/`) e la
 > documentazione web. **Nessun comando di pubblicazione e nessun `pebble login` sono stati eseguiti.**
@@ -136,16 +138,39 @@ Perche' cosi':
 **Variante «pubblica subito» (nominale)** — aggiungere `--is-published`: dichiara l'intenzione ed e' a prova di futuro,
 ma **oggi non cambia nulla** perche' il campo inviato e' comunque `isPublished=true` (`:548`, `:846`).
 
-**Variante «nuova release su app gia' esistente»** (dalla release dopo la 0.1.0 in poi): il tool riconosce l'app
-dall'UUID e manda solo versione, note e `.pbw`; nome, descrizione, icone e sorgente **non** si aggiornano piu' dalla
-CLI (§9).
+**Variante «nuova release su app gia' esistente»** (dalla release dopo la 0.1.0 in poi, quindi **la 0.2.0 di S10**):
+il tool riconosce l'app dall'UUID e manda solo versione, note e `.pbw`; nome, descrizione, icone e sorgente **non**
+si aggiornano piu' dalla CLI (§9).
 
 ```bash
+. ~/ProgettiClaude/Pebble/tools/pebble-env.sh
+cd ~/ProgettiClaude/Pebble/apps/galleria
+
+pebble login --status
+make -C test pagecheck                                # dizionari (build_i18n) + config page inlinata
+make -C test                                          # test host + node + Python
+pebble clean && pebble build                          # gate emery + flint, senza GALLERIA_DEFINES
+unzip -p build/galleria.pbw appinfo.json              # atteso: versionLabel 0.2.0, companyName Rediro
+wc -m store/release_notes_0.2.0.txt                   # 473 (con il newline finale), tutto ASCII
+
 pebble publish --non-interactive --no-gif-all-platforms \
-  --release-notes "$(cat store/release_notes_<versione>.txt)"
+  --version 0.2.0 \
+  --release-notes "$(cat store/release_notes_0.2.0.txt)"
 # screenshot invariati: senza --screenshots non ne carica (allow_skip, publish.py:171 e :450-465)
 # per SOSTITUIRE gli screenshot: aggiungere --screenshots ... --replace-screenshots (irreversibile da CLI, :1020-1023)
 ```
+
+⚠️ **`--version` vale anche qui**, malgrado il testo dell'aiuto («*Override version used when creating a new app*»):
+`desired_version` viene calcolato una volta sola — flag, poi `project.version` (cioe' `package.json`), poi la
+versione del `.pbw` — e passato **anche** a `_upload_release` per un'app che esiste gia' (`publish.py:149-159`,
+`:179`). Passarlo esplicito e' quindi la cintura di sicurezza se `package.json` non fosse ancora allineato; con
+`package.json` a `0.2.0` il risultato e' lo stesso. La riga stampata `Publish Version: …` (`:159`) lo conferma
+**prima** dell'invio.
+
+⚠️ **Descrizione**: la 0.2.0 riscrive `store/description.txt` (789 caratteri, con «Settings page in English,
+Italian, German and French»), ma quel campo **non passa dalla CLI**: va incollato a mano in dashboard
+(https://appstore-api.repebble.com/dashboard), §9. Da fare insieme alla release, controllando anche la riga finale
+«Beta 0.1.0» (`LISTING.md` §2).
 
 ---
 
@@ -333,7 +358,7 @@ Fonti web (**[F]** = citazione dalla pagina, **[I]** = interpretazione):
 1. **U6 / visibilita' [presa]**: si gestisce **sul portale** (§8) — resta da vedere sul posto se la dashboard Core
    offre unlisted: in caso contrario vale la terza scelta di §8 (listing rivisto **prima** del publish).
 2. **U4 / `--source` [presa]**: repo **pubblico**, URL esplicito nel comando (§6). Da controllare **prima di
-   pubblicare** che il repo sia gia' pubblico su GitHub, altrimenti il link del listing da' 404.
+   pubblicare** che il repo sia gia' pubblico su GitHub, altrimenti il link del listing da' 404 (fatto: pubblico dal 05/09/2026 sera, prima del `pebble publish`).
 3. **U2 / nome autore [presa]**: `package.json` ha ora `"author": "Rediro"` → dopo `pebble clean && pebble build`
    il `.pbw` porta `companyName: Rediro` (da riverificare con `unzip -p build/galleria.pbw appinfo.json`); lo store
    mostra comunque il nome del developer collegato all'account, non questo campo **[I]**.

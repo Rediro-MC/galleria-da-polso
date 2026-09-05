@@ -51,6 +51,6 @@ docs/                 CONTINUA-QUI.md, design/, ricerca/, fase0/
 
 ## Stato e licenze
 
-- Stato: **S9-prep** (05/09/2026): foto demo **CC0** al posto dei wallpaper di test, listing dello store e comando di pubblicazione pronti (`apps/galleria/store/LISTING.md`, `apps/galleria/store/PUBLISH.md`), **decisioni U1–U9 prese** la sera del 05/09. Prima release **0.1.0 (beta)** in preparazione per gli store Core e Rebble come *Galleria for Pebble* (tag git `v0.1.0-beta`); restano il gate finale e `pebble login`.
+- Stato: **pubblicata** — Galleria for Pebble **0.1.0 (beta)** è nello store Core dal 05/09/2026: https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8 (autore Rediro, tag git `v0.1.0-beta`). Restano i passi sull'hardware (batteria 48 h, Pebble 2 Duo reale, iPhone) e le migliorie in `apps/galleria/PIANO.md` §7/§8.
 - Licenza del codice: **MIT** — testo in [`LICENSE`](LICENSE) («Copyright (c) 2026 Rediro»); autore **Rediro**. Font delle cifre: SIL OFL 1.1 (`apps/galleria/resources/fonts/`). Foto demo: **CC0 1.0** da Wikimedia Commons, senza obbligo di attribuzione (`apps/galleria/resources/photos/README.md`).
 - Materiale di terzi ridistribuito nel repository (codice Pebble MIT, palette Apache-2.0, font OFL, foto CC0, screenshot storici CC-BY-SA-4.0): [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

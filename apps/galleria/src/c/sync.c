@@ -427,6 +427,9 @@ void sync_env_album_changed(void) {
 
 void sync_env_settings_changed(const GalSettings *b) {
   const GalSettings *n = settings_get();
+  if (b->lang != n->lang) {
+    ui_time_lang_changed();                  /* S10 (D37): separatore delle migliaia, data, fascia info (prima dei rami sotto) */
+  }
   if (b->clock_mode != n->clock_mode || b->leading_zero != n->leading_zero || b->info_row != n->info_row) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);

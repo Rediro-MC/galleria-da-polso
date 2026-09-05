@@ -319,15 +319,15 @@ sec('2. album vuoto e impostazioni');
   eq(a.data.photos.length, 12, 'album vuoto: 12 slot');
   eqJson(a.data.settings, { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
                             outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
-                            digit_style: 0 },
-         'impostazioni di default (settings.c): i vecchi campi invariati, digit_style 0 (S8)');
+                            digit_style: 0, lang: 0 },
+         'impostazioni di default (settings.c): i vecchi campi invariati, digit_style 0 (S8), lang 0 (S10)');
   eqJson(Album.defaultSettings(), a.data.settings, 'Album.defaultSettings() = quelle dell\'album vuoto');
   eq(f.st.keys().length, 0, 'costruire un album non scrive nulla');
 
   var bytes = a.settingsBytes();
   eq(bytes.length, 20, 'GalSettings: 20 byte');
   eqJson(bytes, [1, 0, 0, 0, 0, 0, 0, 30, 0, 0, 1, 15, 0, 0, 0, 0, 0, 0, 0xE7, 0x7E],
-         'blob dei default (schema 1, interval 30 LE, shake 1, info_row 15, digit_style 0, crc16 0x7EE7)');
+         'blob dei default (schema 1, interval 30 LE, shake 1, info_row 15, digit_style 0, lang 0, crc16 0x7EE7)');
   eq(a.settingsCrc(), 0x7EE7, 'settingsCrc dei default = 0x7EE7 (uguale a quello del C)');
   eq(bytes[18] | (bytes[19] << 8), a.settingsCrc(), 'crc16 in coda, little endian');
   eq(crcm.crc16(bytes.slice(0, 18)), a.settingsCrc(), 'settingsCrc = crc16 dei primi 18 byte');
@@ -336,13 +336,14 @@ sec('2. album vuoto e impostazioni');
   /* i campi devono stare al posto giusto: un blob "tutto diverso" */
   var s2 = Album.normalizeSettings({ layout: 1, font: 5, clock_mode: 2, leading_zero: 1, text_color: 4,
                                      outline: 2, interval_min: 1440, order: 1, shake_next: 0, info_row: 3,
-                                     digit_style: 2 }, null);
+                                     digit_style: 2, lang: 4 }, null);
   var b2 = Album.settingsBytes(s2);
-  eq(b2.length, 20, 'settingsBytes: 20 byte anche con digit_style');
+  eq(b2.length, 20, 'settingsBytes: 20 byte anche con digit_style e lang');
   eqJson(b2.slice(0, 12), [1, 1, 5, 2, 1, 4, 2, 1440 & 0xFF, 1440 >> 8, 1, 0, 3],
          'ordine dei campi nel blob (font 5, interval_min u16 LE = 1440)');
   eq(b2[12], 2, 'byte 12 = digit_style (S8/D21, ex primo `reserved`)');
-  eqJson(b2.slice(13, 18), [0, 0, 0, 0, 0], 'reserved[5] a zero');
+  eq(b2[13], 4, 'byte 13 = lang (S10/D31, ex secondo `reserved`)');
+  eqJson(b2.slice(14, 18), [0, 0, 0, 0], 'reserved[4] a zero (S10: uno in meno)');
   check(Album.settingsCrc(s2) !== 0x7EE7, 'impostazioni diverse → crc diverso');
 
   /* digit_style entra nel CRC: due impostazioni che differiscono solo per lo stile devono
@@ -355,6 +356,33 @@ sec('2. album vuoto e impostazioni');
   check(Album.settingsCrc(s3D) !== Album.settingsCrc(sFill), 'digit_style diverso → CRC diverso');
   var s3Dbis = Album.normalizeSettings({ digit_style: 3 }, sFill);
   eq(Album.settingsCrc(s3Dbis), Album.settingsCrc(s3D), 'stesso digit_style → stesso CRC');
+
+  /* S10/D31: `lang` e' il byte 13 (ex secondo `reserved`). Il default resta 0 = automatica, quindi
+   * il CRC dei default NON cambia (0x7EE7, lo stesso del C): un orologio gia' sincronizzato non
+   * si becca una sync delle impostazioni solo perche' il PKJS e' stato aggiornato. */
+  var i, sL, bL;
+  eq(Album.defaultSettings().lang, 0, 'lang di default = 0 (automatica)');
+  eq(Album.settingsBytes(Album.defaultSettings())[13], 0, 'default: byte 13 = 0');
+  eq(Album.settingsCrc(Album.defaultSettings()), 0x7EE7,
+     'S10 non cambia il CRC dei default (0x7EE7): nessuna sync inutile dopo l\'aggiornamento');
+  for (i = 0; i <= 4; i++) {
+    sL = Album.normalizeSettings({ lang: i }, sFill);
+    bL = Album.settingsBytes(sL);
+    eq(bL.length, 20, 'lang ' + i + ': blob ancora di 20 byte');
+    eq(bL[13], i, 'lang ' + i + ' → byte 13 = ' + i);
+    eqJson(bL.slice(0, 13), Album.settingsBytes(sFill).slice(0, 13), 'lang ' + i + ': i primi 13 byte non si toccano');
+    eqJson(bL.slice(14, 18), [0, 0, 0, 0], 'lang ' + i + ': reserved[4] a zero');
+    eq(Album.normalizeSettings(JSON.parse(JSON.stringify(sL)), null).lang, i, 'lang ' + i + ': round trip JSON');
+    eq(Album.settingsCrc(Album.normalizeSettings({ lang: i }, sFill)), Album.settingsCrc(sL),
+       'lang ' + i + ': stesse impostazioni → stesso CRC');
+    if (i > 0) { check(Album.settingsCrc(sL) !== 0x7EE7, 'lang ' + i + ' entra nel CRC (≠ 0x7EE7)'); }
+  }
+  check(Album.settingsCrc(Album.normalizeSettings({ lang: 2 }, sFill)) !==
+        Album.settingsCrc(Album.normalizeSettings({ lang: 3 }, sFill)), 'lang diverso → CRC diverso');
+  /* lang e digit_style sono byte vicini: non devono scambiarsi di posto */
+  var sMix = Album.normalizeSettings({ digit_style: 1, lang: 3 }, sFill);
+  eq(Album.settingsBytes(sMix)[12], 1, 'digit_style 1 + lang 3: byte 12 = 1');
+  eq(Album.settingsBytes(sMix)[13], 3, 'digit_style 1 + lang 3: byte 13 = 3');
 })();
 
 /* normalizeSettings: intervalli di settings_validate() */
@@ -371,6 +399,15 @@ sec('2. album vuoto e impostazioni');
   eq(Album.normalizeSettings({ digit_style: -1 }, null).digit_style, 0, 'digit_style negativo → 0');
   eq(Album.normalizeSettings({ digit_style: '2' }, null).digit_style, 2, 'digit_style "2" (stringa) accettato');
   eq(Album.normalizeSettings({}, null).digit_style, 0, 'digit_style di default = 0 (pieno)');
+  eq(Album.normalizeSettings({ lang: 0 }, null).lang, 0, 'lang 0 (automatica) valido');
+  eq(Album.normalizeSettings({ lang: 4 }, null).lang, 4, 'lang 4 (fr) valido');
+  eq(Album.normalizeSettings({ lang: 5 }, null).lang, 0, 'lang 5 fuori intervallo → 0');
+  eq(Album.normalizeSettings({ lang: -1 }, null).lang, 0, 'lang negativo → 0');
+  eq(Album.normalizeSettings({ lang: '3' }, null).lang, 3, 'lang "3" (stringa) accettato');
+  eq(Album.normalizeSettings({ lang: 1.5 }, null).lang, 0, 'lang non intero → 0');
+  eq(Album.normalizeSettings({ lang: true }, null).lang, 0, 'lang booleano → 0');
+  eq(Album.normalizeSettings({ lang: null }, null).lang, 0, 'lang null → 0');
+  eq(Album.normalizeSettings({}, null).lang, 0, 'lang di default = 0 (automatica)');
   eq(Album.normalizeSettings({ info_row: 16 }, null).info_row, 15, 'info_row 16 → 15');
   eq(Album.normalizeSettings({ info_row: 0 }, null).info_row, 0, 'info_row 0 valido');
   eq(Album.normalizeSettings({ interval_min: 7 }, null).interval_min, 30, 'interval_min 7 non in lista → 30');
@@ -393,8 +430,10 @@ sec('2. album vuoto e impostazioni');
   eq(m.font, 1, 'merge: font dal nuovo');
   eq(m.interval_min, 60, 'merge: interval_min dalla base');
   eq(Album.normalizeSettings({ layout: 9 }, base).layout, 0, 'merge: valore non valido → default del campo, non la base');
-  eq(Object.keys(m).length, 11, '11 campi');
-  eq(Album.SETTINGS_FIELDS.length, 11, 'SETTINGS_FIELDS: 11 campi (S8: + digit_style)');
+  eq(Object.keys(m).length, 12, '12 campi');
+  eq(Album.SETTINGS_FIELDS.length, 12, 'SETTINGS_FIELDS: 12 campi (S8: + digit_style; S10: + lang)');
+  eqJson(Album.SETTINGS_FIELDS[Album.SETTINGS_FIELDS.length - 1], ['lang', 0, 4, 0],
+         'SETTINGS_FIELDS: lang in coda (0..4, default 0), come in page_core.js');
   /* un album salvato prima di S8 non ha digit_style: si rilegge con 0, senza sporcare il resto */
   var old8 = storedAlbum({ settings: { layout: 1, font: 2, clock_mode: 0, leading_zero: 0, text_color: 0,
                                        outline: 0, interval_min: 15, order: 0, shake_next: 1, info_row: 15 },
@@ -403,6 +442,15 @@ sec('2. album vuoto e impostazioni');
   eq(old8.data.settings.layout, 1, 'album pre-S8: gli altri campi restano');
   eq(old8.data.settings.interval_min, 15, 'album pre-S8: interval_min resta');
   eq(old8.settingsBytes()[12], 0, 'album pre-S8: byte 12 = 0 (blob vecchio, nessuna migrazione)');
+  /* stessa cosa per S10: un album salvato prima della lingua si rilegge con lang 0 = automatica */
+  var old10 = storedAlbum({ settings: { layout: 1, font: 4, clock_mode: 0, leading_zero: 0, text_color: 0,
+                                        outline: 0, interval_min: 15, order: 0, shake_next: 1, info_row: 15,
+                                        digit_style: 2 },
+                            settingsSet: true }).load();
+  eq(old10.data.settings.lang, 0, 'album pre-S10 (senza lang): riletto con 0 (automatica)');
+  eq(old10.data.settings.digit_style, 2, 'album pre-S10: digit_style resta');
+  eq(old10.data.settings.font, 4, 'album pre-S10: font resta');
+  eq(old10.settingsBytes()[13], 0, 'album pre-S10: byte 13 = 0 (blob vecchio, nessuna migrazione)');
 })();
 
 /* Contratto con l'orologio: ogni blob che album.js accetta come valido deve essere accettato anche
@@ -435,9 +483,24 @@ sec('2. album vuoto e impostazioni');
          'CRC dell\'orologio = settingsCrc(album) con font ' + font + ' + digit_style ' + style);
     }
   }
+  /* S10/D31: `lang` (byte 13) sta nei `reserved` che settings_validate() non controllava e che la
+   * fake watch non controlla (shim invariato per contratto): qui si verifica solo che il blob resti
+   * accettabile e che il byte 13 arrivi intero fino all'orologio, CRC compreso. */
+  var lang;
+  for (lang = 0; lang <= 4; lang++) {
+    s = Album.normalizeSettings({ lang: lang }, null);
+    r = sendBlob(Album.settingsBytes(s));
+    eq(r.code, FakeWatch.CODE.OK, 'fakewatch accetta lang ' + lang);
+    eq(r.watch.settings[13], lang, 'fakewatch: lang ' + lang + ' memorizzato nel byte 13');
+    eq(r.watch.settings.length, 18, 'fakewatch: memorizza i 18 byte senza CRC anche con lang ' + lang);
+    eq(r.watch.settingsCrc(), Album.settingsCrc(s), 'CRC dell\'orologio = settingsCrc(album) con lang ' + lang);
+  }
+
   /* blob grezzi fuori intervallo: il C risponde BAD_FORMAT, la fake watch deve fare altrettanto */
   var bad = Album.settingsBytes(Album.defaultSettings()); bad[12] = 4;
   eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 4 (blob grezzo)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[13] = 5;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta lang 5 (byte 13, S10/D31)');
   bad = Album.settingsBytes(Album.defaultSettings()); bad[12] = 255;
   eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 255 (blob grezzo)');
   bad = Album.settingsBytes(Album.defaultSettings()); bad[2] = 6;

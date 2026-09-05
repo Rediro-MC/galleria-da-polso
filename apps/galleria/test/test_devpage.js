@@ -12,7 +12,7 @@
  *
  * Copre: caricamento senza `settings` in state.json (F13: campi dai default di
  * pool.json.settings_defaults, #head lo dice) e con; i campi s_<chiave> di SETTINGS_SPEC
- * (S8: 11, con `digit_style`) + dataset.built;
+ * (S8: 11 con `digit_style`; S10: 12 con `lang`) + dataset.built;
  * <select id=scenario> con 6 opzioni; Salva → un solo POST /save {settings (tutti interi), order,
  * photos, scenario} e redirect a return_to + token; Salva senza return_to → #msg e re-render;
  * Annulla → href = return_to oppure reload(); errori (POST fallito, campo non numerico, clic
@@ -31,16 +31,17 @@ var vm = require('vm');
 var cp = require('child_process');
 
 var DEVSERVER = path.join(__dirname, '..', '..', '..', 'tools', 'galleria_devserver.py');
-/* S8 (D21/D22): + `digit_style` in coda (byte 12 del blob) e font fino a 5. */
+/* S8 (D21/D22): + `digit_style` in coda (byte 12 del blob) e font fino a 5.
+ * S10 (D31): + `lang` (byte 13, 0 automatica / 1 en / 2 it / 3 de / 4 fr). */
 var SETTINGS_KEYS = ['layout', 'font', 'clock_mode', 'leading_zero', 'text_color', 'outline',
-                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style'];
+                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style', 'lang'];
 var NKEYS = SETTINGS_KEYS.length;                 /* campi resi dalla pagina = SETTINGS_SPEC */
 var SETTINGS_DEFAULTS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
                           outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
-                          digit_style: 0 };
+                          digit_style: 0, lang: 0 };
 /* opzioni attese per campo (settings.c: settings_validate(); info_row è un <input number>) */
 var OPTION_COUNT = { layout: 2, font: 6, clock_mode: 3, leading_zero: 3, text_color: 5,
-                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4 };
+                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4, lang: 5 };
 var SCENARIOS = ['photo', 'seq', 'dup', 'crc', 'interrupt', 'none'];
 var RT = 'http://127.0.0.1:5555/close?';
 var TOKEN2 = '%7B%22v%22%3A1%2C%22dev%22%3Atrue%2C%22seq%22%3A2%7D';

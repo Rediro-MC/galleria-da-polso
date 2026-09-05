@@ -1577,15 +1577,15 @@ static void test_settings_msg(void) {
   CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
   CHECK_EQ(g_out.code, SYNC_CODE_OK);
   CHECK_EQ(settings_get()->interval_min, 0);
-  /* reserved[] non e' validato: un blob di uno schema futuro con reserved != 0 passa (S8-stile: sono 5 byte,
+  /* reserved[] non e' validato: un blob di uno schema futuro con reserved != 0 passa (S8-stile: sono 4 byte (S10: il primo dei cinque e' diventato `lang`),
    * il primo dei sei di prima e' diventato digit_style e QUELLO e' validato) */
   mk_valid_settings(&m);
   m.reserved[0] = 0xAA;
-  m.reserved[4] = 0x55;
+  m.reserved[3] = 0x55;
   CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
   CHECK_EQ(g_out.code, SYNC_CODE_OK);
   CHECK_EQ(settings_get()->reserved[0], 0xAA);
-  CHECK_EQ(settings_get()->reserved[4], 0x55);
+  CHECK_EQ(settings_get()->reserved[3], 0x55);
   /* S8-stile: font 4/5 e i 4 stili sono accettati e applicati */
   mk_valid_settings(&m);
   m.font = GAL_FONT_STAATLICHES;

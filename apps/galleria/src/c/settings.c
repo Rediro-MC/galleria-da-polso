@@ -44,6 +44,7 @@ bool settings_validate(const GalSettings *s) {
       && s->text_color <= GAL_TEXT_OXFORD
       && s->outline <= GAL_OUTLINE_NEVER
       && s->digit_style <= GAL_STYLE_FILL_3D
+      && s->lang <= GAL_LANG_FR
       && prv_interval_valid(s->interval_min)
       && s->order <= GAL_ORDER_RANDOM
       && s->shake_next <= 1
@@ -67,6 +68,9 @@ static void prv_debug_overrides(void) {
 #endif
 #ifdef GALLERIA_DEBUG_TEXT_COLOR
   s_settings.text_color = GALLERIA_DEBUG_TEXT_COLOR;
+#endif
+#ifdef GALLERIA_DEBUG_LANG
+  s_settings.lang = GALLERIA_DEBUG_LANG;                 /* S10: 0 auto, 1 en, 2 it, 3 de, 4 fr (data e migliaia) */
 #endif
 #ifdef GALLERIA_DEBUG_OUTLINE
   s_settings.outline = GALLERIA_DEBUG_OUTLINE;
@@ -96,10 +100,10 @@ void settings_init(void) {
   if (from_persist) {
     s_settings = loaded;
   }
-  APP_LOG(APP_LOG_LEVEL_INFO, "settings: %s layout=%u font=%u sty=%u interval=%u order=%u shake=%u",
+  APP_LOG(APP_LOG_LEVEL_INFO, "settings: %s layout=%u font=%u sty=%u interval=%u order=%u shake=%u lang=%u",
           from_persist ? "persist" : "defaults", (unsigned)s_settings.layout, (unsigned)s_settings.font,
           (unsigned)s_settings.digit_style, (unsigned)s_settings.interval_min, (unsigned)s_settings.order,
-          (unsigned)s_settings.shake_next);
+          (unsigned)s_settings.shake_next, (unsigned)s_settings.lang);
   prv_debug_overrides();
 }
 

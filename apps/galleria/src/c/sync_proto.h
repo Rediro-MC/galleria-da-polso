@@ -8,7 +8,7 @@
  * SYNC_DONE o 30 s di silenzio → IDLE. SETTINGS / ALBUM_ORDER / ALBUM_DELETE / JS_READY in
  * qualsiasi stato. S5a: l'inbox è UNA sola, aperta in init() (app_message_close() non è esportata
  * dall'SDK 4.33.1: la "inbox a due fasi" del design D9 non è realizzabile), quindi la macchina a
- * stati serve a rifiutare i messaggi di foto fuori sequenza (BUSY), all'avanzamento "Foto k/n" e al
+ * stati serve a rifiutare i messaggi di foto fuori sequenza (BUSY), all'avanzamento "k/n" (icona + contatore, S10) e al
  * timeout di silenzio; il chunk è negoziato una volta da sync.c (4.096 B con inbox da 8 KB).
  *
  * Effetti collaterali (persist) tramite storage.h; notifiche verso UI/modello tramite le
@@ -32,7 +32,7 @@ enum SyncMsg {
                                    riprende da lì dopo un BUSY, F3; assente = PKJS vecchio → 0) */
   SYNC_MSG_SYNC_READY   = 4,    /* ← : MAX_CHUNK (stato SYNCING) */
   SYNC_MSG_PHOTO_BEGIN  = 5,    /* → : SLOT, PHOTO_ID, FORMAT, LENGTH, CRC, OFFSET (+ COUNT opz. = k di
-                                   "Foto k/n", R01/S9: le foto saltate dal telefono contano) */
+                                   "k/n", R01/S9: le foto saltate dal telefono contano) */
   SYNC_MSG_PHOTO_DATA   = 6,    /* → : SLOT, OFFSET, DATA */
   SYNC_MSG_PHOTO_END    = 7,    /* → : SLOT (+ PHOTO_ID: rende idempotente una ritrasmissione dopo il commit) */
   SYNC_MSG_STATUS       = 8,    /* ← : CODE, SLOT, OFFSET, REPLY_TO (S5b: il MSG a cui risponde) */

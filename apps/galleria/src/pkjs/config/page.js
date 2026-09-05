@@ -1,4 +1,6 @@
-/* page.js — Galleria S6: UI della config page (DOM, canvas, gesti, trasporto). ES5; window.GalPage per test e gate. */
+/* page.js — Galleria S6: UI della config page (DOM, canvas, gesti, trasporto). ES5; window.GalPage per test e gate.
+ * S10 (D35/D36): nessun testo qui dentro — solo chiavi T('…') e data-i18n nel markup. I dizionari
+ * arrivano dallo stato (state.i18n) e la lingua da settings.lang / state.lang_auto. */
 (function (root) {
   'use strict';
   var doc = root.document, C = root.GalPageCore, P = root.GalPipeline, fmt = 1, msgIsCap = false;
@@ -8,7 +10,43 @@
              w: 200, h: 228, rgb: null, crop: null, last: null, dirtyCrop: true, timer: null };
   var scratch = [null, null], ptr = {}, nPtr = 0, EV = ['input', 'change'], navigate = nav;
   var gen = 0, cancelArmed = false, base = '';       /* #12 generazione dei caricamenti; #20 Esci in due tocchi; snapshot iniziale */
+  /* S10: lingua in uso, dizionario di quella lingua, settings.lang, voci delle select */
+  var lang = 'en', dict = null, langVal = 0, OPTS = {};
   root.GalPage = G;
+
+  /* -- lingua (S10 D35) --
+   * Nell'artefatto inlinato le chiavi sono gia' NUMERI: build_config_page.py sostituisce il nome
+   * della chiave con il suo indice, sia nelle chiamate a T sia negli attributi del markup, e T
+   * riceve l'indice. Nei test sui SORGENTI arrivano ancora i nomi e si risolvono con l'elenco
+   * delle chiavi (window.GalI18nKeys, da fixture_i18n.js). Senza dizionario (pagina aperta a
+   * mano, stato assente) si vede il nome della chiave: modalita' prova. */
+  /* I segnaposto si sostituiscono in UNA passata: cosi' un valore che contenesse a sua volta
+   * {1} (il nome di una foto…) non viene risostituito. */
+  function T(k, a, b) {
+    var i = (typeof k === 'number') ? k : (root.GalI18nKeys ? root.GalI18nKeys.indexOf(k) : -1);
+    var t = (dict && i >= 0 && typeof dict[i] === 'string') ? dict[i] : null, v = [a, b];
+    /* Senza dizionario: chiave e valori in fila, cosi' i messaggi cablati in inglese di
+     * page_core (l'unica cosa che conta in modalita' prova) restano leggibili. */
+    if (t === null) { return String(k) + (a === undefined ? '' : ' ' + a) + (b === undefined ? '' : ' ' + b); }
+    return t.replace(/\{([01])\}/g, function (m, n) { return v[+n] === undefined ? m : v[+n]; });
+  }
+  /* data-i18n: indice nell'artefatto, nome della chiave nei sorgenti */
+  function ikey(v) { return /^\d+$/.test(v) ? +v : v; }
+  function walkI18n(node) {
+    var c = node.children || [], i, e, k;
+    for (i = 0; i < c.length; i++) {
+      e = c[i];
+      if (e.getAttribute) {
+        k = e.getAttribute('data-i18n');
+        if (k) { e.textContent = T(ikey(k)); }
+        k = e.getAttribute('data-i18n-title');
+        if (k) { e.title = T(ikey(k)); }
+      }
+      walkI18n(e);
+    }
+  }
+  /* 1,00 in it/de/fr, 1.00 in inglese */
+  function dec2(v) { return C.dec((+v).toFixed(2), lang); }
 
   function el(id) { return doc.getElementById(id); }
   function nav(url) { root.location.href = url; }
@@ -37,22 +75,61 @@
     }
   }
 
-  /* -- impostazioni (#settings, id s_<campo>) -- */
-  var OPTS = {
-    layout: [[0, 'Un terzo con riga info'], [1, 'Tutto schermo']],
-    font: [[0, 'Anton'], [1, 'Bebas Neue'], [2, 'Barlow Condensed'], [3, 'LECO (sistema, solo layout Un terzo)', 's_font_leco'],
-           [4, 'Francois One'], [5, 'Staatliches']],
-    digit_style: [[0, 'pieno'], [1, 'trasparente (solo contorno)'],
-                  [2, 'trasparente 3D (contorno + ombra)', 's_digit_style_3d1'],
-                  [3, 'pieno 3D (con ombra)', 's_digit_style_3d2']],
-    clock_mode: [[0, 'auto'], [1, '12 h'], [2, '24 h']],
-    leading_zero: [[0, 'auto'], [1, 'sì'], [2, 'no']],
-    interval_min: [[0, 'mai'], [5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 h'], [180, '3 h'], [1440, '1 giorno']],
-    order: [[0, 'sequenziale'], [1, 'casuale']],
-    text_color: [[0, 'auto'], [1, 'bianco'], [2, 'nero'], [3, 'giallo pastello'], [4, 'blu Oxford']],
-    outline: [[0, 'auto'], [1, 'sempre'], [2, 'mai']]
-  };
-  var SELECTS = ['layout', 'font', 'digit_style', 'clock_mode', 'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
+  /* -- impostazioni (#settings, id s_<campo>) --
+   * Le voci si ricostruiscono a ogni cambio di lingua (D36: valori e id delle <option> restano
+   * quelli, cambia solo il testo). I nomi propri (font, 12 h/24 h) non stanno nel dizionario. */
+  function buildOpts() {
+    var o = { lang: [[0, T('opt_lang_auto', C.langName(G.state.lang_auto))]] }, i;
+    for (i = 0; i < C.LANGS.length; i++) { o.lang.push([i + 1, C.langName(C.LANGS[i])]); }
+    o.layout = [[0, T('opt_layout_a')], [1, T('opt_layout_b')]];
+    o.font = [[0, 'Anton'], [1, 'Bebas Neue'], [2, 'Barlow Condensed'], [3, T('opt_font_leco'), 's_font_leco'],
+              [4, 'Francois One'], [5, 'Staatliches']];
+    o.digit_style = [[0, T('opt_style_solid')], [1, T('opt_style_transp')],
+                     [2, T('opt_style_transp_3d'), 's_digit_style_3d1'],
+                     [3, T('opt_style_solid_3d'), 's_digit_style_3d2']];
+    o.clock_mode = [[0, T('opt_auto')], [1, '12 h'], [2, '24 h']];
+    o.leading_zero = [[0, T('opt_auto')], [1, T('opt_yes')], [2, T('opt_no')]];
+    o.interval_min = [[0, T('opt_never')], [5, T('opt_minutes', 5)], [15, T('opt_minutes', 15)],
+                      [30, T('opt_minutes', 30)], [60, T('opt_hours', 1)], [180, T('opt_hours', 3)],
+                      [1440, T('opt_one_day')]];
+    o.order = [[0, T('opt_order_seq')], [1, T('opt_order_random')]];
+    o.text_color = [[0, T('opt_auto')], [1, T('opt_color_white')], [2, T('opt_color_black')],
+                    [3, T('opt_color_yellow')], [4, T('opt_color_blue')]];
+    o.outline = [[0, T('opt_auto')], [1, T('opt_outline_always')], [2, T('opt_never')]];
+    return o;
+  }
+  /* #dither dipende dal formato: si rifa' a ogni lingua conservando la scelta */
+  function fillDither() {
+    var e = el('dither'), v = e.value;
+    fill(e, [['fs', 'Floyd–Steinberg'], (fmt === 2) ? ['atkinson', 'Atkinson'] : ['bayer', 'Bayer 4×4'],
+             ['none', T('dither_none')]]);
+    if (v) { e.value = v; }
+  }
+  /* solo il TESTO delle <option> gia' presenti: id, valori e posizione non si toccano (D36) */
+  function optTexts() {
+    var i, j, o, list;
+    for (i = 0; i < SELECTS.length; i++) {
+      list = OPTS[SELECTS[i]]; o = el('s_' + SELECTS[i]).children;
+      for (j = 0; j < list.length && j < o.length; j++) { o[j].textContent = list[j][1]; }
+    }
+  }
+  /* lingua effettiva (D33/D36) + tutti i testi che non si ridisegnano da soli */
+  function applyLang() {
+    var p;
+    lang = C.effectiveLang({ lang: langVal }, G.state.lang_auto);
+    dict = (G.state.i18n && G.state.i18n[lang]) || null;
+    if (doc.documentElement) { doc.documentElement.lang = lang; }
+    OPTS = buildOpts();
+    walkI18n(doc.body);
+    optTexts();
+    fillDither();
+    p = G.state.platform;
+    el('watch').textContent = (p === 'emery') ? T('watch_emery') : (p === 'flint') ? T('watch_flint')
+                              : T('watch_unknown', fmt === 2 ? T('watch_fmt_bw') : T('watch_fmt_color'));
+    showTone();
+    helpTexts();
+  }
+  var SELECTS = ['lang', 'layout', 'font', 'digit_style', 'clock_mode', 'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
   /* chiave dell'anteprima per indice del font ('' = nessuna: il 3 e' LECO, font di sistema).
    * Le chiavi arrivano da previews.js (GalPreviews) e sono le stesse di gen_font_previews.py
    * e gen_digits.py (S8-stile §2: 4 = Francois One, 5 = Staatliches). */
@@ -67,7 +144,7 @@
     if (!G.state || G.state.platform !== 'flint') { return; }
     for (i = 0; i < NO_3D.length; i++) {
       o = el(NO_3D[i][2]);
-      if (o) { o.disabled = true; o.textContent = OPTS.digit_style[NO_3D[i][0]][1] + ' (non su Pebble 2 Duo)'; }
+      if (o) { o.disabled = true; o.textContent = T('opt_style_no_flint', OPTS.digit_style[NO_3D[i][0]][1]); }
       if (style.value === String(NO_3D[i][0])) { style.value = NO_3D[i][1]; }
     }
   }
@@ -92,7 +169,12 @@
     key = PREV_KEYS[+font.value];
     if (pv && key && typeof pv[key] === 'string') { img.src = pv[key]; show(img, true); } else { show(img, false); }
   }
-  function settingsChanged() { applyRules(); updateKb(); }  /* contatore KB e tetto anche sulle impostazioni */
+  /* contatore KB e tetto anche sulle impostazioni; la Lingua (D36) ricostruisce testi e tessere */
+  function settingsChanged() {
+    var v = +el('s_lang').value || 0;
+    if (v !== langVal) { langVal = v; applyLang(); renderTiles(); }
+    applyRules(); updateKb();
+  }
   function writeSettings(s) {
     var i;
     for (i = 0; i < SELECTS.length; i++) { fill(el('s_' + SELECTS[i]), OPTS[SELECTS[i]]); el('s_' + SELECTS[i]).value = String(s[SELECTS[i]]); }
@@ -119,15 +201,15 @@
   function insertTile(t) { G.tiles.splice(nMovable(), 0, t); }
   function tileNode(t, i, nm) {
     var d = mk('div', 'tile' + (t.kind === 'new' ? ' new' : '')), img, nd, meta = mk('div', 'meta'), btns = mk('div', 'tbtns');
-    var fo = t.kind === 'foreign', who = t.name || ('slot ' + t.slot);
+    var fo = t.kind === 'foreign', who = t.name || T('tile_slot', t.slot);
     function badge(text, cls) { meta.appendChild(mk('span', 'badge' + (cls ? ' ' + cls : ''), text)); }
     function btn(id, text, label, dis, fn) {
       var b = mk('button', null, text);
-      b.id = id + t.slot; b.type = 'button'; b.disabled = dis; b.setAttribute('aria-label', label + ': ' + who);   /* #23 */
+      b.id = id + t.slot; b.type = 'button'; b.disabled = dis; b.setAttribute('aria-label', T('aria_tile_btn', label, who));   /* #23 */
       on(b, 'click', fn); btns.appendChild(b);
     }
     d.id = 'tile_' + t.slot;
-    if (t.thumb) { img = mk('img', 'thumb'); img.src = t.thumb; img.alt = ''; } else { img = mk('div', 'thumb empty', 'slot ' + t.slot); }
+    if (t.thumb) { img = mk('img', 'thumb'); img.src = t.thumb; img.alt = ''; } else { img = mk('div', 'thumb empty', T('tile_slot', t.slot)); }
     d.appendChild(img);
     nd = mk('div', 'name', who);
     /* #26: il nome viene tagliato due volte — da MAX_NAME (64 caratteri) e dal text-overflow del
@@ -135,14 +217,14 @@
      * lo tiene per le foto aggiunte qui: nello stato dal telefono arriva gia' troncato). */
     nd.title = t.full || who;
     meta.appendChild(nd);
-    if (t.kind === 'new') { badge('nuova', 'newb'); }
-    if (fo) { badge('solo sull\'orologio: resta in coda'); }
-    if (t.pending) { badge('da inviare'); }
-    if (!t.hasFmt) { badge('manca il formato per questo orologio: elimina e aggiungi di nuovo', 'warnb'); }
+    if (t.kind === 'new') { badge(T('badge_new'), 'newb'); }
+    if (fo) { badge(T('badge_foreign')); }
+    if (t.pending) { badge(T('badge_pending')); }
+    if (!t.hasFmt) { badge(T('badge_no_fmt'), 'warnb'); }
     d.appendChild(meta);
-    btn('up_', '▲', 'Sposta su', fo || i === 0, function () { moveTile(t.slot, -1); });
-    btn('down_', '▼', 'Sposta giù', fo || i >= nm - 1, function () { moveTile(t.slot, 1); });
-    btn('del_', '✕', 'Elimina', false, function () { deleteTile(t.slot); });
+    btn('up_', '▲', T('btn_up'), fo || i === 0, function () { moveTile(t.slot, -1); });
+    btn('down_', '▼', T('btn_down'), fo || i >= nm - 1, function () { moveTile(t.slot, 1); });
+    btn('del_', '✕', T('btn_delete'), false, function () { deleteTile(t.slot); });
     d.appendChild(btns);
     return d;
   }
@@ -160,16 +242,16 @@
     if (t.kind === 'new') { for (k = G.added.length - 1; k >= 0; k--) { if (G.added[k].slot === slot) { G.added.splice(k, 1); } } }
     else if (G.deleted.indexOf(slot) < 0) { G.deleted.push(slot); }
     renderTiles(); updateKb();
-    if (!G.overCap) { setMsg(t.kind === 'new' ? 'Foto nuova scartata: slot ' + slot + ' di nuovo libero' : 'Foto rimossa dall\'elenco (si applica al Salva)'); }   /* #10 */
+    if (!G.overCap) { setMsg(t.kind === 'new' ? T('msg_new_dropped', slot) : T('msg_removed')); }   /* #10 */
   }
   function renderTiles() {
     var box = el('tiles'), i, n = G.tiles.length, nm = nMovable(), full = C.freeSlot(G.tiles, allDeleted()) < 0;
     box.textContent = '';
     for (i = 0; i < n; i++) { box.appendChild(tileNode(G.tiles[i], i, nm)); }
     el('file').disabled = full; el('add').disabled = full; el('add').className = 'btn' + (full ? ' off' : '');
-    el('addHelp').textContent = full ? 'album pieno: elimina una foto' : 'scegli dalla Libreria';
+    el('addHelp').textContent = full ? T('album_full') : T('add_help');
     /* limite di 12 foto spiegato nella pagina (richiesta dell'utente, 05/09): contatore + perché */
-    el('photosCap').textContent = 'L\'orologio tiene al massimo 12 foto (ora ' + n + ' su 12). Quando sono piene, elimina una foto per aggiungerne un\'altra. Più foto ci sono, più l\'avvio della watchface si allunga: circa un decimo di secondo per foto.';
+    el('photosCap').textContent = T('photos_cap', n, C.MAX_SLOTS);
   }
 
   /* -- contatore KB e tetto -- */
@@ -180,8 +262,8 @@
   function snapshot() { return JSON.stringify([readSettings(), G.tiles.map(function (t) { return t.slot; }), G.deleted, G.added.length]); }
   function dirty() { return snapshot() !== base; }
   function updateKb() {
-    var kb = C.payloadKb(G.buildPayload()), cap = G.state.cap_kb, m = C.capMessage(kb, cap, G.added.length);
-    el('kb').textContent = 'Da inviare: ' + kb + ' KB / ' + cap + ' KB';
+    var kb = C.payloadKb(G.buildPayload()), cap = G.state.cap_kb, m = C.capMessage(kb, cap, G.added.length, T);
+    el('kb').textContent = T('kb_line', kb, cap);
     G.overCap = !!m; cancelArmed = false;
     footerButtons();
     if (m) { setMsg(m, 'err'); } else if (msgIsCap) { setMsg(''); }
@@ -191,11 +273,11 @@
   /* -- editor: caricamento (createImageBitmap + EXIF, fallback <img>) -- */
   function loadViaImg(file, cb) {
     var img, url, U = root.URL || root.webkitURL;
-    if (typeof root.Image !== 'function' || !U || !U.createObjectURL) { cb(new Error('nessun decoder di immagini')); return; }
-    try { url = U.createObjectURL(file); } catch (e) { cb(new Error('file non valido')); return; }
+    if (typeof root.Image !== 'function' || !U || !U.createObjectURL) { cb(new Error(T('err_no_decoder'))); return; }
+    try { url = U.createObjectURL(file); } catch (e) { cb(new Error(T('err_bad_file'))); return; }
     img = new root.Image();
     img.onload = function () { U.revokeObjectURL(url); cb(null, img); };
-    img.onerror = function () { U.revokeObjectURL(url); cb(new Error('immagine non decodificabile')); };
+    img.onerror = function () { U.revokeObjectURL(url); cb(new Error(T('err_bad_image'))); };
     img.src = url;
   }
   function loadImage(file, cb) {
@@ -313,15 +395,14 @@
       if (ed.src) { zoomAt(p.x, p.y, ed.scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); changed(); e.preventDefault(); }
     });
     function zoomInput() { if (ed.src) { zoomAt(ed.Fw / 2, ed.Fh / 2, ed.cover * (+el('zoom').value || 1)); changed(); } }
-    function it(v) { return (+v).toFixed(2).replace('.', ','); }
-    function tone() { el('gammaVal').textContent = it(el('gamma').value); el('liftVal').textContent = it(el('lift').value); scheduleWork(false); }
+    function tone() { showTone(); scheduleWork(false); }
     for (i = 0; i < 2; i++) { on(el('zoom'), EV[i], zoomInput); on(el('gamma'), EV[i], tone); on(el('lift'), EV[i], tone); }
     on(el('fit'), 'click', function () { if (ed.src) { fitView(); } });
     on(el('dither'), 'change', function () { scheduleWork(false); });
     on(el('sunlight'), 'change', function () { scheduleWork(false); });
     on(el('previewMode'), 'change', function () { if (ed.last) { drawPreview(ed.last); } });
     on(el('addOk'), 'click', addOk);
-    on(el('addCancel'), 'click', function () { closeEditor(); setMsg('ritaglio annullato'); });
+    on(el('addCancel'), 'click', function () { closeEditor(); setMsg(T('msg_crop_cancel')); });
   }
 
   /* -- editor: ridimensionamento, codifica, anteprima ×2 (debounce 150 ms) -- */
@@ -336,7 +417,7 @@
     try {
       if (ed.dirtyCrop || !ed.rgb) { resample(); }
       encodeNow();
-    } catch (e) { setMsg('Errore di anteprima: ' + errText(e), 'err'); }
+    } catch (e) { setMsg(T('msg_preview_err', errText(e)), 'err'); }
   }
   G.flush = function () { if (ed.timer) { root.clearTimeout(ed.timer); doWork(); return true; } return false; };
   function resample() {
@@ -355,12 +436,12 @@
     ed.last = (fmt === 2) ? P.encodeFlint(ed.rgb, o) : P.encodeEmery(ed.rgb, o);
     G.timing.encodeMs = Math.round(now() - t0);
     drawPreview(ed.last);
-    el('etime').textContent = 'ridimensionamento ' + G.timing.resampleMs + ' ms · codifica ' + G.timing.encodeMs + ' ms';
+    el('etime').textContent = T('edit_time', G.timing.resampleMs, G.timing.encodeMs);
   }
   function rgbaOf(r, sun, sc) { return (fmt === 2) ? P.preview1Rgba(r.bits, ed.w, ed.h, sc) : P.previewRgba(r.idx, ed.w, ed.h, sun, sc); }
   function drawPreview(r) {
     try { putRgba(ctx2d(el('preview'), false), rgbaOf(r, el('previewMode').value !== 'nominal', 2), ed.w * 2, ed.h * 2); }
-    catch (e) { el('etime').textContent = 'anteprima non disponibile'; }
+    catch (e) { el('etime').textContent = T('preview_off'); }
   }
   /* miniatura 50×57 (colori sul vetro): JPEG 0,7 → 0,5 → 0,3, ≤ 6.000 car. o omessa */
   function makeThumb(r) {
@@ -388,26 +469,26 @@
   }
   function scrollToEditor() { scrollInto(el('editor')); }
   function openEditor(file) {
-    var name = (file && file.name) ? String(file.name) : 'foto', g = ++gen;   /* #12: vale solo l'ultimo file scelto */
+    var name = (file && file.name) ? String(file.name) : T('photo_name_default'), g = ++gen;   /* #12: vale solo l'ultimo file scelto */
     if (G.editorOpen) { closeEditor(); }
-    if (C.freeSlot(G.tiles, allDeleted()) < 0) { setMsg('album pieno: elimina una foto', 'err'); return; }
+    if (C.freeSlot(G.tiles, allDeleted()) < 0) { setMsg(T('album_full'), 'err'); return; }
     ed.name = name;
-    setMsg('carico ' + name + '…');
+    setMsg(T('msg_loading', name));
     loadImage(file, function (err, img) {
       if (g !== gen) {                                      /* superato da una scelta successiva: si scarta (e si libera) */
         if (img && typeof img.close === 'function') { try { img.close(); } catch (e) { /* niente */ } }
         return;
       }
-      if (err) { setMsg('Non riesco a leggere ' + name + ': ' + errText(err), 'err'); return; }
+      if (err) { setMsg(T('msg_read_fail', name, errText(err)), 'err'); return; }
       ed.name = name;
-      try { startEditor(img); } catch (e) { closeEditor(); setMsg('Errore nell\'editor: ' + errText(e), 'err'); }
+      try { startEditor(img); } catch (e) { closeEditor(); setMsg(T('msg_editor_err', errText(e)), 'err'); }
     });
   }
   function startEditor(img) {
     var t0 = now(), f, c, wrap, cv, pv;
     if (ed.bmp && ed.bmp !== img) { try { ed.bmp.close(); } catch (e) { /* niente */ } }   /* #12 */
     ed.src = img; ed.sw = img.naturalWidth || img.width; ed.sh = img.naturalHeight || img.height;
-    if (!(ed.sw > 0 && ed.sh > 0)) { throw new Error('dimensioni non valide'); }
+    if (!(ed.sw > 0 && ed.sh > 0)) { throw new Error(T('err_bad_size')); }
     ed.bmp = (typeof img.close === 'function') ? img : null;
     f = 1024 / Math.max(ed.sw, ed.sh);                       /* copia ridotta per la cornice */
     if (f >= 1) { ed.disp = img; ed.dw = ed.sw; ed.dh = ed.sh; }
@@ -418,7 +499,7 @@
     ed.Fw = Math.max(120, Math.min(300, Math.floor((wrap && wrap.clientWidth > 0) ? wrap.clientWidth : 300))); ed.Fh = Math.round(ed.Fw * 228 / 200);
     cv = el('crop'); cv.width = ed.Fw; cv.height = ed.Fh; cv.style.width = ed.Fw + 'px'; cv.style.height = ed.Fh + 'px';
     pv = el('preview'); pv.width = ed.w * 2; pv.height = ed.h * 2;
-    el('editName').textContent = ed.name + ' · ' + ed.sw + '×' + ed.sh + ' px';
+    el('editName').textContent = T('edit_name', ed.name, ed.sw + '×' + ed.sh);
     el('etime').textContent = ''; ed.rgb = null; ed.last = null; setMsg('');
     fitView();
     scrollToEditor();
@@ -435,14 +516,14 @@
     updateKb();
   }
   function addOk() {
-    var slot, r, entry, th;
+    var slot, r, entry, th, msg;
     try {
       if (!ed.src) { return; }
       G.flush();
       if (ed.dirtyCrop || !ed.rgb) { resample(); }
       if (!ed.last) { encodeNow(); }
       slot = C.freeSlot(G.tiles, allDeleted());
-      if (slot < 0) { setMsg('album pieno: elimina una foto', 'err'); return; }
+      if (slot < 0) { setMsg(T('album_full'), 'err'); return; }
       r = ed.last;
       /* #11: la miniatura e' un di piu'. toDataURL puo' lanciare (canvas "tainted", memoria) e
        * makeThumb puo' tornare null (nessun JPEG e PNG oltre i 6.000 caratteri): in entrambi i
@@ -453,8 +534,11 @@
       G.added.push(entry);
       insertTile({ slot: slot, kind: 'new', name: entry.name, thumb: th, hasFmt: true, pending: false, full: ed.name });   /* #6: prima delle estranee; #26: nome intero */
       closeEditor(); renderTiles(); updateKb();
-      if (!G.overCap) { setMsg('Foto aggiunta nello slot ' + slot + ' (' + Math.ceil(entry.data.length / 1024) + ' KB)' + (th ? '' : ', senza anteprima'), 'okmsg'); }
-    } catch (e) { setMsg('Errore: ' + errText(e), 'err'); }
+      if (!G.overCap) {
+        msg = T('msg_added', slot, Math.ceil(entry.data.length / 1024));
+        setMsg(th ? msg : T('msg_added_no_thumb', msg), 'okmsg');
+      }
+    } catch (e) { setMsg(T('msg_err', errText(e)), 'err'); }
   }
   G.addFile = openEditor; G.editor = ed; G.scratch = scratch;
 
@@ -481,10 +565,10 @@
       fin = true; root.clearTimeout(tm);
       try { r = JSON.parse(x.responseText); } catch (e) { r = null; }
       if (x.status === 200 && r && r.ok === true) {
-        setMsg('Salvato (seq ' + r.seq + '): torno all\'app', 'okmsg');
+        setMsg(T('msg_saved', r.seq), 'okmsg');
         navigate(rt + encodeURIComponent(JSON.stringify({ v: 1, dev: true, seq: r.seq })));
       } else {
-        setMsg('Salvataggio fallito: ' + ((r && r.error) || why || (x.status ? 'HTTP ' + x.status : 'dev server non raggiungibile')), 'err');
+        setMsg(T('msg_save_fail', (r && r.error) || why || (x.status ? 'HTTP ' + x.status : T('err_no_dev_server'))), 'err');
         footerButtons();
       }
     }
@@ -492,36 +576,36 @@
     x.setRequestHeader('Content-Type', 'application/json');
     x.onreadystatechange = function () { if (x.readyState === 4) { done(); } };
     tm = root.setTimeout(function () {                      /* dev server fermo: non restare su "Invio…" */
-      why = 'nessuna risposta in 30 s'; try { x.abort(); } catch (e) { /* niente */ } done();
+      why = T('err_no_reply'); try { x.abort(); } catch (e) { /* niente */ } done();
     }, 30000);
-    el('save').disabled = true; setMsg('Invio ' + kb + ' KB…');
+    el('save').disabled = true; setMsg(T('msg_sending', kb));
     try { x.send(JSON.stringify(payload)); } catch (e) { why = errText(e); done(); }
   }
   function save() {
     var payload, kb, m;
     try {
-      if (G.editorOpen) { setMsg('Chiudi prima il ritaglio', 'err'); return; }
-      if (!G.state.ok) { setMsg('stato non ricevuto: riapri le impostazioni dall\'app', 'err'); return; }   /* #1 */
+      if (G.editorOpen) { setMsg(T('msg_close_crop'), 'err'); return; }
+      if (!G.state.ok) { setMsg(T('msg_no_state_save'), 'err'); return; }   /* #1 */
       payload = G.buildPayload(); kb = C.payloadKb(payload); m = mode();
-      if (kb > G.state.cap_kb) { setMsg(C.capMessage(kb, G.state.cap_kb, G.added.length), 'err'); return; }
+      if (kb > G.state.cap_kb) { setMsg(C.capMessage(kb, G.state.cap_kb, G.added.length, T), 'err'); return; }
       G.lastPayload = payload;
       if (m === 'dev') { postSave(payload, kb); }
       else if (m === 'phone') { navigate('pebblejs://close#' + encodeURIComponent(JSON.stringify(payload))); }
-      else { setMsg('modalità prova: payload di ' + kb + ' KB (non inviato)', 'okmsg'); }
-    } catch (e) { setMsg('Errore nel salvataggio: ' + errText(e), 'err'); }
+      else { setMsg(T('msg_test_payload', kb), 'okmsg'); }
+    } catch (e) { setMsg(T('msg_save_err', errText(e)), 'err'); }
   }
   function cancel() {
     var m = mode();
     try {
-      if (G.editorOpen) { setMsg('Chiudi prima il ritaglio', 'err'); return; }
+      if (G.editorOpen) { setMsg(T('msg_close_crop'), 'err'); return; }
       if (dirty() && !cancelArmed) {                        /* #20: nessuna finestra di conferma: il secondo tocco esce davvero */
-        cancelArmed = true; setMsg('Modifiche non salvate: tocca di nuovo per uscire senza salvare', 'warn'); return;
+        cancelArmed = true; setMsg(T('msg_unsaved'), 'warn'); return;
       }
       cancelArmed = false;
       if (m === 'dev') { navigate(returnTo()); }
       else if (m === 'phone') { navigate('pebblejs://close#'); }
-      else { setMsg('modalità prova: chiusura senza modifiche'); }
-    } catch (e) { setMsg('Errore: ' + errText(e), 'err'); }
+      else { setMsg(T('msg_test_close')); }
+    } catch (e) { setMsg(T('msg_err', errText(e)), 'err'); }
   }
 
   /* -- avvio lento del persist (v1.9, perf 04/09) -- */
@@ -529,27 +613,29 @@
    * file persist oltre C.slowThresholdMs(), che cresce col numero di foto) e la sezione #help,
    * sempre disponibile. Il testo sta qui una volta sola e viene costruito nel DOM: nessuna
    * duplicazione nell'HTML inlinato (tetto 64 KB). */
-  var FIX_STEPS = ['apri l\'app Pebble sul telefono', 'tocca Galleria nell\'elenco delle app',
-                   'scegli Rimuovi (non Aggiorna)', 'reinstalla Galleria'];
-  var FIX_TAIL = 'Le tue foto sono al sicuro nel telefono e torneranno da sole sull\'orologio in pochi minuti (circa mezzo minuto per foto).';
-  var HELP_WHY = 'Succede perché l\'orologio tiene da parte anche i dati vecchi (le foto sostituite) finché la sua memoria non è piena, e la watchface deve rileggerli tutti a ogni avvio.';   /* 05/09: niente promesse sulla frequenza (richiesta utente) */
   function fixProcedure(box) {
-    var ol = mk('ol'), i;
+    var steps = [T('fix_step_1'), T('fix_step_2'), T('fix_step_3'), T('fix_step_4')], ol = mk('ol'), i;
     box.textContent = '';
-    box.appendChild(mk('p', null, 'Per sistemare:'));
-    for (i = 0; i < FIX_STEPS.length; i++) { ol.appendChild(mk('li', null, FIX_STEPS[i])); }
+    box.appendChild(mk('p', null, T('fix_lead')));
+    for (i = 0; i < steps.length; i++) { ol.appendChild(mk('li', null, steps[i])); }
     box.appendChild(ol);
-    box.appendChild(mk('p', null, FIX_TAIL));
+    /* 05/09: niente promesse sulla frequenza (richiesta utente) */
+    box.appendChild(mk('p', null, T('fix_tail')));
   }
-  function initHelp(watch) {
-    var sec = C.slowSeconds(watch), body = el('helpBody'), btn = el('helpBtn');
+  function showTone() { el('gammaVal').textContent = dec2(el('gamma').value); el('liftVal').textContent = dec2(el('lift').value); }
+  /* testi dell'avviso #slow e della sezione Aiuto: rifatti a ogni cambio di lingua */
+  function helpTexts() {
+    var sec = C.slowSeconds(G.state.watch, lang);
     if (sec) {
-      el('slowLead').textContent = 'Galleria si avvia lentamente (' + sec + ' s). Non è un guasto: la memoria dell\'orologio si è riempita di vecchi dati.';
+      el('slowLead').textContent = T('slow_lead', sec);
       fixProcedure(el('slowFix'));
     }
     show(el('slow'), !!sec);
-    el('helpWhy').textContent = HELP_WHY;
+    el('helpWhy').textContent = T('help_why');
     fixProcedure(el('helpFix'));
+  }
+  function initHelp() {
+    var body = el('helpBody'), btn = el('helpBtn');
     on(btn, 'click', function () {
       var open = body.style.display === 'none';
       show(body, open);
@@ -564,14 +650,16 @@
     s.cap_kb = C.capForUa(s.cap_kb, nv && nv.userAgent, nv);   /* #4: iOS → 200 KB */
     fmt = s.fmt; ed.w = (fmt === 2) ? 144 : 200; ed.h = (fmt === 2) ? 168 : 228;
     G.tiles = C.buildTiles(s);
-    el('watch').textContent = (s.platform === 'emery') ? 'Pebble Time 2 · 200×228 a colori' : (s.platform === 'flint') ? 'Pebble 2 Duo · 144×168 bianco e nero'
-                              : 'orologio sconosciuto: preparo foto ' + (fmt === 2 ? 'in bianco e nero' : 'a colori');
-    initHelp(s.watch);
-    if (!s.ok) { el('status').textContent = 'Stato non ricevuto: modalità prova (' + s.error + '). Salva è disabilitato: riapri le impostazioni dall\'app Pebble.'; show(el('status'), true); }
+    /* S10: la lingua prima di ogni testo (applyLang riempie anche #dither e l'Aiuto) */
+    langVal = s.settings.lang;
+    applyLang();
+    initHelp();
+    if (!s.ok) {                       /* senza stato non c'e' dizionario: avviso in inglese minimo (D35) */
+      el('status').textContent = dict ? T('status_no_state', s.error) : 'State not received (' + s.error + '). Save is disabled: reopen the settings from the Pebble app.';
+      show(el('status'), true);
+    }
     show(el('settingsNote'), !s.settingsSet);
     writeSettings(s.settings);
-    fill(el('dither'), (fmt === 2) ? [['fs', 'Floyd–Steinberg'], ['atkinson', 'Atkinson'], ['none', 'Nessuno']]
-                                    : [['fs', 'Floyd–Steinberg'], ['bayer', 'Bayer 4×4'], ['none', 'Nessuno']]);
     show(el('sunlightRow'), fmt === 1); show(el('previewModeRow'), fmt === 1);
     renderTiles();
     for (i = 0; i < SELECTS.length; i++) { on(el('s_' + SELECTS[i]), 'change', settingsChanged); }
@@ -582,5 +670,5 @@
     base = snapshot();
     updateKb();
   }
-  try { init(); } catch (e) { try { setMsg('Errore di avvio: ' + errText(e), 'err'); } catch (x) { /* niente */ } }
+  try { init(); } catch (e) { try { setMsg(T('msg_boot_err', errText(e)), 'err'); } catch (x) { /* niente */ } }
 }(this));

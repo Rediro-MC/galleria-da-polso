@@ -22,6 +22,10 @@ enum GalLeadingZero { GAL_LZ_AUTO = 0, GAL_LZ_ON = 1, GAL_LZ_OFF = 2 };
 enum GalTextColor   { GAL_TEXT_AUTO = 0, GAL_TEXT_WHITE = 1, GAL_TEXT_BLACK = 2, GAL_TEXT_YELLOW = 3, GAL_TEXT_OXFORD = 4 };
 enum GalOutline     { GAL_OUTLINE_AUTO = 0, GAL_OUTLINE_ALWAYS = 1, GAL_OUTLINE_NEVER = 2 };
 enum GalOrder       { GAL_ORDER_SEQUENTIAL = 0, GAL_ORDER_RANDOM = 1 };
+/* S10 (D31): lingua della config page E dell'orologio. 0 = automatica (pagina: lingua dell'orologio; orologio:
+ * data da strftime del firmware con il language pack, separatore delle migliaia dal locale di sistema);
+ * 1..4 = forzata (data da datefmt.c con le abbreviazioni dei pack e il formato della lingua, separatore per lingua). */
+enum GalLang        { GAL_LANG_AUTO = 0, GAL_LANG_EN = 1, GAL_LANG_IT = 2, GAL_LANG_DE = 3, GAL_LANG_FR = 4 };
 enum GalInfoRowBits { GAL_INFO_STEPS = 1 << 0, GAL_INFO_BATTERY = 1 << 1, GAL_INFO_DATE = 1 << 2, GAL_INFO_BT = 1 << 3 };
 
 typedef struct __attribute__((packed)) {
@@ -37,7 +41,8 @@ typedef struct __attribute__((packed)) {
   uint8_t  shake_next;    /* 0/1 */
   uint8_t  info_row;      /* GalInfoRowBits */
   uint8_t  digit_style;   /* GalDigitStyle (S8-stile: era reserved[0], quindi 0 = pieno nei blob vecchi) */
-  uint8_t  reserved[5];   /* il design §4.1 diceva [4] ma contava 20 B: allineato a 20 B (S1); S8-stile: 6 → 5 */
+  uint8_t  lang;          /* GalLang (S10, byte 13: era reserved[0], quindi 0 = auto nei blob vecchi; CRC dei default invariato) */
+  uint8_t  reserved[4];   /* il design §4.1 diceva [4] ma contava 20 B: allineato a 20 B (S1); S8-stile: 6 → 5; S10: 5 → 4 */
   uint16_t crc16;         /* CRC-16/CCITT-FALSE dei 18 B precedenti (storage.c) */
 } GalSettings;            /* 20 B */
 
@@ -56,6 +61,25 @@ static inline bool gal_style_transparent(uint8_t style) {
 /* Lo stile ha l'ombra 3D (2, 3)? */
 static inline bool gal_style_shadow(uint8_t style) {
   return style == GAL_STYLE_OUTLINE_3D || style == GAL_STYLE_FILL_3D;
+}
+
+/* S10 (D33): lingua dal locale di sistema (i18n_get_system_locale(): "it_IT", "en_US", …) per il prefisso
+ * en/it/de/fr → GAL_LANG_EN..GAL_LANG_FR; qualunque altro prefisso, stringa corta o NULL → GAL_LANG_EN.
+ * Pura (nessuna libreria): stesso mapping di langAuto nel PKJS. Non ritorna mai GAL_LANG_AUTO. */
+static inline uint8_t gal_lang_from_locale(const char *loc) {
+  if (loc && loc[0] != '\0' && loc[1] != '\0') {
+    const char a = loc[0], b = loc[1];
+    if (a == 'i' && b == 't') {
+      return GAL_LANG_IT;
+    }
+    if (a == 'd' && b == 'e') {
+      return GAL_LANG_DE;
+    }
+    if (a == 'f' && b == 'r') {
+      return GAL_LANG_FR;
+    }
+  }
+  return GAL_LANG_EN;
 }
 
 /* Default in RAM, poi persist (se valido), poi gli hook di debug GALLERIA_DEBUG_* (wscript). */

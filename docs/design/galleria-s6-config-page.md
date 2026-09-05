@@ -7,7 +7,7 @@ Percorsi relativi a `apps/galleria/` salvo indicazione. Tutto il codice della pa
 ## 1. File e contratto di inlining
 
 ```
-src/pkjs/config/page.html        markup (italiano), viewport mobile, nessuna risorsa esterna
+src/pkjs/config/page.html        markup (S10: testi via data-i18n, nodi vuoti), viewport mobile, nessuna risorsa esterna
 src/pkjs/config/page.css         stile (≤ 6 KB): una colonna, max-width 480 px, usabile a 360–400 px
 src/pkjs/config/pipeline.js      PURO (no DOM): pipeline immagine byte-esatta con photo_prep.py + CRC32 + base64url + rettangoli
 src/pkjs/config/page_core.js     PURO (no DOM): stato ← hash, costruzione payload, slot, ordine, KB, validazione impostazioni
@@ -60,11 +60,13 @@ state = {
   photos: [12 × (null | { id, name, thumb?, fmts: { "1"?: {len, crc}, "2"?: {len, crc} } })],   // indice = slot (album.state().photos)
   order: [slot…],                             // ordine di rotazione locale
   deleted: [slot…],                           // eliminazioni non ancora confermate dall'orologio (la pagina le tratta come "già eliminate")
-  watch: null | { at, format, maxChunk, settingsCrc, openMs, slots: [12 × {state, crc}], foreign: [slot…] }   // ultimo HELLO
+  watch: null | { at, format, maxChunk, settingsCrc, openMs, slots: [12 × {state, crc}], foreign: [slot…] },  // ultimo HELLO
                                               // openMs (v1.9) = ms dell'apertura del file persist sull'orologio (HELLO.OPEN_MS); null = non noto (orologio o snapshot pre-v1.9), 0 = non misurato
+  lang_auto: 'en' | 'it' | 'de' | 'fr',       // S10/D33: lingua della pagina quando settings.lang vale 0 (dal PKJS: orologio → navigator → en; in DEV l'hook --lang)
+  i18n: { en: [...], it: [...], de: [...], fr: [...] }   // S10/D35: TUTTI e quattro i dizionari (121 voci l'uno, nell'ordine delle chiavi di messages.json): il cambio lingua nella pagina e' istantaneo
 }
 ```
-Dimensione: ≤ 12 miniature × ≤ 6.000 caratteri + JSON ≈ 75 KB → base64url ≈ 100 KB. `fmt` decide TUTTO nella pagina (formato prodotto, dithering offerti, anteprima, rettangolo flint); `platform` serve solo all'etichetta.
+Dimensione: ≤ 12 miniature × ≤ 6.000 caratteri + JSON ≈ 75 KB → base64url ≈ 100 KB. **S10**: i dizionari aggiungono ≈ 19,9 k caratteri di base64url (misurati con `node` su `src/pkjs/i18n.js`); con l'album vuoto l'URL `data:` completo è ≈ 127 k caratteri (HTML percent-encoded 106.987 + hash 20.114), lontano dal tetto Android di 2 MiB. `fmt` decide TUTTO nella pagina (formato prodotto, dithering offerti, anteprima, rettangolo flint); `platform` serve solo all'etichetta.
 
 ## 3. Payload pagina → PKJS
 
@@ -124,7 +126,7 @@ GalPipeline = {
 GalPageCore = {
   SETTINGS_FIELDS: [[nome, min, max, default] × 11]  (= album.js SETTINGS_FIELDS: layout 0-1/0, font 0-5/0, clock_mode 0-2/0, leading_zero 0-2/0,
                      text_color 0-4/0, outline 0-2/0, interval_min 0-1440/30 (valori ammessi 0,5,15,30,60,180,1440), order 0-1/0, shake_next 0-1/1, info_row 0-15/15,
-                     digit_style 0-3/0 (S8-stile, in coda: l'ordine dell'array non è quello dei byte)),
+                     digit_style 0-3/0 (S8-stile) e lang 0-4/0 (S10/D31, byte 13), in coda: l'ordine dell'array non è quello dei byte),
   INTERVALS: [0, 5, 15, 30, 60, 180, 1440],  MAX_SLOTS: 12,  MAX_THUMB_CHARS: 6000,  MAX_NAME: 64,
   decodeState(hashString) → state normalizzato (default per ogni campo mancante; mai lancia; `ok:false` + `error` se l'hash non è valido),
   b64urlToBytes(str) → Uint8Array,  utf8Decode(bytes) → string,   // per l'hash
@@ -157,7 +159,7 @@ GalPageCore = {
 5. **Aiuto** (`#help`, v1.9, in fondo alla pagina, prima del piè di pagina): sezione **sempre visibile** con un pulsante `#helpBtn` (`.btn.small`, `aria-expanded`/`aria-controls`) intitolato "Galleria si avvia lentamente?" che apre e chiude `#helpBody` (ripiegato di default; niente `<details>`: il toggle è esplicito, si prova nel DOM finto dei test e non dipende dal supporto del browser). Dentro: la stessa procedura in 4 passi dell'avviso e una riga (`#helpWhy`) che spiega **perché** succede (l'orologio tiene da parte anche i dati vecchi finché la memoria non è piena e la watchface deve rileggerli a ogni avvio) e che **con questa versione capita molto più di rado**.
 6. **Piè di pagina** (`#footer`, sticky in basso): "Salva" (`#save`, primario; disabilitato sopra il tetto o mentre l'editor è aperto), "Annulla" (`#cancel`), messaggio `#msg`.
 
-Regole: nessuna dipendenza esterna; nessun `alert/confirm/prompt` (i test girano senza); tutte le stringhe visibili in italiano; gli elementi della pagina hanno `id` stabili (elencati sopra + `#tiles`, `#add`, `#file`, `#crop` (canvas cornice), `#zoom`, `#gamma`, `#lift`, `#dither`, `#sunlight`, `#previewMode`, `#preview`, `#addOk`, `#addCancel`, `#kb`, `#head`, `#status`, `#slow`, `#slowLead`, `#slowFix`, `#help`, `#helpBtn`, `#helpBody`, `#helpWhy`, `#helpFix`); `page.js` espone `window.GalPage = { state, tiles, added, deleted, setNavigate(fn), lastPayload, buildPayload(), addFile(file) (usabile da test), version }` per test e gate. Niente `console.log` in ciclo; un `try/catch` attorno a inizializzazione e Salva con messaggio in `#msg` (mai pagina bianca).
+Regole: nessuna dipendenza esterna; nessun `alert/confirm/prompt` (i test girano senza); tutte le stringhe visibili dal **dizionario** (S10: chiavi `T(…)`/`data-i18n`, italiano di riferimento in `i18n/messages.json`); gli elementi della pagina hanno `id` stabili (elencati sopra + `#tiles`, `#add`, `#file`, `#crop` (canvas cornice), `#zoom`, `#gamma`, `#lift`, `#dither`, `#sunlight`, `#previewMode`, `#preview`, `#addOk`, `#addCancel`, `#kb`, `#head`, `#status`, `#slow`, `#slowLead`, `#slowFix`, `#help`, `#helpBtn`, `#helpBody`, `#helpWhy`, `#helpFix`); `page.js` espone `window.GalPage = { state, tiles, added, deleted, setNavigate(fn), lastPayload, buildPayload(), addFile(file) (usabile da test), version }` per test e gate. Niente `console.log` in ciclo; un `try/catch` attorno a inizializzazione e Salva con messaggio in `#msg` (mai pagina bianca).
 
 **4.6 Miniatura**: dal risultato finale (`idx` o `bits`) si disegna su un canvas 50×57 (`drawImage` del canvas d'anteprima 200×228/144×168 con smoothing) e `toDataURL('image/jpeg', 0.7)`; se > 6.000 caratteri ⇒ 0,5 poi 0,3; se il browser non produce JPEG (`data:image/png` restituito) e supera i 6.000 ⇒ miniatura omessa. Colori `SUN_RGB` (come sul vetro).
 
@@ -174,7 +176,7 @@ Oggi (S5b): `--album` converte le foto in un pool e `/state.json` è un payload 
 
 ## 7. `tools/build_config_page.py`
 
-Solo stdlib (Python 3.8+). API: `inline_page(dir_path, entry='page.html', warn=None, strip=True) -> str` (HTML inlinato, regole §1; lancia `PageBuildError(msg)`; `warn` per gli avvisi non fatali), `page_size_check(html) -> None|str`. Impl.: se l'inlining fallisce il `config_page.js` precedente resta sul disco (il tool lo dice): `make -C test pagecheck` prima di ogni `pebble build`. CLI: `--dir apps/galleria/src/pkjs/config` (default: relativo alla posizione del tool, cioè `../apps/galleria/src/pkjs/config`), `--out apps/galleria/src/pkjs/config_page.js` (default idem), `--html-out FILE` (opzionale: scrive anche l'HTML inlinato, per aprirlo nel browser), `--check` (rigenera in memoria e confronta con `--out`: exit 0 se identico, 1 se diverso o assente, con messaggio), `--selftest` (cartella temporanea: inlining, ordine, file mancante, `data-optional`, `</script>` nel contenuto ⇒ errore, dimensione > 64 KB ⇒ errore, output riproducibile: due esecuzioni ⇒ stesso file byte a byte). Output `config_page.js`:
+Solo stdlib (Python 3.8+). **S10**: `inline_page`/`build_module` accettano anche `messages=` (default: `i18n/messages.json` accanto alle sorgenti) e prima del lint eseguono il **passo i18n** — `i18n_pass(html, messages)` sostituisce `T('chiave'` con `T(<indice>` e `data-i18n(-title)="chiave"` con l'indice, dove l'indice è la posizione della chiave in `messages.json` (la stessa degli array di `i18n.js`); una chiave che non esiste è un errore con numero di riga, e se nella pagina non c'è nessuna chiave il file dei messaggi non viene nemmeno aperto. ⚠️ La sostituzione guarda **tutto** l'HTML finito: un `T('nome')` scritto in un commento a fine riga (che lo strip non toglie) viene convertito lo stesso, e se il nome non esiste fa fallire la generazione. API: `inline_page(dir_path, entry='page.html', warn=None, strip=True, messages=None) -> str` (HTML inlinato, regole §1; lancia `PageBuildError(msg)`; `warn` per gli avvisi non fatali), `page_size_check(html) -> None|str`. Impl.: se l'inlining fallisce il `config_page.js` precedente resta sul disco (il tool lo dice): `make -C test pagecheck` prima di ogni `pebble build`. CLI: `--dir apps/galleria/src/pkjs/config` (default: relativo alla posizione del tool, cioè `../apps/galleria/src/pkjs/config`), `--out apps/galleria/src/pkjs/config_page.js` (default idem), `--html-out FILE` (opzionale: scrive anche l'HTML inlinato, per aprirlo nel browser), `--check` (rigenera in memoria e confronta con `--out`: exit 0 se identico, 1 se diverso o assente, con messaggio), `--selftest` (cartella temporanea: inlining, ordine, file mancante, `data-optional`, `</script>` nel contenuto ⇒ errore, dimensione > 64 KB ⇒ errore, output riproducibile: due esecuzioni ⇒ stesso file byte a byte). Output `config_page.js`:
 ```js
 /* GENERATO da tools/build_config_page.py (S6): non modificare a mano. Sorgenti: src/pkjs/config/. Dimensione HTML: N B. */
 module.exports = "…";   // json.dumps(html, ensure_ascii=True): solo ASCII, una riga
@@ -186,7 +188,7 @@ Riproducibile (nessuna data). Stampa la dimensione dell'HTML e del `.js`. Esit 1
 - **`test/gen_page_fixture.py`** (importa `tools/photo_prep.py` come modulo via `sys.path`; solo stdlib + le funzioni del tool, **niente Pillow**): genera `test/fixture_page.js` (`module.exports = {...}`): immagine sintetica 200×228 RGB deterministica (gradienti + bande + rumore LCG come `make_fixture_data`, tutti e 256 i livelli presenti su ogni canale, zone sature e neutre) in base64 dei byte RGB piatti, e una 144×168 per flint; per emery: per ogni `dither ∈ {fs, bayer, none}` × `sunlight ∈ {false, true}` × `(gamma, lift) ∈ {(1,0), (0.8,0.1), (1.6,0.3)}` ⇒ `{crc32 del raw6, photo_id}` e, per un caso, il raw6 intero in base64url (pin di `pack6` + `b64url`); per flint: `dither ∈ {fs, atkinson, none}` × le stesse 3 coppie ⇒ crc32 del raw1 (+ un raw1 intero); `toneLut` per le 3 coppie; `SUN_LUT_CRC32`; casi di `fit_rect`/`crop_rect`/`flint_rect`. `--check` verifica che la fixture su disco sia aggiornata. Lento va bene (< 60 s).
 - **`test/test_pipeline.js`** (node, `NODE_PATH=shim` non serve): carica `src/pkjs/config/pipeline.js`, `test/fixture_page.js`, `src/pkjs/crc.js`, `src/pkjs/b64.js`, `test/fixtures/rt.idx|rt.raw6|rt.bits|rt.raw1` (fixture del test C: `pack6`/`pack1` su 40×12 e 24×8 devono dare `rt.raw6`/`rt.raw1` byte a byte); round trip di ogni combinazione (CRC uguale ⇒ raw uguale); `toneLut` = fixture; `quantRaw` ai bordi (q(v) = min(3, (v+42)//85): 42→0, 43→1, 127→1, 128→2, 212→2, 213→3, 255→3 — le soglie 84|85 scritte nella prima stesura erano sbagliate); `buildSunLut` CRC = 0x48CBD990 (la LUT NON è monotona lungo i grigi: il colore di resa più vicino può essere un colore, niente test di monotonia); `crc32` = `crc.js` su vettori; `b64url` = `b64.encode` su byte casuali (incluse lunghezze ≡ 0,1,2 mod 3); `photoId` (0 ⇒ 1, bit 31 azzerato); `previewRgba` scala/colori; mutation testing a mano di ≥ 8 mutanti (serpentine spenta, `>>4` → `/16`, clamp mancante, pesi FS scambiati, tono dopo il dithering, LUT in interi, `pack6` con ordine dei bit invertito, gray con pesi diversi) che DEVONO far fallire il test. Esito: "test_pipeline: N ok, M fail", exit 1 se fail.
 - **`test/test_page.js`** (node): `page_core.js` puro (decodeState con hash valido/assente/rotto/`città`, normalizeSettings, buildTiles con foto, foreign, deleted, fmts mancante, pending; freeSlot; buildPayload; payloadKb; capMessage; truncateName; thumbFits) e `page.js` in `vm.runInNewContext` con un DOM finto sul modello di `test/test_devpage.js` (getElementById per id, createElement, appendChild, textContent, value, checked, disabled, classList minimo, addEventListener/dispatch a mano, `canvas.getContext('2d')` finto con `drawImage` no-op, `getImageData` che restituisce un `ImageData` deterministico, `toDataURL` che restituisce `data:image/jpeg;base64,AAAA`, `createImageBitmap` finto, `XMLHttpRequest` finto che registra i POST e consegna a `flush()`, `location` finta con `hash`/`search`/`protocol`): rendering delle tessere dallo stato, ▲▼✕ ⇒ `order`/`deleted`, aggiunta via `GalPage.addFile(file)` con encode vero (pipeline reale sui pixel finti) ⇒ tessera `new`, `photo_id`/`crc`/`len`/`data` coerenti, slot libero, Salva dev ⇒ un solo POST `/save` con payload completo + `navigate(return_to + token)`, Salva telefono ⇒ `pebblejs://close#` + JSON percent-encoded parsabile, Annulla nei due casi, tetto KB ⇒ Salva disabilitato + messaggio, LECO disabilitato con layout B, `settingsSet false` ⇒ avviso, album pieno ⇒ "Aggiungi" disabilitato, errori (POST 500 ⇒ messaggio e nessuna navigazione; file non decodificabile). Esito come sopra.
-- **`Makefile`** (di proprietà dell'orchestratore, già predisposto): `JSTESTS` include `test_pipeline.js test_page.js`; target `pagecheck` (`build_config_page.py --check` + `gen_page_fixture.py --check`) in `all`; `devtest` invariato; `browsertest` (fuori da `all`: `tools/galleria_browser.py --selftest`).
+- **`Makefile`** (di proprietà dell'orchestratore, già predisposto): `JSTESTS` include `test_pipeline.js test_page.js`; target `pagecheck` (**S10: `build_i18n.py --check` per primo**, poi `build_config_page.py --check` + `gen_page_fixture.py --check` + `gen_font_previews.py --check`) in `all`; `devtest` invariato; `browsertest` (fuori da `all`: `tools/galleria_browser.py --selftest`).
 
 ## 9. `tools/galleria_browser.py` — Firefox headless via WebDriver (solo stdlib)
 
@@ -313,3 +315,53 @@ Contratto: `docs/design/galleria-s8-stile.md` §5 (D21 stile delle cifre, D22 en
   `isFlint()` = `platform === 'flint' || (platform === 'unknown' && fmt === 2)` con i test corrispondenti.
 - **Se dopo O11 non bastasse**: in v1.1 una terza voce in `NO_3D` (`page.js`) spegne anche l'opzione «trasparente»
   su flint, senza toccare l'orologio.
+
+---
+
+## Revisione S10 (05/09/2026) — la pagina in quattro lingue
+
+Spec completa: `galleria-s10-i18n.md` (D31–D38). Qui solo ciò che cambia per la config page.
+
+- **Dizionari fuori dall'HTML** (D35): sorgente unica `apps/galleria/i18n/messages.json`
+  (**121 chiavi × 4 lingue**, `{ "chiave": { "it", "en", "de", "fr" } }`, 23.089 B) →
+  `tools/build_i18n.py` → `src/pkjs/i18n.js` (20.731 B) e `test/fixture_i18n.js`, identici, ES5 e
+  ASCII (`module.exports = { keys, en, it, de, fr }`, array **nell'ordine del file**).
+  `--check` fallisce su chiave mancante in una lingua, segnaposto diversi fra lingue, backtick, file
+  non ordinato; `--selftest` = **20** controlli. `make -C test pagecheck` lo esegue **prima** del
+  `--check` della pagina, perché il secondo dipende dagli indici del primo.
+- **Chiavi al posto dei testi**: nei sorgenti `T('chiave')` / `T('chiave', a, b)` (`{0}`/`{1}`
+  sostituiti in **una passata**, così un valore che contiene `{1}` non viene risostituito) e
+  `data-i18n` / `data-i18n-title` su nodi di testo **vuoti**; nell'artefatto inlinato restano solo
+  **indici** (`T(12`, `data-i18n="12"`). `T` accetta numero **o** stringa: nei test sui sorgenti i
+  nomi si risolvono con `window.GalI18nKeys` (da `fixture_i18n.js`). Senza dizionario (hash assente
+  o rotto) la pagina mostra il **nome della chiave**, tranne i messaggi di stato mancante di
+  `page_core.js`, che hanno un ripiego inglese cablato: è la «modalità prova», non raggiungibile dal
+  telefono.
+- **Stato**: `lang_auto` e `i18n` (tutti e quattro i dizionari, **in coda** allo stato perché sono
+  il pezzo grosso: l'inizio dell'hash resta leggibile). Lingua effettiva =
+  `effectiveLang(settings, lang_auto)` = `LANGS[settings.lang - 1]` se `lang` ≠ 0, altrimenti
+  `lang_auto` (o `en`).
+- **`page.js`**: `applyLang()` ricostruisce `OPTS`, ripercorre `data-i18n`/`data-i18n-title`,
+  riscrive i testi delle `<option>` **senza toccarne id e valori** (D26 e R13 restano validi),
+  aggiorna `<html lang>`, la riga dell'orologio, il tono e gli aiuti; viene chiamata da
+  `writeSettings` e dal `change` di `s_lang`. `dec2()` usa `C.dec(v, lang)` (en `.`, it/de/fr `,`).
+- **`page_core.js`**: `LANGS`/`LANG_NAMES`, `langName`, `effectiveLang`, `dec`, `SETTINGS_FIELDS`
+  con `['lang', 0, 4, 0]`, `capMessage(kb, capKb, nAdded, T)` (il testo arriva dal chiamante).
+- **Select «Lingua»** (D36): `s_lang`, **prima riga** di `#settings`, opzioni con endonimi
+  («Automatica (orologio: Italiano)», «English», «Italiano», «Deutsch», «Français»); si salva come
+  ogni altra impostazione (byte 13 del blob), nessuna sync speciale.
+- **Dev server**: `--lang en|it|de|fr` → `hooks.lang` → in DEV `index.js` forza la lingua
+  **automatica** (in emulatore l'orologio è sempre `en_US`); l'impostazione `lang` resta invece una
+  voce di `--settings` (`{"lang": 3}`). Selftest **252**.
+- **Dimensioni**: HTML inlinato **64.699 B** (modulo 66.597), margine **837 B** sul tetto di
+  65.536; l'artefatto non contiene più nessun testo dell'interfaccia.
+- **Test**: `test_page.js` **1.427** asserzioni sui sorgenti + **1.452** sull'inlinato (giro «tutte
+  le lingue»: nessuna chiave vuota a schermo, nessun `{n}` residuo, `OPTS` con lo stesso numero di
+  voci in ogni lingua, `s_lang` che cambia i testi, decimali per lingua; i controlli strutturali
+  della sezione 0 verificano che nell'artefatto le chiamate a `T(` siano **numeriche**);
+  `build_config_page.py --selftest` **91**, `build_i18n.py --selftest` **20**, `test_album.js`
+  **1.316** (byte 13, round trip, CRC dei default invariato), `test_index_retry.js` **174**
+  (`lang_auto`/`i18n` nello stato, hook `lang`).
+- ⚠️ **I dizionari non passano mai per `log()`** (F-S8-2: una riga PKJS con un accento fa morire
+  `pebble logs`): viaggiano solo nell'hash dell'URL, e della lingua si logga il solo codice a due
+  lettere.

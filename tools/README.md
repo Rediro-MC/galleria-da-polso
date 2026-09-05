@@ -24,6 +24,7 @@ ImageMagick **non** è installato.
 | `galleria_browser.py` | **Firefox headless** via WebDriver (solo stdlib): pilota la config page di Galleria per il gate S6 — §12 |
 | `build_config_page.py` | Inlina le sorgenti della **config page** di Galleria in un unico HTML + `src/pkjs/config_page.js` (S6) — §13 |
 | `gen_font_previews.py` | Anteprime «12:34» a 1 bit dei tre font per la config page (`previews.js`, S6) — §14 |
+| `build_i18n.py` | **Dizionari** della config page: `apps/galleria/i18n/messages.json` → `src/pkjs/i18n.js` + fixture dei test (S10) — §18 |
 | `setup-adb.sh` | **adb** (Android platform-tools) in user space, per `pebble … --adb` sull'orologio reale (S8) — §15 |
 | `galleria_logstats.py` | **Riepilogo dei log** catturati sull'orologio reale di Galleria (solo stdlib) — §16 |
 | `gen_test_cards.py` | **Test card** dai numeri noti per soglie luma e LUT «vetro» di Galleria (Pillow) — §17 |
@@ -1041,6 +1042,7 @@ pebble emu-app-config --emulator emery      # apre http://localhost:8765/config.
 | `--work DIR` | cartella dei `.raw6`/`.raw1`/anteprime (default: temporanea, **rimossa** all'uscita — sia con Ctrl-C sia con SIGTERM, cioè `kill`/`timeout`/`pkill`); una cartella non scrivibile è un errore che nomina `--work`, non la porta |
 | `--page FILE` | serve questo HTML su `/config.html` al posto della pagina incorporata (è così che S6 proverà la config page vera); file mancante o illeggibile all'avvio = errore con messaggio. Il file viene **riletto a ogni `GET /config.html`**: in S6 basta salvare e ricaricare il browser, senza riavviare il server (cioè senza riconvertire l'album, ~300 ms per foto). Se sparisce o diventa illeggibile a server acceso si continua a servire l'ultima copia buona, con un avviso su stderr |
 | `--page-dir DIR` | **config page vera (S6)**, esclusivo con `--page`: a ogni `GET /config.html` la pagina viene inlinata da `DIR` con `tools/build_config_page.py` (§13: `inline_page()`, importato pigramente dal `tools/` accanto), così si salva un file delle sorgenti e si ricarica il browser senza riavviare il server. Un errore di inlining (file mancante, `</script>` nel contenuto, pagina oltre 64 KB) è un **500** con il messaggio in chiaro nel corpo e una riga su stderr a **ogni** GET — niente «ultima copia buona», che nasconderebbe una pagina rotta proprio mentre la si scrive; gli avvisi non fatali del tool (attributi persi, ordine degli script, > 60 KB, `localStorage`) escono invece **una volta sola** per messaggio. La cartella viene riletta a ogni richiesta, ma `build_config_page.py` è importato una volta sola: modificare il **tool** richiede il riavvio del server. `DIR` inesistente o non una cartella = errore di argparse (uscita 2); `--dump-page` lo rispetta. Senza `--album` accende anche la modalità relay |
+| `--lang en\|it\|de\|fr` | **S10 (D33)**: mette `lang: "<codice>"` in `hooks` di `/state.json`; `apps/galleria/src/pkjs/index.js` in modalità dev lo usa come **lingua automatica** della config page al posto di `Pebble.getActiveWatchInfo().language`, che in emulatore è sempre `en_US`. È un hook come `--open-ms`: uno stato con `hooks` e **senza** `lang` azzera l'hook (dev server riavviato senza il flag). ⚠️ Da non confondere con l'**impostazione** `lang` (byte 13 del blob), che è una voce di `--settings` (`--settings '{"lang": 3}'` = pagina e orologio forzati in tedesco) |
 | `--relay` | **modalità relay (S6)**: nessun album sul server — `/state.json` diventa `{v:1, seq, settings?, hooks:{scenario, open_ms?}}`, **senza `full`**, che il PKJS applica come delta vuoto e quindi non cancella nulla. Le foto arrivano dalla config page con `POST /save` e restano nel `localStorage` del PKJS. Si accende da sé con `--page-dir` senza `--album`; **con `--album` è un errore** di riga di comando |
 | `--photo-prep-args "…"` | opzioni extra per `photo_prep.py`. **Serve la forma con l'uguale** (`--photo-prep-args="--sunlight"`): senza `=`, argparse scambierebbe `--sunlight` per una propria opzione |
 | `--selftest` | autotest di tutti gli endpoint, poi esce (0/1) |
@@ -1256,7 +1258,7 @@ diverso da quello calcolato, `len` sbagliato, `data` troppo corta / fuori alfabe
 `{v, settings, order}` e senza `deleted` respinto con 400; il Save della pagina di prova che riporta
 `/save.json` allo stato del pool; e l'avviso in due righe del server nudo.
 
-Stampa `devserver selftest: N ok, M falliti` (oggi **230** con `node`; M7: +6 casi sui surrogati spaiati e su `ensure_ascii`) ed esce 0/1; gira in
+Stampa `devserver selftest: N ok, M falliti` (oggi **252** con `node`; M7: +6 casi sui surrogati spaiati e su `ensure_ascii`; S10: casi su `--lang` e sull'impostazione `lang` 0..4) ed esce 0/1; gira in
 circa 2,6 s. Lo esegue anche `make -C apps/galleria/test` (target `devtest`), come `pyselftest` per
 `photo_prep.py` (§9).
 
@@ -1415,6 +1417,18 @@ carica con `require('./config_page')`.
 Solo stdlib (Python 3.8+). Specifica: `docs/design/galleria-s6-config-page.md` §1 (contratto di
 inlining) e §7.
 
+**Passo i18n (S10, D35).** Prima dei controlli finali il tool sostituisce, in tutto l'HTML già
+inlinato, il **nome** di ogni chiave di traduzione con il suo **indice** in
+`apps/galleria/i18n/messages.json`: `T('chiave'` → `T(12`, `data-i18n="chiave"` e
+`data-i18n-title="chiave"` → `data-i18n="12"`. Così l'artefatto non porta né i testi né i nomi delle
+chiavi (i dizionari viaggiano nell'hash dell'URL, §18). Il file dei messaggi si cerca accanto alle
+sorgenti (`--dir/../../../i18n/messages.json`) e si può forzare con l'API (`messages=`); se nella
+pagina non c'è nessuna chiave non viene nemmeno aperto. Una chiave che **non esiste** è un errore
+con il numero di riga: rigenerare prima i dizionari (`build_i18n.py`), che è quello che fa
+`make -C apps/galleria/test pagecheck` eseguendo `build_i18n.py --check` **prima** di questo.
+⚠️ La sostituzione guarda tutto l'HTML, **commenti a fine riga compresi** (lo strip toglie solo le
+righe di commento intere): non scrivere `T('nome')` in un commento in coda a una riga di codice.
+
 ```bash
 python3 tools/build_config_page.py                            # rigenera src/pkjs/config_page.js
 python3 tools/build_config_page.py --check                    # 0 se è aggiornato, 1 altrimenti
@@ -1480,10 +1494,12 @@ un commento aperto a metà riga non viene toccato. Con le sorgenti del 30/08/202
 
 Il tetto duro è 65.536 B (64 KB): senza lo strip la pagina del 30/08 (S6) ci stava per 151 B; con le migliorie di S7 non ci starebbe più (lo strip è obbligatorio).
 
-Con le sorgenti del **05/09/2026** (S8-stile + avviso di avvio lento della v1.9) lo strip dà
-**HTML 63.424 B** e **modulo 65.437 B**: restano 2.112 B di margine sul tetto (che vale
-sull'HTML) e l'avviso dell'obiettivo soft (60 KB) esce a ogni generazione. Il numero corrente si
-legge sempre da `python3 tools/build_config_page.py --check`.
+Con le sorgenti del **05/09/2026** (S8-stile + avviso di avvio lento della v1.9) lo strip dava
+**HTML 63.424 B** e **modulo 65.437 B**; dopo gli aiuti di S9-prep 64.222 / 66.268 e dopo il
+multilingua di **S10** (che aggiunge `T`, il select «Lingua» e `applyLang`, ma toglie ogni testo
+dall'artefatto) **HTML 64.699 B** e **modulo 66.597 B**: restano **837 B** di margine sul tetto
+(che vale sull'HTML) e l'avviso dell'obiettivo soft (60 KB) esce a ogni generazione. Il numero
+corrente si legge sempre da `python3 tools/build_config_page.py --check`.
 
 ### Il modulo generato, e la riproducibilità
 
@@ -1513,7 +1529,7 @@ via, stringhe e commenti a metà riga intatti, idempotenza, `--no-strip` che non
 riproducibilità (due esecuzioni identiche, CRLF+BOM = LF), il modulo (solo ASCII, round trip JSON,
 nessuna data) e la CLI: `--check` nei tre casi, e soprattutto che dopo un fallimento il file
 precedente **resti intatto** con l'avviso. Stampa `build_config_page selftest: N ok, M falliti` —
-oggi **83** controlli in meno di 0,1 s — ed esce 0/1.
+oggi **91** controlli in meno di 0,1 s (S10: passo i18n, chiave inesistente, `data-i18n` con indice) — ed esce 0/1.
 
 ---
 
@@ -1843,3 +1859,49 @@ non coincide con la tabella di `--check`, è successa una di queste due cose: ri
 cornice più larga possibile e premere «Adatta» (l'orientamento del telefono non conta: la cornice è
 comunque limitata a 300 px). Lo stesso avviso lo stampa
 il tool a ogni esecuzione.
+
+---
+
+## 18. `build_i18n.py` – dizionari della config page di Galleria (S10)
+
+Genera i **dizionari** della config page dalla loro sorgente unica,
+`apps/galleria/i18n/messages.json`: la pagina non contiene più testi, solo chiavi che
+`build_config_page.py` (§13) trasforma in **indici**, e i quattro dizionari viaggiano nell'hash
+dell'URL. Solo stdlib (Python 3.8+). Spec: `docs/design/galleria-s10-i18n.md` §1 (D35) e
+`apps/galleria/i18n/README.md`.
+
+```bash
+python3 tools/build_i18n.py             # rigenera i due file
+python3 tools/build_i18n.py --check     # 0 se sono aggiornati, 1 altrimenti (dentro `pagecheck`)
+python3 tools/build_i18n.py --selftest  # 20 controlli su una cartella temporanea
+```
+
+**Sorgente** (`{ "chiave": { "it": …, "en": …, "de": …, "fr": … } }`, i campi che iniziano con `_`
+sono commenti) → **due file identici**:
+
+| File | A che serve |
+|---|---|
+| `apps/galleria/src/pkjs/i18n.js` | il PKJS lo carica pigramente e lo mette nello stato dell'hash (`configState`) |
+| `apps/galleria/test/fixture_i18n.js` | gli stessi dati per i test node (`test_page.js` risolve i nomi delle chiavi) |
+
+```js
+module.exports = { keys: [...], en: [...], it: [...], de: [...], fr: [...] };
+```
+
+ES5 e **ASCII** (accenti come `\uXXXX`), array **nell'ordine del file**: l'indice di una chiave è la
+sua posizione. Oggi **121 chiavi × 4 lingue**, `messages.json` 23.089 B, `i18n.js` 20.731 B
+(05/09/2026), ≈ 19,9 k caratteri una volta in base64url dentro l'hash.
+
+⚠️ **Aggiungere una chiave in mezzo cambia gli indici**: si rigenera sempre tutto insieme, e
+`make -C apps/galleria/test pagecheck` esegue questo `--check` **prima** di quello della pagina.
+
+**Controlli** (a ogni generazione e con `--check`, uscita 1 con un messaggio, mai un traceback):
+JSON valido con un oggetto in cima e nessuna chiave doppia; nomi in `snake_case`; ogni voce con
+**esattamente** le 4 lingue nell'ordine `it, en, de, fr`; testi non vuoti, senza backtick (la pagina
+viene inlinata in una stringa) né CR; segnaposto solo `{0}`/`{1}` e lo **stesso insieme** in tutte le
+lingue della voce; i due file generati identici alla rigenerazione.
+
+**Autotest** (`--selftest`): su una cartella temporanea, generazione e round trip, `--check` nei casi
+aggiornato/non aggiornato/mancante, lingua mancante, segnaposto diversi fra lingue, backtick, chiave
+doppia, file assente o non JSON, output ASCII e riproducibile. Stampa
+`build_i18n --selftest: N ok` — oggi **20** — ed esce 0/1.

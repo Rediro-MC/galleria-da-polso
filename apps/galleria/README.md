@@ -10,7 +10,11 @@ grande e nitida sopra e il **colore del testo scelto da solo** (bianco o nero, i
 | ![Galleria su emery con la foto chiara](../../docs/design/galleria/s9_emery_a_anton_chiara.png)<br>**emery** — layout A, Anton, demo chiara → testo nero | ![Galleria su emery, layout B trasparente 3D](../../docs/design/galleria/s9_emery_b_francois_trasparente3d_scura.png)<br>**emery** — layout B, Francois One, stile trasparente 3D |
 
 Screenshot dal gate **S9-prep** (05/09/2026), con le due foto demo CC0 e l'album vuoto; tutti gli altri
-sono in `../../docs/design/galleria/`.
+sono in `../../docs/design/galleria/`. Del multilingua (S10, 0.2.0), nella stessa cartella: la
+config page nelle quattro lingue (`s10_page_en.png`, `s10_page_it.png`, `s10_page_de.png`,
+`s10_page_fr.png`), la data sull'orologio con la lingua forzata (`s10_emery_a_lang_en.png`,
+`…_it`, `…_de`, `…_fr`, e `s10_flint_a_lang_de.png` / `…_fr`) e l'icona di sincronizzazione con
+«k/n» (`s10_emery_a_sync.png`, `s10_emery_b_sync.png`, `s10_flint_a_sync.png`).
 
 ## Requisiti
 
@@ -48,15 +52,29 @@ configurazione, una colonna sola, dove:
    decisione D6). L'**anteprima ×2** mostra la foto «come sul vetro» oppure a colori nominali.
 3. Le tessere sono in **ordine di rotazione**: ▲ ▼ per riordinare, ✕ per eliminare; un badge dice se
    una foto è *da inviare*, *nuova* o *solo sull'orologio*.
-4. Sotto ci sono tutte le **impostazioni**: layout A o B, font, **stile delle cifre**, 12/24 h, zero
-   iniziale, colore del testo, contorno, intervallo di rotazione, ordine, «scuoti per la prossima»,
-   voci della riga info. Scegliendo uno stile diverso da *pieno* la pagina consiglia i font che
+4. Sotto ci sono tutte le **impostazioni**: **lingua**, layout A o B, font, **stile delle cifre**,
+   12/24 h, zero iniziale, colore del testo, contorno, intervallo di rotazione, ordine, «scuoti per
+   la prossima», voci della riga info. Scegliendo uno stile diverso da *pieno* la pagina consiglia i font che
    rendono meglio (Francois One e Staatliches) e, con un **Pebble 2 Duo** collegato, avvisa che lì il
    contorno delle cifre è di 1 px: sulle foto molto dettagliate conviene lo stile pieno.
 5. **Salva** manda tutto all'orologio. Un contatore mostra quanti KB stai per inviare: oltre il tetto
    del telefono il pulsante si disabilita e ti dice quante foto togliere.
 
-Il trasferimento è a chunk: durante la sync la riga info scrive «Foto k/n». Il numero della foto in
+**La pagina parla quattro lingue** (dal 05/09/2026, versione 0.2.0): **inglese, italiano, tedesco e
+francese**. Di suo segue la **lingua dell'orologio** (se è una di queste quattro; altrimenti
+inglese), e la prima riga delle impostazioni — **«Lingua»** — permette di sceglierne una a mano:
+«Automatica (orologio: Italiano)», «English», «Italiano», «Deutsch», «Français». Il cambio è
+**immediato**, senza ricaricare la pagina e senza passare dall'orologio: nell'indirizzo della pagina
+viaggiano tutti e quattro i dizionari.
+
+La stessa impostazione vale anche **sull'orologio**: con «Automatica» la data resta quella del
+firmware (quindi segue il *language pack* installato, anche spagnolo o russo), mentre scegliendo una
+lingua la data usa le abbreviazioni di quella lingua — «Sat 5 Sep», «Sab 5 Set», «Sa, 5. Sep»,
+«Sam 5 Sept.» — e il separatore delle migliaia dei passi cambia di conseguenza (inglese `6,532`,
+italiano e tedesco `6.532`, francese `6 532`).
+
+Il trasferimento è a chunk: durante la sync la riga info mostra una **freccia circolare** e «k/n»
+(nessuna parola: si legge in qualunque lingua). Il numero della foto in
 corso lo manda il telefono, quindi il contatore arriva a n/n anche quando qualche foto viene saltata
 (05/09/2026; unica eccezione: se a essere saltata è proprio l'ultima). Puoi uscire dalla pagina,
 riprende da solo.
@@ -74,7 +92,7 @@ la procedura: sono le stesse due cose che trovi qui sotto.
 - **Layout B**: solo l'ora, HH sopra MM, cifre alte **fino a 94 px** sul Pebble Time 2 (**62 px** sul Pebble 2
   Duo) a tutto schermo. (Sono le righe disponibili al riempimento in `src/c/digit_metrics.h`, riempite
   per intero da Anton; Barlow Condensed e Francois One si fermano a 61 px in A; contorno e ombra
-  sporgono di qualche pixel in più.) Durante una sincronizzazione anche il layout B mostra «Foto k/n», piccolo in basso a sinistra (dal 05/09/2026, R10): sparisce da solo a trasferimento finito.
+  sporgono di qualche pixel in più.) Durante una sincronizzazione anche il layout B mostra il contatore, piccolo in basso a sinistra (dal 05/09/2026, R10): sparisce da solo a trasferimento finito.
 - **Font**: Anton (default), Bebas Neue, Barlow Condensed Bold, Francois One, Staatliches e — solo
   nel layout A — il LECO 60 di sistema.
 - **Stile delle cifre**: *pieno* (come sempre), *trasparente* (dentro le cifre si vede la foto, con
@@ -93,6 +111,11 @@ la procedura: sono le stesse due cose che trovi qui sotto.
 - **Colore del testo**: calcolato sull'orologio a ogni cambio foto sulla fascia occupata dalle cifre;
   bianco o nero, con contorno automatico quando la foto è troppo mossa di luminanza. Si può anche
   forzare (bianco, nero, giallo pastello, blu Oxford).
+- **Lingua** (dalla 0.2.0): con «Automatica» la data della riga info è quella del firmware (segue il
+  *language pack* dell'orologio); scegliendo inglese, italiano, tedesco o francese la data usa le
+  abbreviazioni di quella lingua e i passi il separatore giusto (`6,532` in inglese, `6.532` in
+  italiano e tedesco, `6 532` in francese). Nessuna parola compare durante la sincronizzazione: una
+  **freccia circolare** e «k/n».
 - Aggiornamento al **minuto**, mai i secondi, nessuna animazione, nessun timer continuo.
 - Con l'album vuoto partono le **2 foto demo** incluse nell'app (foto CC0, vedi «Licenze»).
 
@@ -140,6 +163,8 @@ sano contro **~2,7 s** con un file gonfio; dopo la reinstallazione l'avvio è to
 - Il salto di foto con la **scossa** non sopravvive al riavvio della watchface (scelta voluta: vedi
   «Sull'orologio»).
 - Niente PNG sull'orologio in v1; il layout B non ha la riga info.
+- La pagina delle impostazioni è in **quattro lingue** (en/it/de/fr), ma il **listing dello store**
+  resta in inglese: lo store Pebble non è localizzato.
 - I passi della riga info si aggiornano al **tick del minuto** (mai i secondi): un cambiamento appare entro un minuto.
 
 ## Struttura del progetto
@@ -147,9 +172,12 @@ sano contro **~2,7 s** con un file gonfio; dopo la reinstallazione l'avvio è to
 ```
 src/c/         main.c, ui_time.c, ui_photo.c, ui_digits.c, model.c, storage.c, sync.c, settings.c
                logica pura senza pebble.h (testabile su host): timefmt.c, luma.c, crc.c,
-               photo_codec.c, rotation.c, sync_proto.c + gal_types.h, settings.h, digit_metrics.h
+               photo_codec.c, rotation.c, sync_proto.c, datefmt.c (data per lingua, S10)
+               + gal_types.h, settings.h, digit_metrics.h
 src/pkjs/      index.js (eventi Pebble, modalità dev, retry), album.js (album in localStorage e
-               diff), sync.js (motore), devserver.js, crc.js, b64.js, config_page.js (generato)
+               diff), sync.js (motore), devserver.js, crc.js, b64.js, config_page.js (generato),
+               i18n.js (dizionari della pagina, generato)
+i18n/          messages.json: i testi della config page in it/en/de/fr (sorgente unica, S10)
 src/pkjs/config/  sorgenti ES5 della config page: page.html, page.css, page_core.js, page.js,
                pipeline.js (porting byte-esatto di tools/photo_prep.py), previews.js
 resources/     photos/ (2 demo raw6+raw1), digits/ (strip PNG delle cifre), fonts/ (TTF sorgente,
@@ -157,12 +185,14 @@ resources/     photos/ (2 demo raw6+raw1), digits/ (strip PNG delle cifre), font
 test/          test host in C (gcc) + test node + selftest Python
 ../../tools/   photo_prep.py (foto → raw6/raw1), gen_digits.py (TTF → strip + digit_metrics.h),
                gen_font_previews.py, build_config_page.py (inlina la config page),
-               galleria_devserver.py (config page dell'emulatore), galleria_browser.py
+               build_i18n.py (messages.json → i18n.js + fixture), galleria_devserver.py
+               (config page dell'emulatore), galleria_browser.py
 ```
 
 Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7),
 `../../docs/design/galleria.md` (design), `../../docs/design/galleria-s6-config-page.md`
-(config page), `CLAUDE.md` (regole di lavoro sull'app).
+(config page), `../../docs/design/galleria-s10-i18n.md` (multilingua) e `i18n/README.md`,
+`CLAUDE.md` (regole di lavoro sull'app).
 
 ## Build, test, emulatore
 
@@ -170,7 +200,8 @@ Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7)
 . ~/ProgettiClaude/Pebble/tools/pebble-env.sh
 cd ~/ProgettiClaude/Pebble/apps/galleria
 
-make -C test pagecheck        # config page inlinata aggiornata: PRIMA di ogni build
+make -C test pagecheck        # dizionari + config page inlinata aggiornati: PRIMA di ogni build
+python3 ../../tools/build_i18n.py   # solo i dizionari (i18n/messages.json → src/pkjs/i18n.js)
 pebble build 2>&1 | grep -A4 "MEMORY USAGE"
 
 pebble install --emulator emery --logs
@@ -232,8 +263,8 @@ che invecchiano.
 - **Codice dell'app**: **MIT** — decisione **U1** presa dall'autore il **05/09/2026**. Il testo integrale è in
   **`LICENSE`** nella radice del repository («Copyright (c) 2026 **Rediro**»); il repository
   (`https://github.com/Rediro-MC/galleria-da-polso`) è pubblico (decisione **U4**).
-- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **0.1.0**, prima release
-  pubblica in **beta** (decisione **U7**; tag git `v0.1.0-beta`).
+- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **0.2.0** (S10, multilingua);
+  la **0.1.0** è stata la prima release pubblica in **beta** (decisione **U7**; tag git `v0.1.0-beta`).
 - **Font delle cifre**: Anton, Bebas Neue, Barlow Condensed Bold, Francois One e Staatliches, tutti
   **SIL Open Font License 1.1** (testo integrale e provenienza in `resources/fonts/`). I TTF non
   entrano nel `.pbw`: dell'app fanno parte solo le immagini delle cifre. Credito facoltativo per lo
@@ -249,9 +280,19 @@ che invecchiano.
 
 ## Pubblicazione nello store (S9)
 
+**Pubblicata il 05/09/2026 (0.1.0 beta)**: https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8 — store Core, app `cdf80cc3bf6745b1a310e4c8`, autore Rediro, categoria Faces; comando ed esito in `store/PUBLISH.md`.
+
+**Aggiornamento 0.2.0 (S10, multilingua)**: note di rilascio in `store/release_notes_0.2.0.txt`
+(inglese + una riga per lingua) e comando in `store/PUBLISH.md` §4, variante «nuova release»
+(`--version 0.2.0 --release-notes "$(cat store/release_notes_0.2.0.txt)"`). Lo store **non è
+localizzato**: nome e descrizione restano in inglese, e la **descrizione va incollata a mano nella
+dashboard** (dalla CLI non si aggiorna più) — il testo aggiornato, con «Settings page in English,
+Italian, German and French», è in `store/description.txt`.
+
 Il testo definitivo del listing non sta più qui: nome, descrizione, release notes, crediti e note per
 lo store sono in **`store/LISTING.md`** (la descrizione pronta da incollare anche in
-`store/description.txt`, le note di rilascio in `store/release_notes_0.1.0.txt`), e la riga
+`store/description.txt`, le note di rilascio in `store/release_notes_0.1.0.txt` e
+`store/release_notes_0.2.0.txt`), e la riga
 `pebble publish` con prerequisiti, limiti della CLI e passi Rebble è in **`store/PUBLISH.md`**.
 
 Le decisioni **U1–U9** sono state prese il **05/09/2026**: U1 licenza **MIT** (`LICENSE` in radice),

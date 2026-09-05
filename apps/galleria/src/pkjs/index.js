@@ -15,6 +15,7 @@ var scenario = 'photo';               /* solo dev: guasti iniettati nel motore (
 var scenarioFired = false;
 var chunkNo = 0;
 var devOpenMs = null;                 /* solo dev: HELLO.OPEN_MS finto (state.hooks.open_ms, --open-ms); null = valore vero */
+var devLang = null;                   /* solo dev: lingua automatica forzata (state.hooks.lang, --lang); null = quella dell'orologio */
 
 /* Ripresa automatica (S5b, F9): una sync finita con errori viene ritentata con un backoff lungo —
  * ogni tentativo è solo JS_READY → HELLO → diff, quindi costa nulla se non c'è niente da fare.
@@ -232,7 +233,7 @@ function applyPayload(payload, full) {
 /* Stato dal dev server: completo solo se lo dichiara (full: true, come /state.json e /save.json
  * oggi); un payload delta (S6) non va applicato come stato completo (F10). */
 function applyDevState(state) {
-  var om, next;
+  var om, next, lg, nextLang;
   if (state && state.hooks && typeof state.hooks.scenario === 'string') {
     scenario = state.hooks.scenario;
     if (scenario !== 'photo' && scenario !== 'none') { log('[dev] scenario di guasto "' + scenario + '"'); }
@@ -251,6 +252,20 @@ function applyDevState(state) {
                         : '[dev] hook open_ms: HELLO.OPEN_MS forzato a ' + next + ' ms (avviso di avvio lento)');
     }
     devOpenMs = next;
+  }
+  /* Lingua automatica finta (S10/D33, --lang): stessa regola dell'hook open_ms — uno stato con
+   * `hooks` e SENZA `lang` AZZERA l'hook (dev server riavviato senza il flag), uno stato senza
+   * `hooks` del tutto non lo tocca. Serve a vedere la config page in de/fr senza cambiare la
+   * lingua dell'orologio (in emulatore non e' nemmeno cambiabile: en_US fisso). */
+  if (state && state.hooks) {
+    lg = state.hooks.lang;
+    nextLang = (typeof lg === 'string' && LANGS[lg] === 1) ? lg : null;
+    if (lg !== undefined && lg !== null && nextLang === null) { log('[dev] hook lang non valido (' + ascii8(lg) + '): ignorato'); }
+    if (nextLang !== devLang) {
+      log(nextLang === null ? '[dev] hook lang rimosso: lingua automatica dall\'orologio'
+                            : '[dev] hook lang: lingua automatica forzata a ' + nextLang);
+    }
+    devLang = nextLang;
   }
   return applyPayload(state, !!(state && state.full === true));
 }
@@ -314,6 +329,79 @@ function watchPlatform() {
   return (info && typeof info.platform === 'string') ? info.platform : 'unknown';
 }
 
+/* ---- lingua (S10, D33) ----
+ * La lingua "automatica" della pagina e' quella dell'OROLOGIO (getActiveWatchInfo().language,
+ * p.es. 'it_IT'): coincide con quella di notifiche e calendario ed e' l'unica che il PKJS
+ * conosce su iOS, dove `navigator` non esiste (in pypkjs vale sempre 'en-GB'). Ripieghi, in
+ * ordine: navigator.language se il runtime ce l'ha, poi 'en'. In DEV l'hook `lang` del dev
+ * server (--lang) vince su tutto: prova la pagina nelle quattro lingue senza toccare l'orologio.
+ * Le quattro lingue della pagina; le altre (es/pt/ru...) ricadono su 'en' (l'orologio, in auto,
+ * continua a usare strftime e quindi il suo language pack: D33). */
+var LANGS = { en: 1, it: 1, de: 1, fr: 1 };
+var LANG_ORDER = ['en', 'it', 'de', 'fr'];       /* ordine fisso nello stato della pagina */
+
+/* '<xx>' dai primi due caratteri del locale ('it_IT', 'de-CH' -> 'it', 'de'), null se non e' una
+ * delle quattro lingue della pagina. */
+function langOf(loc) {
+  var xx = (typeof loc === 'string') ? loc.slice(0, 2).toLowerCase() : '';
+  return (LANGS[xx] === 1) ? xx : null;
+}
+
+/* Testo di un log ridotto ad ASCII stampabile e a 8 caratteri (F-S8-2: l'app inoltra i byte UTF-8
+ * contando i caratteri; una riga con un accento fa cadere `pebble logs`). */
+function ascii8(v) { return String(v).replace(/[^\x20-\x7E]/g, '?').slice(0, 8); }
+
+/* Lingua dell'orologio collegato: 'it_IT', 'en_GB', ... oppure null (app vecchia, orologio
+ * scollegato, campo assente). Accanto a watchPlatform(), stesso trattamento degli errori. */
+function watchLanguage() {
+  var info = null;
+  try { info = (typeof Pebble.getActiveWatchInfo === 'function') ? Pebble.getActiveWatchInfo() : null; }
+  catch (e) { info = null; }                         /* app vecchia o orologio non collegato */
+  return (info && typeof info.language === 'string' && info.language) ? info.language : null;
+}
+
+/* Codice della lingua automatica ('en'|'it'|'de'|'fr') + una riga di log che dice DA DOVE viene. */
+function langAuto() {
+  var loc = watchLanguage(), code = langOf(loc), nav = null, navCode;
+  if (DEV && devLang) { log('[config] lang auto=' + devLang + ' (hook dev)'); return devLang; }
+  if (code) { log('[config] lang auto=' + code + ' (watch ' + ascii8(loc) + ')'); return code; }
+  if (typeof navigator !== 'undefined' && navigator && typeof navigator.language === 'string') { nav = navigator.language; }
+  navCode = langOf(nav);
+  if (navCode) { log('[config] lang auto=' + navCode + ' (navigator ' + ascii8(nav) + ')'); return navCode; }
+  log('[config] lang auto=en (default, watch ' + (loc === null ? 'assente' : ascii8(loc)) + ')');
+  return 'en';
+}
+
+/* Dizionari della pagina (S10/D35): require PIGRO di ./i18n (generato da tools/build_i18n.py,
+ * come config_page.js), tutte e quattro le lingue perche' il select della pagina cambi lingua
+ * senza tornare al PKJS. Modulo assente o malformato -> null: la pagina resta in inglese minimo
+ * invece di non aprirsi. I testi hanno accenti: non finiscono MAI in un log (F-S8-2). */
+var I18N = null;
+var i18nTried = false;
+
+function i18nDicts() {
+  var m = null, out = {}, i, code, n = -1, v;
+  if (i18nTried) { return I18N; }
+  i18nTried = true;
+  try { m = require('./i18n'); }
+  catch (e) {
+    log('[config] i18n.js mancante (' + e + '): eseguire tools/build_i18n.py');
+    return null;
+  }
+  for (i = 0; i < LANG_ORDER.length; i++) {
+    code = LANG_ORDER[i];
+    v = m ? m[code] : null;
+    if (Object.prototype.toString.call(v) !== '[object Array]' || v.length === 0 || (n >= 0 && v.length !== n)) {
+      log('[config] i18n.js malformato (' + code + '): pagina senza dizionari');
+      return null;
+    }
+    n = v.length;
+    out[code] = v;
+  }
+  I18N = out;
+  return I18N;
+}
+
 function configState() {
   var st, platform = watchPlatform(), fmt;
   if (!album) { album = new Album(safeStorage(), log); }
@@ -326,9 +414,11 @@ function configState() {
   /* cap_kb: 900 (Android). Pebble.platform è il runtime ('pebble' sul telefono, 'pypkjs' in emulatore), NON
    * l'OS: iOS non è riconoscibile da qui (revisione S6 #4) → è la pagina ad abbassare il tetto a 200 KB
    * quando navigator.userAgent è iPhone/iPad/iPod. */
-  return { v: 1, platform: platform, fmt: fmt, cap_kb: 900, dev: DEV,
+  /* lang_auto (S10/D33) = lingua della pagina quando settings.lang vale 0; i dizionari (D35)
+   * vanno IN CODA: sono il pezzo grosso dello stato e cosi' l'inizio dell'hash resta leggibile. */
+  return { v: 1, platform: platform, fmt: fmt, cap_kb: 900, dev: DEV, lang_auto: langAuto(),
            settings: st.settings, settingsSet: st.settingsSet, photos: st.photos, order: st.order,
-           deleted: st.deleted, watch: st.watch || null };
+           deleted: st.deleted, watch: st.watch || null, i18n: i18nDicts() };
 }
 
 var cfgOpenedAt = 0;                                /* S8: ms fra Pebble.openURL e webviewclosed (tempo nella pagina) */

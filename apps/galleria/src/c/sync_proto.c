@@ -21,7 +21,7 @@ typedef struct {
 static uint8_t     s_native_format;
 static uint16_t    s_max_chunk;
 static uint8_t     s_state = SYNC_ST_IDLE;
-static uint8_t     s_count, s_index;            /* avanzamento "Foto index/count" */
+static uint8_t     s_count, s_index;            /* avanzamento "k/n" della sync (S10: senza parola) */
 static uint8_t     s_counted_slot = GAL_SLOT_NONE;  /* ultima foto conteggiata in s_index (revisione S5a: */
 static uint32_t    s_counted_id;                    /* una ripartenza da 0 della stessa foto non avanza) */
 static SyncPending s_pend;
@@ -128,7 +128,7 @@ static SyncAction prv_sync_request(const SyncIn *in, SyncOut *out) {
     return prv_status(out, SYNC_CODE_NOT_SUPPORTED, GAL_SLOT_NONE, 0);
   }
   /* Idempotente: un SYNC_REQUEST ripetuto (SYNC_READY perso, o rinnovato dal telefono dopo un BUSY)
-   * abbandona il pending; l'indice "Foto k/n" riparte da OFFSET = foto già concluse (F3: 0 se
+   * abbandona il pending; l'indice "k/n" riparte da OFFSET = foto già concluse (F3: 0 se
    * assente, PKJS vecchio), clampato a count − 1 così il PHOTO_BEGIN successivo mostra al più n/n. */
   const uint8_t count = (in->fields & SYNC_F_COUNT) ? in->count : 0;
   uint8_t idx = (in->fields & SYNC_F_OFFSET) ? (uint8_t)(in->offset > 255u ? 255u : in->offset) : 0;
@@ -161,7 +161,7 @@ static SyncAction prv_photo_begin(const SyncIn *in, SyncOut *out) {
     return prv_status(out, SYNC_CODE_NO_SPACE, slot, 0);
   }
   /* Ripresa (o ritrasmissione di un BEGIN il cui STATUS si è perso: offset == next == 0) se
-   * coincide con il pending: CRC parziale conservato e "Foto k/n" fermo (test host S5a). */
+   * coincide con il pending: CRC parziale conservato e "k/n" fermo (test host S5a). */
   const uint32_t offset = (in->fields & SYNC_F_OFFSET) ? in->offset : 0;
   const bool resume = s_pend.active && s_pend.slot == slot && s_pend.photo_id == in->photo_id
                    && s_pend.crc_expected == in->crc && offset == s_pend.next;
@@ -181,8 +181,8 @@ static SyncAction prv_photo_begin(const SyncIn *in, SyncOut *out) {
       .active = true, .slot = slot, .format = in->format, .photo_id = in->photo_id,
       .length = in->length, .crc_expected = in->crc, .crc_running = 0, .next = 0,
     };
-    /* "Foto k/n" avanza solo per una foto diversa dall'ultima conteggiata: una ripartenza da 0
-     * (CRC_ERR, SEQ_ERR con pending perso) non deve mostrare "Foto 2/1" (revisione S5a). */
+    /* "k/n" avanza solo per una foto diversa dall'ultima conteggiata: una ripartenza da 0
+     * (CRC_ERR, SEQ_ERR con pending perso) non deve mostrare "2/1" (revisione S5a). */
     if (slot != s_counted_slot || in->photo_id != s_counted_id) {
       s_counted_slot = slot;
       s_counted_id = in->photo_id;

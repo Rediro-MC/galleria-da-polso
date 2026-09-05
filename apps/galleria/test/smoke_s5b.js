@@ -57,6 +57,17 @@ var logs = [];
 console.log = function (m) { logs.push(String(m)); origLog(m); };
 var sync = require('../src/pkjs/sync');
 sync.configure({ statusTimeoutMs: 200, watchdogMs: 2000, backoffMs: [10, 10, 10], helloTimeoutMs: 100 });
+
+/* S10/D35: `require('./i18n')` di index.js dirottato su shim/i18n_stub.js — lo smoke non dipende da
+ * src/pkjs/i18n.js, che tools/build_i18n.py genera da i18n/messages.json. */
+(function hijackI18n() {
+  var Module = require('module'), orig = Module._resolveFilename, stub = require.resolve('i18n_stub');
+  Module._resolveFilename = function (request, parent) {
+    if (request === './i18n' && parent && /src[\/\\]pkjs[\/\\]index\.js$/.test(parent.filename || '')) { return stub; }
+    return orig.apply(this, arguments);
+  };
+})();
+
 require('../src/pkjs/index');
 
 function delta() {
@@ -267,6 +278,15 @@ steps.push(function (next) {
   check(!!st && st.v === 1, 'step10: stato JSON v1');
   check(!!st && st.fmt === 1 && st.platform === 'emery', 'step10: fmt 1 / platform emery (got ' + (st && st.fmt) + '/' + (st && st.platform) + ')');
   check(!!st && st.cap_kb === 900 && st.dev === false, 'step10: cap 900 KB, dev false');
+  /* S10 (D33/D35): lingua automatica dall'orologio (getActiveWatchInfo().language = 'it_IT' nel
+   * Pebble finto) e i quattro dizionari, che la pagina usa per cambiare lingua senza tornare al PKJS. */
+  check(!!st && st.lang_auto === 'it', 'step10: lang_auto dall\'orologio it_IT (got ' + (st && st.lang_auto) + ')');
+  check(hasLog(/^\[config\] lang auto=it \(watch it_IT\)$/, l10), 'step10: log ASCII della lingua automatica');
+  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr"]',
+        'step10: i18n con le quattro lingue (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
+  check(!!st && st.i18n && st.i18n.it.length === st.i18n.de.length && st.i18n.fr.length === st.i18n.en.length,
+        'step10: dizionari paralleli');
+  check(!!st && st.settings && st.settings.lang === 0, 'step10: settings.lang = 0 (automatica) nel payload');
   check(!!st && st.settingsSet === true && st.settings && st.settings.font === 2 && st.settings.layout === 1 && st.settings.interval_min === 15, 'step10: impostazioni salvate nello stato (got ' + JSON.stringify(st && st.settings) + ')');
   check(!!st && st.photos && st.photos.length === 12 && st.photos[3] && st.photos[3].fmts && st.photos[3].fmts[1], 'step10: foto dello slot 3 nello stato');
   check(!!st && st.watch && st.watch.format === 1 && st.watch.slots && st.watch.slots.length === 12 && st.watch.slots[3].state === 1 && st.watch.slots[3].crc === crcB, 'step10: snapshot HELLO aggiornato dagli esiti (slot 3 VALID dopo il reinvio; got ' + JSON.stringify(st && st.watch && st.watch.slots[3]) + ')');

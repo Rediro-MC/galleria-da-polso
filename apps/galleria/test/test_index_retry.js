@@ -29,6 +29,10 @@
  *      stato dev successivo SENZA l'hook (dev server riavviato senza --open-ms) lo azzera
  *   k  dev: hooks.open_ms 0 (valido: avviso spento), non numerico e negativo (ignorati)
  *   l  fuori dall'emulatore (platform android) l'hook non ha alcun effetto: il token dev è rifiutato
+ *   m  S10 (D33/D35): lingua automatica nello stato della config page (orologio, ripiego
+ *      navigator, ripiego 'en') e dizionari `i18n` (modulo assente/malformato → null)
+ *   n  S10: in dev l'hook `lang` forza la lingua automatica, uno stato senza l'hook la ridà
+ *      all'orologio e un valore ignoto viene rifiutato
  *
  * I casi j-l girano con platform 'pypkjs' e devserver.js stubbato via require.cache (nessun server:
  * lo stato dev arriva da devStub.state / devStub.saveState), come in test_devstorage.js.
@@ -61,6 +65,37 @@ var devStub = {
   m.filename = DEVSERVER; m.loaded = true;
   m.exports = devStub;
   require.cache[DEVSERVER] = m;
+})();
+
+/* `navigator` del runtime: node 22 ne ha uno proprio (language 'en-US') e la proprieta' NON si
+ * sovrascrive con un assegnamento. Nei test di S10 serve poterlo togliere (PKJS su iOS: non esiste)
+ * o sostituire (WebView Android). */
+var NAV_DESC = Object.getOwnPropertyDescriptor(global, 'navigator');
+function setNavigator(lang) {
+  if (lang === null) { delete global.navigator; return; }
+  Object.defineProperty(global, 'navigator', { value: { language: lang }, configurable: true, writable: true });
+}
+function restoreNavigator() {
+  delete global.navigator;
+  if (NAV_DESC) { Object.defineProperty(global, 'navigator', NAV_DESC); }
+}
+
+/* S10/D35: `require('./i18n')` di index.js dirottato sugli stub di shim/ — i test non dipendono da
+ * src/pkjs/i18n.js, che genera tools/build_i18n.py da i18n/messages.json. i18nTarget = null simula
+ * il modulo ASSENTE (require che lancia MODULE_NOT_FOUND). */
+var I18N_OK = require.resolve('i18n_stub');
+var I18N_BAD = require.resolve('i18n_stub_bad');
+var i18nTarget = I18N_OK;
+(function hijackI18n() {
+  var orig = Module._resolveFilename;
+  Module._resolveFilename = function (request, parent) {
+    var e;
+    if (request === './i18n' && parent && /src[\/\\]pkjs[\/\\]index\.js$/.test(parent.filename || '')) {
+      if (i18nTarget === null) { e = new Error("Cannot find module './i18n'"); e.code = 'MODULE_NOT_FOUND'; throw e; }
+      return i18nTarget;
+    }
+    return orig.apply(this, arguments);
+  };
 })();
 
 var pass = 0, fail = 0;
@@ -145,6 +180,7 @@ function env(opts) {
   en.watch = new FakeWatch({ format: 1, maxChunk: 4096, albumEnabled: opts.albumEnabled !== false,
                              openMs: opts.openMs || 0, log: function () {} });
   en.pebble = new FakePebble(en.watch, { platform: opts.platform || 'android' });
+  if (opts.watchInfo !== undefined) { en.pebble.watchInfo = opts.watchInfo; }   /* S10: lingua dell'orologio */
   devStub.state = opts.devState || null;         /* /state.json del caso (solo con platform 'pypkjs') */
   devStub.saveState = null;
   global.Pebble = en.pebble;
@@ -158,6 +194,11 @@ function env(opts) {
   en.logStart = logs.length;
   en.longStart = longTimers.length;
   if (opts.setup) { opts.setup(en); }
+  /* node tiene una cache request->file per (parent, './i18n'): finche' il modulo risolto resta in
+   * require.cache, Module._load NON richiama _resolveFilename e il dirottamento non cambierebbe piu'
+   * bersaglio. Cancellare gli stub invalida anche quella cache. */
+  delete require.cache[I18N_OK];
+  delete require.cache[I18N_BAD];
   delete require.cache[INDEX];
   require(INDEX);
   en.pebble.fire('ready');
@@ -186,6 +227,16 @@ function snapOpenMs() {
   try { raw = global.localStorage.getItem(Album.WKEY); } catch (e) { raw = null; }
   try { w = raw ? JSON.parse(raw) : null; } catch (e2) { w = null; }
   return w ? w.openMs : undefined;
+}
+
+/* Stato che la config page riceve nell'HASH dell'URL (b64url dei byte UTF-8 del JSON): è quello che
+ * la pagina legge davvero, quindi ciò che conta per lang_auto e i dizionari (S10). */
+function pageState(en) {
+  var url, hash;
+  en.pebble.fire('showConfiguration');
+  url = en.pebble.opened[en.pebble.opened.length - 1] || '';
+  hash = url.slice(url.indexOf('#') + 1);
+  try { return JSON.parse(Buffer.from(b64.decode(hash)).toString('utf8')); } catch (e) { return null; }
 }
 
 /* Save della pagina di prova in dev: /save.json risponde `state`, index.js lo applica e risincronizza.
@@ -511,6 +562,113 @@ cases.push(['l fuori dall\'emulatore l\'hook open_ms non ha effetto (token dev r
       check(snapOpenMs() === 7, 'l: snapshot invariato, got ' + snapOpenMs());
       next();
     }, 300);
+  });
+}]);
+
+/* ---- S10: lingua automatica (D33) e dizionari (D35) ---- */
+
+/* Un ambiente "telefono" con la lingua dell'orologio scelta dal caso: `lang` è il locale di
+ * getActiveWatchInfo() (null = campo assente, false = getActiveWatchInfo() che non torna nulla). */
+function langEnv(loc) {
+  var info = { platform: 'emery', model: 'qemu', firmware: { major: 4, minor: 33, patch: 2, suffix: '' } };
+  if (loc !== null) { info.language = loc; }
+  return env({ watchInfo: (loc === false) ? null : info });
+}
+
+cases.push(['m lingua automatica dall\'orologio, ripieghi e dizionari nello stato della config page', function (next) {
+  var en, st, i, want = [['it_IT', 'it'], ['de_DE', 'de'], ['fr_FR', 'fr'], ['en_GB', 'en'],
+                         ['de-CH', 'de'], ['IT_it', 'it']];
+  setNavigator(null);                    /* PKJS su iOS: `navigator` non esiste (ripiego 3 = 'en') */
+  for (i = 0; i < want.length; i++) {
+    en = langEnv(want[i][0]);
+    st = pageState(en);
+    check(!!st && st.lang_auto === want[i][1], 'm: watch ' + want[i][0] + ' -> lang_auto ' + want[i][1] + ' (got ' + (st && st.lang_auto) + ')');
+    check(hasLog(en, '[config] lang auto=' + want[i][1] + ' (watch ' + want[i][0] + ')'), 'm: log ASCII per ' + want[i][0]);
+  }
+  /* lingua fuori dalle quattro, campo assente, getActiveWatchInfo() muta: niente navigator in node → 'en' */
+  en = langEnv('es_ES');
+  st = pageState(en);
+  check(!!st && st.lang_auto === 'en', 'm: watch es_ES (lingua non tradotta) -> en, got ' + (st && st.lang_auto));
+  check(hasLog(en, '[config] lang auto=en (default, watch es_ES)'), 'm: log del ripiego con il locale dell\'orologio');
+  en = langEnv(null);
+  check(pageState(en).lang_auto === 'en', 'm: watchInfo senza `language` -> en');
+  check(hasLog(en, '[config] lang auto=en (default, watch assente)'), 'm: log del ripiego senza lingua');
+  en = langEnv(false);
+  check(pageState(en).lang_auto === 'en', 'm: getActiveWatchInfo() nullo (orologio scollegato) -> en');
+  /* ripiego 2 (D33): navigator.language, quando il runtime ce l'ha (WebView Android, pypkjs) */
+  setNavigator('fr-CA');
+  en = langEnv(null);
+  check(pageState(en).lang_auto === 'fr', 'm: ripiego navigator.language -> fr');
+  check(hasLog(en, '[config] lang auto=fr (navigator fr-CA)'), 'm: log del ripiego navigator');
+  setNavigator('ja-JP');
+  en = langEnv(null);
+  check(pageState(en).lang_auto === 'en', 'm: navigator con una lingua non tradotta -> en');
+  check(hasLog(en, '[config] lang auto=en (default, watch assente)'), 'm: log del ripiego finale');
+  setNavigator('de-DE');
+  en = langEnv('it_IT');
+  check(pageState(en).lang_auto === 'it', 'm: l\'orologio vince su navigator (D33)');
+  setNavigator(null);
+  /* dizionari: tutte e quattro le lingue, senza `keys` (la pagina lavora per indice) */
+  en = langEnv('it_IT');
+  st = pageState(en);
+  check(!!st && !!st.i18n, 'm: i18n presente nello stato');
+  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr"]',
+        'm: i18n con le quattro lingue, senza `keys` (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
+  check(!!st && st.i18n.it[0] === 'Salva' && st.i18n.de[1] === 'Foto hinzuf\u00fcgen' && st.i18n.fr[2] === 'Photos : {0}',
+        'm: i dizionari arrivano interi (accenti compresi)');
+  check(st.i18n.en.length === 3 && st.i18n.it.length === 3 && st.i18n.de.length === 3 && st.i18n.fr.length === 3,
+        'm: array paralleli della stessa lunghezza');
+  check(st.settings && st.settings.lang === 0, 'm: settings.lang (byte 13) nello stato, 0 = automatica');
+  check(!hasLog(en, /Salva|hinzuf/), 'm: nessun testo dei dizionari nei log (F-S8-2)');
+  /* modulo assente: la pagina resta in inglese minimo invece di non aprirsi */
+  i18nTarget = null;
+  en = langEnv('it_IT');
+  st = pageState(en);
+  check(!!st && st.i18n === null, 'm: i18n.js assente -> i18n null nello stato');
+  check(hasLog(en, /^\[config\] i18n\.js mancante \(.*\): eseguire tools\/build_i18n\.py$/), 'm: log del modulo mancante');
+  check(!!st && st.lang_auto === 'it', 'm: senza dizionari lang_auto resta calcolata');
+  check(countLog(en, /i18n\.js mancante/) === 1, 'm: il require pigro non si ripete a ogni apertura');
+  pageState(en);
+  check(countLog(en, /i18n\.js mancante/) === 1, 'm: seconda apertura della pagina, nessun secondo log');
+  /* modulo malformato (una lingua che non è un array) */
+  i18nTarget = I18N_BAD;
+  en = langEnv('it_IT');
+  st = pageState(en);
+  check(!!st && st.i18n === null, 'm: i18n.js malformato -> i18n null');
+  check(hasLog(en, '[config] i18n.js malformato (it): pagina senza dizionari'), 'm: log del modulo malformato');
+  i18nTarget = I18N_OK;
+  restoreNavigator();
+  next();
+}]);
+
+cases.push(['n dev: hooks.lang forza la lingua automatica, uno stato senza hook la ridà all\'orologio', function (next) {
+  /* In emulatore la lingua dell'orologio è en_US e non si cambia: `--lang de` del dev server è
+   * l'unico modo di vedere la config page "in automatico" in tedesco (D33). */
+  var en = env({ platform: 'pypkjs',
+                 devState: { v: 1, seq: 1, hooks: { scenario: 'photo', lang: 'de' } } });
+  waitFor(function () { return countLog(en, FINE) >= 1; }, function (err) {
+    var st;
+    check(!err, 'n: prima sync conclusa');
+    check(hasLog(en, '[dev] hook lang: lingua automatica forzata a de'), 'n: hook letto da /state.json');
+    st = pageState(en);
+    check(!!st && st.lang_auto === 'de', 'n: lang_auto = de nonostante l\'orologio it_IT, got ' + (st && st.lang_auto));
+    check(hasLog(en, '[config] lang auto=de (hook dev)'), 'n: log dell\'hook');
+    check(!!st && st.dev === true, 'n: stato dev (pagina servita dal dev server)');
+    /* dev server riavviato senza --lang: hooks senza `lang` → si torna alla lingua dell'orologio */
+    devSave(en, { v: 1, seq: 2, hooks: { scenario: 'photo' } }, function (l) {
+      var st2;
+      check(hasLog(en, '[dev] hook lang rimosso: lingua automatica dall\'orologio', l), 'n: hook azzerato');
+      st2 = pageState(en);
+      check(!!st2 && st2.lang_auto === 'it', 'n: lang_auto torna quella dell\'orologio (it_IT), got ' + (st2 && st2.lang_auto));
+      /* valore ignoto: rifiutato e azzerato, mai spedito alla pagina */
+      devSave(en, { v: 1, seq: 3, hooks: { scenario: 'photo', lang: 'italiano' } }, function (l2) {
+        var st3;
+        check(hasLog(en, '[dev] hook lang non valido (italiano): ignorato', l2), 'n: hook ignoto rifiutato');
+        st3 = pageState(en);
+        check(!!st3 && st3.lang_auto === 'it', 'n: lang_auto resta quella dell\'orologio dopo un hook ignoto');
+        next();
+      });
+    });
   });
 }]);
 

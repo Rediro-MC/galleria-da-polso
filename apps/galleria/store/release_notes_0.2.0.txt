@@ -1,0 +1,6 @@
+Galleria 0.2.0 - the settings page now speaks four languages.
+- English: the page follows your watch language, or you can pick one under Language.
+- Italiano: la pagina delle impostazioni e' in italiano, come la data sull'orologio.
+- Deutsch: die Einstellungsseite ist auf Deutsch, ebenso das Datum auf der Uhr.
+- Francais: la page de reglages est en francais, comme la date sur la montre.
+- While photos are loading, the watch shows a sync icon and k/n instead of a word.

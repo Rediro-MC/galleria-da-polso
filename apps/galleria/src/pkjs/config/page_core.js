@@ -20,7 +20,12 @@
    * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21) */
   var SETTINGS_FIELDS = [['layout', 0, 1, 0], ['font', 0, 5, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
     ['text_color', 0, 4, 0], ['outline', 0, 2, 0], ['interval_min', 0, 1440, 30], ['order', 0, 1, 0],
-    ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15], ['digit_style', 0, 3, 0]];
+    ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15], ['digit_style', 0, 3, 0],
+    /* S10 D31: lang = 0 auto, 1 en, 2 it, 3 de, 4 fr (byte 13 di GalSettings) */
+    ['lang', 0, 4, 0]];
+  /* Lingue nell'ordine di GalSettings.lang (1..4) e nomi nella lingua stessa (endonimi, D36:
+   * uguali in tutte le lingue, quindi non stanno nel dizionario). */
+  var LANGS = ['en', 'it', 'de', 'fr'], LANG_NAMES = ['English', 'Italiano', 'Deutsch', 'Fran\u00e7ais'];
   var ENC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   var DEC = (function () {
     var t = [], i;
@@ -32,6 +37,15 @@
   })();
 
   function isInt(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
+  function langName(code) { return LANG_NAMES[LANGS.indexOf(code)] || code; }
+  /* lingua dei testi: l'override delle impostazioni vince, altrimenti quella dell'orologio (D33) */
+  function effectiveLang(settings, langAuto) {
+    var v = settings && settings.lang;
+    if (isInt(v) && v >= 1 && v <= LANGS.length) { return LANGS[v - 1]; }
+    return LANGS.indexOf(langAuto) >= 0 ? langAuto : 'en';
+  }
+  /* separatore decimale per lingua (D35): en col punto, it/de/fr con la virgola. v arriva col punto. */
+  function dec(v, lang) { return String(v).replace('.', lang === 'en' ? '.' : ','); }
   function isArray(v) { return Object.prototype.toString.call(v) === '[object Array]'; }
   function isSlot(v) { return isInt(v) && v >= 0 && v < MAX_SLOTS; }
   function has(list, v) { return list.indexOf(v) >= 0; }
@@ -42,16 +56,16 @@
   }
 
   function b64urlToBytes(str) {
-    if (typeof str !== 'string') { throw new Error('base64url: serve una stringa'); }
+    if (typeof str !== 'string') { throw new Error('base64url: a string is required'); }
     var n = str.length, out = new Uint8Array(((n * 3) >> 2) + 3), k = 0, acc = 0, nb = 0, ns = 0, i, c, v;
     for (i = 0; i < n; i++) {
       c = str.charCodeAt(i); v = c < 256 ? DEC[c] : -1;
       if (v >= 0) {
         acc = (acc << 6) | v; nb += 6; ns++;
         if (nb >= 8) { nb -= 8; out[k++] = (acc >> nb) & 255; acc &= (1 << nb) - 1; }
-      } else if (v === -1) { throw new Error('base64url: carattere non valido alla posizione ' + i); }
+      } else if (v === -1) { throw new Error('base64url: invalid character at ' + i); }
     }
-    if ((ns & 3) === 1) { throw new Error('base64url: lunghezza non valida'); }
+    if ((ns & 3) === 1) { throw new Error('base64url: invalid length'); }
     return out.subarray(0, k);
   }
 
@@ -90,7 +104,8 @@
     var photos = [], k;
     for (k = 0; k < MAX_SLOTS; k++) { photos.push(null); }
     return { v: 1, ok: true, platform: 'unknown', fmt: 1, cap_kb: 900, dev: false, settings: defaultSettings(),
-             settingsSet: false, photos: photos, order: [], deleted: [], watch: null };
+             settingsSet: false, photos: photos, order: [], deleted: [], watch: null,
+             i18n: null, lang_auto: 'en' };
   }
   function normPhoto(p) {
     var out, f, fm;
@@ -116,18 +131,29 @@
     }
     return out;
   }
-  /* location.hash ('#…' o senza) → stato normalizzato; mai lancia: ok:false + error se non decodificabile */
+  /* dizionari dell'hash (D35): { en: [...], it: [...], de: [...], fr: [...] }, nell'ordine delle
+   * chiavi di i18n.js. Si tiene solo cio' che e' un array; niente = null (pagina in "chiavi"). */
+  function normI18n(o) {
+    var out = null, i, k;
+    for (i = 0; o && typeof o === 'object' && i < LANGS.length; i++) {
+      k = LANGS[i];
+      if (isArray(o[k])) { (out = out || {})[k] = o[k]; }
+    }
+    return out;
+  }
+  /* location.hash ('#…' o senza) → stato normalizzato; mai lancia: ok:false + error se non decodificabile.
+   * I messaggi di errore sono in INGLESE e cablati: qui il dizionario non c'e' ancora (D35). */
   function decodeState(hash) {
     var s = defaultState(), str = (typeof hash === 'string') ? hash : '', o, k;
     if (str.charAt(0) === '#') { str = str.slice(1); }
-    if (!str) { s.ok = false; s.error = 'hash assente'; return s; }
+    if (!str) { s.ok = false; s.error = 'state missing'; return s; }
     try {
       o = JSON.parse(utf8Decode(b64urlToBytes(str)));
-      if (!o || typeof o !== 'object' || isArray(o)) { throw new Error('non è un oggetto'); }
-    } catch (e) { s.ok = false; s.error = 'hash non valido (' + (e && e.message ? e.message : e) + ')'; return s; }
+      if (!o || typeof o !== 'object' || isArray(o)) { throw new Error('not an object'); }
+    } catch (e) { s.ok = false; s.error = 'invalid state (' + (e && e.message ? e.message : e) + ')'; return s; }
     /* S7 #31: uno stato di un'altra versione non si sa leggere (campi diversi, significati diversi):
      * vale come "non ricevuto" — default, ok:false e Salva disabilitato, come per l'hash rotto. */
-    if (o.v !== 1) { s.ok = false; s.error = 'versione dello stato non supportata'; return s; }
+    if (o.v !== 1) { s.ok = false; s.error = 'unsupported state version'; return s; }
     if (o.platform === 'emery' || o.platform === 'flint') { s.platform = o.platform; }
     s.fmt = (o.fmt === 1 || o.fmt === 2) ? o.fmt : (s.platform === 'flint' ? 2 : 1);
     if (isInt(o.cap_kb) && o.cap_kb > 0) { s.cap_kb = o.cap_kb; }
@@ -135,6 +161,8 @@
     s.settings = normalizeSettings(o.settings);
     if (isArray(o.photos)) { for (k = 0; k < MAX_SLOTS; k++) { s.photos[k] = normPhoto(o.photos[k]); } }
     s.order = slotList(o.order); s.deleted = slotList(o.deleted); s.watch = normWatch(o.watch);
+    s.i18n = normI18n(o.i18n);
+    if (LANGS.indexOf(o.lang_auto) >= 0) { s.lang_auto = o.lang_auto; }
     return s;
   }
 
@@ -194,10 +222,10 @@
     }
     return { v: 1, settings: normalizeSettings(model.settings), order: order, deleted: slotList(model.deleted), photos: photos };
   }
-  /* "2150" -> "2,2" (un decimale, virgola italiana): il numero dell'avviso di avvio lento. */
-  function secondsText(ms) {
+  /* "2150" -> "2,2" ("2.2" in inglese): il numero dell'avviso di avvio lento, un decimale. */
+  function secondsText(ms, lang) {
     var d = Math.round((isInt(ms) && ms > 0 ? ms : 0) / 100);
-    return Math.floor(d / 10) + ',' + (d % 10);
+    return dec(Math.floor(d / 10) + '.' + (d % 10), lang);
   }
   /* soglia dell'avviso per QUESTO orologio: 400 ms + 100 ms per ogni foto valida dello snapshot
    * (slot con state 1). Snapshot assente o senza slot -> 400 ms. */
@@ -209,17 +237,19 @@
   /* openMs dello snapshot -> secondi da mostrare, oppure null se non c'e' niente da segnalare
    * (campo assente/null = orologio che non lo manda, 0 = non misurato, sotto o sulla soglia =
    * normale per il numero di foto che l'orologio tiene). */
-  function slowSeconds(watch) {
+  function slowSeconds(watch, lang) {
     var ms = watch && watch.openMs;
-    return (isInt(ms) && ms > slowThresholdMs(watch)) ? secondsText(ms) : null;
+    return (isInt(ms) && ms > slowThresholdMs(watch)) ? secondsText(ms, lang) : null;
   }
   function payloadKb(payload) { return Math.ceil(JSON.stringify(payload).length / 1024); }
-  function capMessage(kb, capKb, nAdded) {
-    var k;
+  /* T = il T(chiave, a, b) della pagina; senza (page_core usato da solo) il ripiego e' inglese (D35). */
+  function capMessage(kb, capKb, nAdded, T) {
+    var k, over;
     if (!(kb > capKb)) { return null; }
-    if (!(nAdded > 0)) { return 'Troppi dati per un solo invio (' + kb + ' KB su ' + capKb + ')'; }
+    over = T ? T('cap_over', kb, capKb) : 'Too much data for one transfer (' + kb + ' KB of ' + capKb + ')';
+    if (!(nAdded > 0)) { return over; }
     k = Math.min(nAdded, Math.max(1, Math.ceil((kb - capKb) / (kb / nAdded))));
-    return 'Troppi dati per un solo invio (' + kb + ' KB su ' + capKb + '): togli ' + k + ' foto o salva in più volte';
+    return T ? T('cap_over_fix', over, k) : over + '. Photos to remove: ' + k + ', or save in more than one go';
   }
 
   return { SETTINGS_FIELDS: SETTINGS_FIELDS, INTERVALS: INTERVALS, MAX_SLOTS: MAX_SLOTS, MAX_THUMB_CHARS: MAX_THUMB_CHARS,
@@ -227,6 +257,7 @@
     defaultSettings: defaultSettings, normalizeSettings: normalizeSettings, defaultState: defaultState, buildTiles: buildTiles,
     freeSlot: freeSlot, buildPayload: buildPayload, payloadKb: payloadKb, capMessage: capMessage, thumbFits: thumbFits,
     truncateName: truncateName, capForUa: capForUa, SLOW_BASE_MS: SLOW_BASE_MS,
+    LANGS: LANGS, langName: langName, effectiveLang: effectiveLang, dec: dec,
     SLOW_PER_PHOTO_MS: SLOW_PER_PHOTO_MS, slowThresholdMs: slowThresholdMs, secondsText: secondsText,
     slowSeconds: slowSeconds };
 }));

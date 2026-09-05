@@ -74,7 +74,8 @@ var SETTINGS_FIELDS = [
   ['order', 0, 1, 0],
   ['shake_next', 0, 1, 1],
   ['info_row', 0, 15, 15],
-  ['digit_style', 0, 3, 0]        /* S8: byte 12 del blob (ex primo `reserved`); l'ordine dell'array non e' quello dei byte */
+  ['digit_style', 0, 3, 0],       /* S8: byte 12 del blob (ex primo `reserved`); l'ordine dell'array non e' quello dei byte */
+  ['lang', 0, 4, 0]               /* S10/D31: byte 13 (ex secondo `reserved`); 0 = auto, 1 en, 2 it, 3 de, 4 fr */
 ];
 
 /* ---- helper puri ---- */
@@ -134,13 +135,14 @@ function sameSettings(a, b) {
 }
 
 /* GalSettings (settings.h, 20 B packed): schema, layout, font, clock_mode, leading_zero,
- * text_color, outline, interval_min u16 LE, order, shake_next, info_row, digit_style,
- * reserved[5], crc16 LE. Il byte 12 (`digit_style`, S8/D21) era il primo dei sei `reserved`:
- * i blob vecchi valgono 0 = "pieno", nessuna migrazione. */
+ * text_color, outline, interval_min u16 LE, order, shake_next, info_row, digit_style, lang,
+ * reserved[4], crc16 LE. Il byte 12 (`digit_style`, S8/D21) era il primo dei sei `reserved` e il
+ * byte 13 (`lang`, S10/D31) il secondo: i blob vecchi valgono 0 ("pieno" e "lingua automatica"),
+ * nessuna migrazione. */
 function settingsBytes(s) {
   var b = [SETTINGS_SCHEMA, s.layout, s.font, s.clock_mode, s.leading_zero, s.text_color, s.outline,
            s.interval_min & 0xFF, (s.interval_min >> 8) & 0xFF, s.order, s.shake_next, s.info_row,
-           s.digit_style, 0, 0, 0, 0, 0];   /* byte 12 = digit_style, poi reserved[5] */
+           s.digit_style, s.lang, 0, 0, 0, 0];   /* byte 12 = digit_style, 13 = lang, poi reserved[4] */
   var c = crc.crc16(b);
   b.push(c & 0xFF, (c >> 8) & 0xFF);
   return b;

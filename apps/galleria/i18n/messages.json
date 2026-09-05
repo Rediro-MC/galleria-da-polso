@@ -1,0 +1,728 @@
+{
+  "watch_emery": {
+    "it": "Pebble Time 2 · 200×228 a colori",
+    "en": "Pebble Time 2 · 200×228 in color",
+    "de": "Pebble Time 2 · 200×228 in Farbe",
+    "fr": "Pebble Time 2 · 200×228 en couleur"
+  },
+  "watch_flint": {
+    "it": "Pebble 2 Duo · 144×168 in bianco e nero",
+    "en": "Pebble 2 Duo · 144×168 in black and white",
+    "de": "Pebble 2 Duo · 144×168 in Schwarzweiß",
+    "fr": "Pebble 2 Duo · 144×168 en noir et blanc"
+  },
+  "watch_unknown": {
+    "it": "orologio sconosciuto: preparo foto {0}",
+    "en": "unknown watch: preparing photos {0}",
+    "de": "Uhr unbekannt: Fotos werden {0} vorbereitet",
+    "fr": "montre inconnue : préparation des photos {0}"
+  },
+  "watch_fmt_color": {
+    "it": "a colori",
+    "en": "in color",
+    "de": "in Farbe",
+    "fr": "en couleur"
+  },
+  "watch_fmt_bw": {
+    "it": "in bianco e nero",
+    "en": "in black and white",
+    "de": "in Schwarzweiß",
+    "fr": "en noir et blanc"
+  },
+  "kb_line": {
+    "it": "Da inviare: {0} KB / {1} KB",
+    "en": "To send: {0} KB / {1} KB",
+    "de": "Zu senden: {0} KB / {1} KB",
+    "fr": "À envoyer : {0} KB / {1} KB"
+  },
+  "status_no_state": {
+    "it": "Stato non ricevuto: modalità prova ({0}). Salva è disabilitato: riapri le impostazioni dall'app Pebble.",
+    "en": "State not received: test mode ({0}). Save is disabled: reopen the settings from the Pebble app.",
+    "de": "Status nicht empfangen: Testmodus ({0}). Speichern ist deaktiviert: Öffne die Einstellungen in der Pebble-App neu.",
+    "fr": "État non reçu : mode test ({0}). Le bouton Enregistrer est désactivé : rouvrez les réglages depuis l'app Pebble."
+  },
+  "slow_lead": {
+    "it": "Galleria si avvia lentamente ({0} s). Non è un guasto: la memoria dell'orologio si è riempita di vecchi dati.",
+    "en": "Galleria is slow to start ({0} s). Nothing is broken: the watch's memory has filled up with old data.",
+    "de": "Galleria startet langsam ({0} s). Das ist kein Defekt: Der Speicher der Uhr hat sich mit alten Daten gefüllt.",
+    "fr": "Galleria démarre lentement ({0} s). Ce n'est pas une panne : la mémoire de la montre s'est remplie d'anciennes données."
+  },
+  "fix_lead": {
+    "it": "Per sistemare:",
+    "en": "How to fix it:",
+    "de": "So behebst du das:",
+    "fr": "Pour y remédier :"
+  },
+  "fix_step_1": {
+    "it": "apri l'app Pebble sul telefono",
+    "en": "open the Pebble app on your phone",
+    "de": "öffne die Pebble-App auf dem Telefon",
+    "fr": "ouvrez l'app Pebble sur votre téléphone"
+  },
+  "fix_step_2": {
+    "it": "tocca Galleria nell'elenco delle app",
+    "en": "tap Galleria in the list of apps",
+    "de": "tippe in der Liste der Apps auf Galleria",
+    "fr": "appuyez sur Galleria dans la liste des apps"
+  },
+  "fix_step_3": {
+    "it": "scegli Rimuovi (non Aggiorna)",
+    "en": "remove Galleria from the watch (do not update it)",
+    "de": "entferne Galleria von der Uhr (nicht aktualisieren)",
+    "fr": "retirez Galleria de la montre (ne la mettez pas à jour)"
+  },
+  "fix_step_4": {
+    "it": "reinstalla Galleria",
+    "en": "install Galleria again",
+    "de": "installiere Galleria erneut",
+    "fr": "réinstallez Galleria"
+  },
+  "fix_tail": {
+    "it": "Le tue foto sono al sicuro nel telefono e torneranno da sole sull'orologio in pochi minuti (circa mezzo minuto per foto).",
+    "en": "Your photos are safe on your phone and will come back to the watch on their own in a few minutes (about half a minute per photo).",
+    "de": "Deine Fotos sind sicher auf dem Telefon und kommen in wenigen Minuten von allein auf die Uhr zurück (etwa eine halbe Minute pro Foto).",
+    "fr": "Vos photos sont en sécurité sur votre téléphone et reviendront toutes seules sur la montre en quelques minutes (environ une demi-minute par photo)."
+  },
+  "sec_help": {
+    "it": "Aiuto",
+    "en": "Help",
+    "de": "Hilfe",
+    "fr": "Aide"
+  },
+  "help_btn": {
+    "it": "Galleria si avvia lentamente?",
+    "en": "Is Galleria slow to start?",
+    "de": "Startet Galleria langsam?",
+    "fr": "Galleria démarre lentement ?"
+  },
+  "help_why": {
+    "it": "Succede perché l'orologio tiene da parte anche i dati vecchi (le foto sostituite) finché la sua memoria non è piena, e la watchface deve rileggerli tutti a ogni avvio.",
+    "en": "It happens because the watch also keeps the old data (the photos you replaced) until its memory is full, and the watchface has to read all of it again every time it starts.",
+    "de": "Das passiert, weil die Uhr auch die alten Daten (die ersetzten Fotos) aufbewahrt, bis ihr Speicher voll ist, und das Watchface bei jedem Start alles neu lesen muss.",
+    "fr": "Cela arrive parce que la montre conserve aussi les anciennes données (les photos remplacées) tant que sa mémoire n'est pas pleine, et le cadran doit tout relire à chaque démarrage."
+  },
+  "sec_photos": {
+    "it": "Foto",
+    "en": "Photos",
+    "de": "Fotos",
+    "fr": "Photos"
+  },
+  "photos_cap": {
+    "it": "L'orologio tiene al massimo {1} foto (ora {0} su {1}). Quando gli slot sono pieni, elimina una foto per aggiungerne un'altra. Più foto ci sono, più l'avvio della watchface si allunga: circa un decimo di secondo per foto.",
+    "en": "The watch holds up to {1} photos (now {0} of {1}). When all the slots are full, delete a photo to add another. The more photos there are, the longer the watchface takes to start: about a tenth of a second per photo.",
+    "de": "Die Uhr fasst höchstens {1} Fotos (jetzt {0} von {1}). Wenn alle Slots belegt sind, lösche ein Foto, um ein weiteres hinzuzufügen. Je mehr Fotos, desto länger braucht das Watchface zum Starten: etwa eine Zehntelsekunde pro Foto.",
+    "fr": "La montre garde au maximum {1} photos (pour l'instant {0} sur {1}). Quand tous les slots sont pleins, supprimez une photo pour en ajouter une autre. Plus il y a de photos, plus le démarrage du cadran est long : environ un dixième de seconde par photo."
+  },
+  "add_photo": {
+    "it": "Aggiungi foto",
+    "en": "Add photo",
+    "de": "Foto hinzufügen",
+    "fr": "Ajouter une photo"
+  },
+  "add_help": {
+    "it": "scegli dalla libreria foto",
+    "en": "choose from your photo library",
+    "de": "Wähle aus deinen Fotos",
+    "fr": "choisissez dans votre photothèque"
+  },
+  "album_full": {
+    "it": "album pieno: elimina una foto",
+    "en": "album full: delete a photo",
+    "de": "Album voll: Lösche ein Foto",
+    "fr": "album plein : supprimez une photo"
+  },
+  "tile_slot": {
+    "it": "slot {0}",
+    "en": "slot {0}",
+    "de": "Slot {0}",
+    "fr": "slot {0}"
+  },
+  "badge_new": {
+    "it": "nuova",
+    "en": "new",
+    "de": "neu",
+    "fr": "nouvelle"
+  },
+  "badge_foreign": {
+    "it": "solo sull'orologio: resta in coda",
+    "en": "only on the watch: stays at the end",
+    "de": "nur auf der Uhr: bleibt am Ende",
+    "fr": "uniquement sur la montre : reste en fin de liste"
+  },
+  "badge_pending": {
+    "it": "da inviare",
+    "en": "to send",
+    "de": "zu senden",
+    "fr": "à envoyer"
+  },
+  "badge_no_fmt": {
+    "it": "manca il formato per questo orologio: elimina la foto e aggiungila di nuovo",
+    "en": "the format for this watch is missing: delete the photo and add it again",
+    "de": "Format für diese Uhr fehlt: Lösche das Foto und füge es neu hinzu",
+    "fr": "format manquant pour cette montre : supprimez la photo et ajoutez-la de nouveau"
+  },
+  "btn_up": {
+    "it": "Sposta su",
+    "en": "Move up",
+    "de": "Nach oben verschieben",
+    "fr": "Monter"
+  },
+  "btn_down": {
+    "it": "Sposta giù",
+    "en": "Move down",
+    "de": "Nach unten verschieben",
+    "fr": "Descendre"
+  },
+  "btn_delete": {
+    "it": "Elimina",
+    "en": "Delete",
+    "de": "Löschen",
+    "fr": "Supprimer"
+  },
+  "aria_tile_btn": {
+    "it": "{0}: {1}",
+    "en": "{0}: {1}",
+    "de": "{0}: {1}",
+    "fr": "{0} : {1}"
+  },
+  "msg_new_dropped": {
+    "it": "Foto nuova scartata: slot {0} di nuovo libero",
+    "en": "New photo discarded: slot {0} is free again",
+    "de": "Neues Foto verworfen: Slot {0} wieder frei",
+    "fr": "Nouvelle photo abandonnée : slot {0} de nouveau libre"
+  },
+  "msg_removed": {
+    "it": "Foto rimossa dall'elenco (si applica al Salva)",
+    "en": "Photo removed from the list (takes effect when you save)",
+    "de": "Foto aus der Liste entfernt (wirkt beim Speichern)",
+    "fr": "Photo retirée de la liste (prise en compte à l'enregistrement)"
+  },
+  "sec_crop": {
+    "it": "Ritaglio",
+    "en": "Crop",
+    "de": "Zuschnitt",
+    "fr": "Recadrage"
+  },
+  "crop_hint": {
+    "it": "Trascina per spostare, due dita o rotellina per ingrandire.",
+    "en": "Drag to move, two fingers or the wheel to zoom.",
+    "de": "Ziehe zum Verschieben, zoome mit zwei Fingern oder dem Mausrad.",
+    "fr": "Faites glisser pour déplacer, deux doigts ou la molette pour agrandir."
+  },
+  "lbl_zoom": {
+    "it": "Zoom",
+    "en": "Zoom",
+    "de": "Zoom",
+    "fr": "Zoom"
+  },
+  "btn_fit": {
+    "it": "Adatta",
+    "en": "Fit",
+    "de": "Einpassen",
+    "fr": "Ajuster"
+  },
+  "lbl_gamma": {
+    "it": "Luminosità (gamma)",
+    "en": "Brightness (gamma)",
+    "de": "Helligkeit (Gamma)",
+    "fr": "Luminosité (gamma)"
+  },
+  "lbl_lift": {
+    "it": "Schiarisci le ombre (lift)",
+    "en": "Lighten the shadows (lift)",
+    "de": "Schatten aufhellen (Lift)",
+    "fr": "Éclaircir les ombres (lift)"
+  },
+  "lbl_dither": {
+    "it": "Dithering",
+    "en": "Dithering",
+    "de": "Dithering",
+    "fr": "Dithering"
+  },
+  "dither_none": {
+    "it": "Nessuno",
+    "en": "None",
+    "de": "Ohne",
+    "fr": "Aucun"
+  },
+  "opt_sunlight": {
+    "it": "Ottimizza per il vetro",
+    "en": "Optimize for the glass",
+    "de": "Für das Glas optimieren",
+    "fr": "Optimiser pour l'écran"
+  },
+  "lbl_preview": {
+    "it": "Anteprima",
+    "en": "Preview",
+    "de": "Vorschau",
+    "fr": "Aperçu"
+  },
+  "opt_prev_sun": {
+    "it": "come sul vetro",
+    "en": "as on the glass",
+    "de": "wie auf dem Glas",
+    "fr": "comme sur l'écran"
+  },
+  "opt_prev_nominal": {
+    "it": "colori nominali",
+    "en": "nominal colors",
+    "de": "nominale Farben",
+    "fr": "couleurs nominales"
+  },
+  "btn_add_ok": {
+    "it": "Aggiungi all'album",
+    "en": "Add to album",
+    "de": "Zum Album hinzufügen",
+    "fr": "Ajouter à l'album"
+  },
+  "btn_add_cancel": {
+    "it": "Annulla ritaglio",
+    "en": "Cancel crop",
+    "de": "Zuschnitt abbrechen",
+    "fr": "Annuler le recadrage"
+  },
+  "edit_name": {
+    "it": "{0} · {1} px",
+    "en": "{0} · {1} px",
+    "de": "{0} · {1} px",
+    "fr": "{0} · {1} px"
+  },
+  "edit_time": {
+    "it": "ridimensionamento {0} ms · codifica {1} ms",
+    "en": "resize {0} ms · encode {1} ms",
+    "de": "Skalierung {0} ms · Kodierung {1} ms",
+    "fr": "redimensionnement {0} ms · encodage {1} ms"
+  },
+  "preview_off": {
+    "it": "anteprima non disponibile",
+    "en": "preview not available",
+    "de": "Vorschau nicht verfügbar",
+    "fr": "aperçu non disponible"
+  },
+  "msg_loading": {
+    "it": "carico {0}…",
+    "en": "loading {0}…",
+    "de": "Lade {0}…",
+    "fr": "chargement de {0}…"
+  },
+  "msg_read_fail": {
+    "it": "Non riesco a leggere {0}: {1}",
+    "en": "Cannot read {0}: {1}",
+    "de": "{0} kann nicht gelesen werden: {1}",
+    "fr": "Impossible de lire {0} : {1}"
+  },
+  "msg_editor_err": {
+    "it": "Errore nell'editor: {0}",
+    "en": "Editor error: {0}",
+    "de": "Fehler im Editor: {0}",
+    "fr": "Erreur dans l'éditeur : {0}"
+  },
+  "msg_preview_err": {
+    "it": "Errore di anteprima: {0}",
+    "en": "Preview error: {0}",
+    "de": "Fehler in der Vorschau: {0}",
+    "fr": "Erreur d'aperçu : {0}"
+  },
+  "msg_crop_cancel": {
+    "it": "ritaglio annullato",
+    "en": "crop canceled",
+    "de": "Zuschnitt abgebrochen",
+    "fr": "recadrage annulé"
+  },
+  "msg_added": {
+    "it": "Foto aggiunta nello slot {0} ({1} KB)",
+    "en": "Photo added to slot {0} ({1} KB)",
+    "de": "Foto in Slot {0} hinzugefügt ({1} KB)",
+    "fr": "Photo ajoutée dans le slot {0} ({1} KB)"
+  },
+  "msg_added_no_thumb": {
+    "it": "{0}, senza anteprima",
+    "en": "{0}, without a preview",
+    "de": "{0}, ohne Vorschau",
+    "fr": "{0}, sans aperçu"
+  },
+  "photo_name_default": {
+    "it": "foto",
+    "en": "photo",
+    "de": "Foto",
+    "fr": "photo"
+  },
+  "err_no_decoder": {
+    "it": "nessun decoder di immagini",
+    "en": "no image decoder",
+    "de": "kein Bilddecoder",
+    "fr": "aucun décodeur d'images"
+  },
+  "err_bad_file": {
+    "it": "file non valido",
+    "en": "invalid file",
+    "de": "ungültige Datei",
+    "fr": "fichier non valide"
+  },
+  "err_bad_image": {
+    "it": "immagine non decodificabile",
+    "en": "image cannot be decoded",
+    "de": "Bild nicht decodierbar",
+    "fr": "image non décodable"
+  },
+  "err_bad_size": {
+    "it": "dimensioni non valide",
+    "en": "invalid dimensions",
+    "de": "ungültige Abmessungen",
+    "fr": "dimensions non valides"
+  },
+  "sec_settings": {
+    "it": "Impostazioni",
+    "en": "Settings",
+    "de": "Einstellungen",
+    "fr": "Réglages"
+  },
+  "settings_note": {
+    "it": "Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi.",
+    "en": "Settings not saved yet: the watch uses its own until you save.",
+    "de": "Einstellungen noch nicht gespeichert: Die Uhr behält ihre eigenen, bis du speicherst.",
+    "fr": "Réglages pas encore enregistrés : la montre garde les siens tant que vous n'enregistrez pas."
+  },
+  "lbl_lang": {
+    "it": "Lingua",
+    "en": "Language",
+    "de": "Sprache",
+    "fr": "Langue"
+  },
+  "opt_lang_auto": {
+    "it": "Automatica (orologio: {0})",
+    "en": "Automatic (watch: {0})",
+    "de": "Automatisch (Uhr: {0})",
+    "fr": "Automatique (montre : {0})"
+  },
+  "lbl_layout": {
+    "it": "Layout",
+    "en": "Layout",
+    "de": "Layout",
+    "fr": "Disposition"
+  },
+  "opt_layout_a": {
+    "it": "Un terzo con riga info",
+    "en": "One third with info row",
+    "de": "Ein Drittel mit Infozeile",
+    "fr": "Un tiers avec ligne d'infos"
+  },
+  "opt_layout_b": {
+    "it": "Tutto schermo",
+    "en": "Full screen",
+    "de": "Vollbild",
+    "fr": "Plein écran"
+  },
+  "lbl_font": {
+    "it": "Font",
+    "en": "Font",
+    "de": "Schriftart",
+    "fr": "Police"
+  },
+  "opt_font_leco": {
+    "it": "LECO (sistema, solo layout Un terzo)",
+    "en": "LECO (system font, only in the One third layout)",
+    "de": "LECO (System, nur im Layout Ein Drittel)",
+    "fr": "LECO (police système, uniquement en disposition Un tiers)"
+  },
+  "lbl_digit_style": {
+    "it": "Stile cifre",
+    "en": "Digit style",
+    "de": "Ziffernstil",
+    "fr": "Style des chiffres"
+  },
+  "opt_style_solid": {
+    "it": "pieno",
+    "en": "solid",
+    "de": "gefüllt",
+    "fr": "plein"
+  },
+  "opt_style_transp": {
+    "it": "trasparente (solo contorno)",
+    "en": "transparent (outline only)",
+    "de": "transparent (nur Kontur)",
+    "fr": "transparent (contour seul)"
+  },
+  "opt_style_transp_3d": {
+    "it": "trasparente 3D (contorno + ombra)",
+    "en": "transparent 3D (outline + shadow)",
+    "de": "transparent 3D (Kontur + Schatten)",
+    "fr": "transparent 3D (contour + ombre)"
+  },
+  "opt_style_solid_3d": {
+    "it": "pieno 3D (con ombra)",
+    "en": "solid 3D (with shadow)",
+    "de": "gefüllt 3D (mit Schatten)",
+    "fr": "plein 3D (avec ombre)"
+  },
+  "opt_style_no_flint": {
+    "it": "{0} (non su Pebble 2 Duo)",
+    "en": "{0} (not on Pebble 2 Duo)",
+    "de": "{0} (nicht auf Pebble 2 Duo)",
+    "fr": "{0} (pas sur Pebble 2 Duo)"
+  },
+  "style_hint": {
+    "it": "Per lo stile trasparente rendono meglio Francois One e Staatliches (Anton in layout A tende a chiudersi).",
+    "en": "For the transparent style, Francois One and Staatliches read better (Anton tends to close up in layout A).",
+    "de": "Für den transparenten Stil eignen sich Francois One und Staatliches besser (Anton neigt in Layout A zum Zulaufen).",
+    "fr": "Pour le style transparent, Francois One et Staatliches donnent un meilleur résultat (Anton a tendance à se boucher en disposition A)."
+  },
+  "style_flint_help": {
+    "it": "Su Pebble 2 Duo il contorno delle cifre è di 1 px: sulle foto molto dettagliate l'ora si legge male. Con quelle conviene lo stile pieno.",
+    "en": "On Pebble 2 Duo the digit outline is 1 px: on very detailed photos the time is hard to read. With those, the solid style works better.",
+    "de": "Auf Pebble 2 Duo ist die Ziffernkontur nur 1 px breit: Auf sehr detailreichen Fotos ist die Uhrzeit schlecht lesbar. Bei solchen Fotos eignet sich der gefüllte Stil besser.",
+    "fr": "Sur Pebble 2 Duo, le contour des chiffres fait 1 px : sur les photos très détaillées, l'heure se lit mal. Dans ce cas, préférez le style plein."
+  },
+  "lbl_clock_mode": {
+    "it": "Formato ora",
+    "en": "Time format",
+    "de": "Zeitformat",
+    "fr": "Format de l'heure"
+  },
+  "opt_auto": {
+    "it": "auto",
+    "en": "auto",
+    "de": "automatisch",
+    "fr": "auto"
+  },
+  "lbl_leading_zero": {
+    "it": "Zero iniziale",
+    "en": "Leading zero",
+    "de": "Führende Null",
+    "fr": "Zéro initial"
+  },
+  "opt_yes": {
+    "it": "sì",
+    "en": "yes",
+    "de": "ja",
+    "fr": "oui"
+  },
+  "opt_no": {
+    "it": "no",
+    "en": "no",
+    "de": "nein",
+    "fr": "non"
+  },
+  "lbl_interval": {
+    "it": "Intervallo foto",
+    "en": "Photo interval",
+    "de": "Fotowechsel",
+    "fr": "Intervalle photo"
+  },
+  "opt_never": {
+    "it": "mai",
+    "en": "never",
+    "de": "nie",
+    "fr": "jamais"
+  },
+  "opt_minutes": {
+    "it": "{0} min",
+    "en": "{0} min",
+    "de": "{0} Min",
+    "fr": "{0} min"
+  },
+  "opt_hours": {
+    "it": "{0} h",
+    "en": "{0} h",
+    "de": "{0} Std",
+    "fr": "{0} h"
+  },
+  "opt_one_day": {
+    "it": "1 giorno",
+    "en": "1 day",
+    "de": "1 Tag",
+    "fr": "1 jour"
+  },
+  "lbl_order": {
+    "it": "Ordine",
+    "en": "Order",
+    "de": "Reihenfolge",
+    "fr": "Ordre"
+  },
+  "opt_order_seq": {
+    "it": "sequenziale",
+    "en": "in sequence",
+    "de": "der Reihe nach",
+    "fr": "dans l'ordre"
+  },
+  "opt_order_random": {
+    "it": "casuale",
+    "en": "shuffled",
+    "de": "zufällig",
+    "fr": "aléatoire"
+  },
+  "opt_shake_next": {
+    "it": "Scossa = foto successiva",
+    "en": "Shake = next photo",
+    "de": "Schütteln = nächstes Foto",
+    "fr": "Secouer = photo suivante"
+  },
+  "lbl_text_color": {
+    "it": "Colore testo",
+    "en": "Text color",
+    "de": "Textfarbe",
+    "fr": "Couleur du texte"
+  },
+  "opt_color_white": {
+    "it": "bianco",
+    "en": "white",
+    "de": "weiß",
+    "fr": "blanc"
+  },
+  "opt_color_black": {
+    "it": "nero",
+    "en": "black",
+    "de": "schwarz",
+    "fr": "noir"
+  },
+  "opt_color_yellow": {
+    "it": "giallo pastello",
+    "en": "pastel yellow",
+    "de": "pastellgelb",
+    "fr": "jaune pastel"
+  },
+  "opt_color_blue": {
+    "it": "blu Oxford",
+    "en": "Oxford blue",
+    "de": "Oxfordblau",
+    "fr": "bleu Oxford"
+  },
+  "lbl_outline": {
+    "it": "Contorno",
+    "en": "Outline",
+    "de": "Kontur",
+    "fr": "Contour"
+  },
+  "opt_outline_always": {
+    "it": "sempre",
+    "en": "always",
+    "de": "immer",
+    "fr": "toujours"
+  },
+  "lbl_info_row": {
+    "it": "Riga info:",
+    "en": "Info row:",
+    "de": "Infozeile:",
+    "fr": "Ligne d'infos :"
+  },
+  "opt_info_steps": {
+    "it": "passi",
+    "en": "steps",
+    "de": "Schritte",
+    "fr": "pas"
+  },
+  "opt_info_battery": {
+    "it": "batteria",
+    "en": "battery",
+    "de": "Akku",
+    "fr": "batterie"
+  },
+  "opt_info_date": {
+    "it": "data",
+    "en": "date",
+    "de": "Datum",
+    "fr": "date"
+  },
+  "btn_save": {
+    "it": "Salva",
+    "en": "Save",
+    "de": "Speichern",
+    "fr": "Enregistrer"
+  },
+  "btn_cancel": {
+    "it": "Esci senza salvare",
+    "en": "Leave without saving",
+    "de": "Ohne Speichern verlassen",
+    "fr": "Quitter sans enregistrer"
+  },
+  "msg_close_crop": {
+    "it": "Chiudi prima il ritaglio",
+    "en": "Close the crop first",
+    "de": "Schließe zuerst den Zuschnitt",
+    "fr": "Fermez d'abord le recadrage"
+  },
+  "msg_no_state_save": {
+    "it": "stato non ricevuto: riapri le impostazioni dall'app",
+    "en": "state not received: reopen the settings from the app",
+    "de": "Status nicht empfangen: Öffne die Einstellungen in der App neu",
+    "fr": "état non reçu : rouvrez les réglages depuis l'app"
+  },
+  "msg_sending": {
+    "it": "Invio {0} KB…",
+    "en": "Sending {0} KB…",
+    "de": "Sende {0} KB…",
+    "fr": "Envoi de {0} KB…"
+  },
+  "msg_saved": {
+    "it": "Salvato (seq {0}): torno all'app",
+    "en": "Saved (seq {0}): going back to the app",
+    "de": "Gespeichert (Seq {0}): zurück zur App",
+    "fr": "Enregistré (seq {0}) : retour à l'app"
+  },
+  "msg_save_fail": {
+    "it": "Salvataggio fallito: {0}",
+    "en": "Save failed: {0}",
+    "de": "Speichern fehlgeschlagen: {0}",
+    "fr": "Échec de l'enregistrement : {0}"
+  },
+  "err_no_reply": {
+    "it": "nessuna risposta in 30 s",
+    "en": "no reply in 30 s",
+    "de": "keine Antwort in 30 s",
+    "fr": "aucune réponse en 30 s"
+  },
+  "err_no_dev_server": {
+    "it": "dev server non raggiungibile",
+    "en": "dev server unreachable",
+    "de": "Dev-Server nicht erreichbar",
+    "fr": "dev server injoignable"
+  },
+  "msg_test_payload": {
+    "it": "modalità prova: payload di {0} KB (non inviato)",
+    "en": "test mode: payload of {0} KB (not sent)",
+    "de": "Testmodus: Payload von {0} KB (nicht gesendet)",
+    "fr": "mode test : payload de {0} KB (non envoyé)"
+  },
+  "msg_save_err": {
+    "it": "Errore nel salvataggio: {0}",
+    "en": "Save error: {0}",
+    "de": "Fehler beim Speichern: {0}",
+    "fr": "Erreur lors de l'enregistrement : {0}"
+  },
+  "msg_unsaved": {
+    "it": "Modifiche non salvate: tocca di nuovo per uscire senza salvare",
+    "en": "Unsaved changes: tap again to leave without saving",
+    "de": "Nicht gespeicherte Änderungen: Tippe erneut zum Verlassen ohne Speichern",
+    "fr": "Modifications non enregistrées : appuyez de nouveau pour quitter sans enregistrer"
+  },
+  "msg_test_close": {
+    "it": "modalità prova: chiusura senza modifiche",
+    "en": "test mode: closing with no changes",
+    "de": "Testmodus: Schließen ohne Änderungen",
+    "fr": "mode test : fermeture sans modifications"
+  },
+  "msg_err": {
+    "it": "Errore: {0}",
+    "en": "Error: {0}",
+    "de": "Fehler: {0}",
+    "fr": "Erreur : {0}"
+  },
+  "msg_boot_err": {
+    "it": "Errore di avvio: {0}",
+    "en": "Startup error: {0}",
+    "de": "Fehler beim Start: {0}",
+    "fr": "Erreur au démarrage : {0}"
+  },
+  "cap_over": {
+    "it": "Troppi dati per un solo invio ({0} KB su {1})",
+    "en": "Too much data for one transfer ({0} KB of {1})",
+    "de": "Zu viele Daten für eine Übertragung ({0} KB von {1})",
+    "fr": "Trop de données pour un seul envoi ({0} KB sur {1})"
+  },
+  "cap_over_fix": {
+    "it": "{0}: togli {1} foto o salva in più volte",
+    "en": "{0}. Photos to remove: {1}, or save in more than one go",
+    "de": "{0}. Zu entfernende Fotos: {1}, oder in mehreren Schritten speichern",
+    "fr": "{0}. Photos à retirer : {1}, ou enregistrez en plusieurs fois"
+  }
+}

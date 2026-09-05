@@ -27,6 +27,8 @@ TESTS += $(if $(wildcard test_sync.c),test_sync,)
 # Revisione v1.9 (05/09, F36): test_sync compilato anche come build M (-DGALLERIA_DEBUG_TIMING=1): la riga
 # "sync: gap" una sola volta per foto (mai per un PHOTO_END ritrasmesso) e le letture di time_ms della build M.
 TESTS += $(if $(wildcard test_sync.c),test_sync_timing,)
+# S10 (multilingua): datefmt.c puro (data per lingua con lang forzata, separatore delle migliaia) entra in `all` solo se il test esiste.
+TESTS += $(if $(wildcard test_datefmt.c),test_datefmt,)
 
 all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck logstats cards
 
@@ -69,6 +71,9 @@ $(OUT)/test_model: test_model.c shim/pebble.h shim/pebble_shim.c shim/ui_fake.c 
 
 $(OUT)/test_luma: test_luma.c $(SRC_DIR)/luma.c $(SRC_DIR)/luma.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ test_luma.c $(SRC_DIR)/luma.c
+
+$(OUT)/test_datefmt: test_datefmt.c $(SRC_DIR)/datefmt.c $(SRC_DIR)/datefmt.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ test_datefmt.c $(SRC_DIR)/datefmt.c
 
 # S7: sync.c (trasporto AppMessage) compilato INALTERATO con lo shim esteso (app_message_*/dict_*/heap_bytes_*,
 # MESSAGE_KEY_*), model.c + rotation.c reali (F1: hold della rotazione durante la sync) e i finti ui_*
@@ -119,9 +124,11 @@ clean:
 # S6: la config page inlinata (src/pkjs/config_page.js) e la fixture del round trip (fixture_page.js)
 # sono generate: --check fallisce se non sono aggiornate rispetto a src/pkjs/config/ e photo_prep.py.
 BUILD_PAGE = ../../../tools/build_config_page.py
+BUILD_I18N = ../../../tools/build_i18n.py   # S10: messages.json -> src/pkjs/i18n.js + test/fixture_i18n.js (--check)
 BROWSER_TOOL = ../../../tools/galleria_browser.py
 FONT_PREVIEWS = ../../../tools/gen_font_previews.py
 pagecheck:
+	@if [ -f $(BUILD_I18N) ]; then $(PYTHON) $(BUILD_I18N) --check; else echo "pagecheck: $(BUILD_I18N) assente, saltato"; fi
 	@if [ -f $(BUILD_PAGE) ]; then $(PYTHON) $(BUILD_PAGE) --check; else echo "pagecheck: $(BUILD_PAGE) assente, saltato"; fi
 	@if [ -f gen_page_fixture.py ]; then $(PYTHON) gen_page_fixture.py --check; else echo "pagecheck: gen_page_fixture.py assente, saltato"; fi
 	@if [ -f $(FONT_PREVIEWS) ]; then $(PYTHON) $(FONT_PREVIEWS) --check; else echo "pagecheck: $(FONT_PREVIEWS) assente, saltato"; fi

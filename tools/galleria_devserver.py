@@ -18,12 +18,14 @@ Endpoint (JSON UTF-8, `Cache-Control: no-store`, CORS `*`):
                                 inlinata da --page-dir (S6, build_config_page.py)
     GET  /state.json            modalita' pool (--album): payload completo {v, full, seq,
                                 settings, order, deleted, photos: [una voce per FORMATO],
-                                hooks: {scenario, open_ms?}};  modalita' relay (S6, senza
-                                --album): {v, seq, settings?, hooks} SENZA `full` (delta
-                                vuoto: il PKJS non cancella niente).  `hooks.open_ms`
+                                hooks: {scenario, open_ms?, lang?}};  modalita' relay (S6,
+                                senza --album): {v, seq, settings?, hooks} SENZA `full`
+                                (delta vuoto: il PKJS non cancella niente).  `hooks.open_ms`
                                 (v1.9, --open-ms) fa forzare al PKJS HELLO.openMs prima del
                                 piano: serve a PROVARE l'avviso di avvio lento della config
-                                page, che in emulatore non scatterebbe mai
+                                page, che in emulatore non scatterebbe mai; `hooks.lang`
+                                (S10, --lang) gli fa forzare la lingua AUTOMATICA della
+                                pagina, che in emulatore sarebbe sempre en_US
     GET  /save.json             payload dell'ultimo Save della config page vera (senza
                                 `full`); prima di quello, alias di /state.json
     GET  /pool.json             foto disponibili (--album) con anteprime
@@ -62,6 +64,10 @@ Uso:
 
     # v1.9: la stessa cosa, ma con l'avviso "Galleria si avvia lentamente (2,2 s)" acceso
     python3 tools/galleria_devserver.py --page-dir apps/galleria/src/pkjs/config --open-ms 2150
+
+    # S10: pagina in tedesco "automatico" (lingua dell'orologio finta) e impostazione lang = fr
+    python3 tools/galleria_devserver.py --album a.jpg --lang de
+    python3 tools/galleria_devserver.py --album a.jpg --settings '{"lang": 4}'
 
     # autotest completo (nessuna rete esterna, immagini sintetiche)
     python3 tools/galleria_devserver.py --selftest
@@ -107,6 +113,7 @@ FMT_RAW6 = 1                # gal_types.h: GAL_FMT_RAW6
 FMT_RAW1 = 2                # gal_types.h: GAL_FMT_RAW1
 
 SCENARIOS = ('photo', 'seq', 'dup', 'crc', 'interrupt', 'none')
+PAGE_LANGS = ('en', 'it', 'de', 'fr')       # S10 (D33): lingue della config page (hook --lang)
 
 # Campi ammessi nel corpo di POST /save. La validazione e' severa allo stesso modo dentro
 # `settings` e al livello superiore: un campo sconosciuto (refuso della pagina) e' un 400,
@@ -130,6 +137,7 @@ FMT_LEN = {FMT_RAW6: RAW6_BYTES, FMT_RAW1: RAW1_BYTES}
 # di settings_set_defaults(). L'ordine è quello dei campi di GalSettings (design §4.1).
 # S8 (D21/D22): `font` arriva a 5 (3 = LECO, 4 Francois One, 5 Staatliches) e `digit_style` 0..3
 # (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D) occupa il byte 12 del blob.
+# S10 (D31): `lang` 0..4 (0 automatica, 1 en, 2 it, 3 de, 4 fr) occupa il byte 13.
 SETTINGS_SPEC = (
     ('layout',       tuple(range(0, 2)),                     '0..1',    0),
     ('font',         tuple(range(0, 6)),                     '0..5',    0),
@@ -142,6 +150,7 @@ SETTINGS_SPEC = (
     ('shake_next',   tuple(range(0, 2)),                     '0..1',    1),
     ('info_row',     tuple(range(0, 16)),                    '0..15',  15),
     ('digit_style',  tuple(range(0, 4)),                     '0..3',    0),
+    ('lang',         tuple(range(0, 5)),                     '0..4',    0),
 )
 SETTINGS_ALLOWED = {name: values for name, values, _d, _v in SETTINGS_SPEC}
 SETTINGS_RANGE_TEXT = {name: desc for name, _values, desc, _v in SETTINGS_SPEC}
@@ -627,7 +636,7 @@ class DevState(object):
     """Stato del server (album, ordine, impostazioni, scenario), protetto da un Lock."""
 
     def __init__(self, pool, photos, order, settings, scenario, settings_set=False,
-                 relay=False, open_ms=None):
+                 relay=False, open_ms=None, lang=None):
         self.lock = threading.Lock()
         self.pool = pool                     # sola lettura dopo la costruzione
         self.photos = list(photos)           # [{slot, src}] — src = indice nel pool
@@ -642,6 +651,11 @@ class DevState(object):
         # con --open-ms il PKJS forza HELLO.openMs a questo valore prima del piano (index.js, DEV).
         # None = nessun hook (`hooks` resta {'scenario': …} come prima).
         self.open_ms = None if open_ms is None else int(open_ms)
+        # S10 (D33): hook dev-only per la LINGUA AUTOMATICA della config page. In emulatore la
+        # lingua dell'orologio e' en_US e non si cambia, quindi `--lang de` e' l'unico modo di
+        # vedere la pagina "in automatico" in tedesco (il PKJS lo usa al posto di
+        # getActiveWatchInfo().language: index.js, DEV). None = nessun hook.
+        self.lang = None if lang is None else str(lang)
         # Modalita' relay (S6): niente album sul server, /state.json e' un delta vuoto.
         # In pool (S5b, --album) resta il payload `full: true`.
         self.relay = bool(relay)
@@ -656,10 +670,14 @@ class DevState(object):
         return {entry['slot']: self.pool[entry['src']] for entry in self.photos}
 
     def _hooks(self):
-        """Hook per il PKJS: sempre `scenario`, `open_ms` solo se richiesto (--open-ms)."""
+        """Hook per il PKJS: sempre `scenario`, `open_ms` (--open-ms) e `lang` (--lang) solo se
+        richiesti. Un hook assente non e' lo stesso di un hook a 0 / vuoto: il PKJS azzera il
+        proprio valore forzato quando l'hook manca (index.js, applyDevState)."""
         hooks = {'scenario': self.scenario}
         if self.open_ms is not None:
             hooks['open_ms'] = self.open_ms
+        if self.lang is not None:
+            hooks['lang'] = self.lang
         return hooks
 
     def state_dict(self):
@@ -929,7 +947,9 @@ var SETTINGS_FIELDS = [
   { key: "info_row", label: "Riga info (bit 1 passi, 2 batteria, 4 data, 8 BT)", number: [0, 15] },
   { key: "digit_style", label: "Stile cifre",
     opts: [[0, "pieno"], [1, "trasparente (solo contorno)"], [2, "trasparente 3D (contorno + ombra)"],
-           [3, "pieno 3D (con ombra)"]] }
+           [3, "pieno 3D (con ombra)"]] },
+  { key: "lang", label: "Lingua",
+    opts: [[0, "automatica (orologio)"], [1, "English"], [2, "Italiano"], [3, "Deutsch"], [4, "Français"]] }
 ];
 var SCENARIOS = ["photo", "seq", "dup", "crc", "interrupt", "none"];
 var MAX_SLOTS = 12;
@@ -1933,7 +1953,7 @@ def selftest():
         # --- POST valido ---
         payload = {'photos': [{'slot': 5, 'src': 2}, {'slot': 0, 'src': 0}],
                    'order': [9, 5],                       # 9 sconosciuto → scartato; 0 → accodato
-                   'settings': {'layout': 1, 'interval_min': 5},
+                   'settings': {'layout': 1, 'interval_min': 5, 'lang': 3},
                    'scenario': 'crc'}
         code, _h, res = req('POST', '/save', body=json.dumps(payload).encode('utf-8'),
                             headers={'Content-Type': 'application/json'})
@@ -1952,6 +1972,8 @@ def selftest():
               st2['settings']['layout'] == 1 and st2['settings']['interval_min'] == 5
               and st2['settings']['font'] == 0 and st2['settings']['shake_next'] == 1,
               str(st2['settings']))
+        check('dopo il save: impostazione lang = 3 (tedesco, S10/D31)',
+              st2['settings']['lang'] == 3, str(st2['settings'].get('lang')))
         check('dopo il save: scenario aggiornato', st2['hooks']['scenario'] == 'crc')
         check('dopo il save: la foto 2 del pool è nello slot 5',
               [p['crc'] for p in st2['photos'] if p['slot'] == 5] == [pool[2]['crc6'], pool[2]['crc1']])
@@ -1968,6 +1990,7 @@ def selftest():
             ('settings fuori intervallo', json.dumps({'settings': {'layout': 7}})),
             ('interval_min non ammesso', json.dumps({'settings': {'interval_min': 7}})),
             ('settings campo ignoto', json.dumps({'settings': {'pippo': 1}})),
+            ('lang fuori intervallo (S10: 0..4)', json.dumps({'settings': {'lang': 5}})),
             ('scenario ignoto', json.dumps({'scenario': 'boh'})),
             ('campo top-level ignoto', json.dumps({'pippo': 1})),
             ('v sconosciuta', json.dumps({'v': 2})),
@@ -2290,7 +2313,7 @@ def selftest():
                 dj = json.loads(out)
             except ValueError:
                 dj = None
-            check('--dump-json state --relay --settings: 10 impostazioni, ancora senza `full`',
+            check('--dump-json state --relay --settings: impostazioni complete, ancora senza `full`',
                   rc == 0 and dj is not None and 'full' not in dj and 'photos' not in dj
                   and set(dj.get('settings', {})) == set(SETTINGS_ALLOWED)
                   and dj['settings']['layout'] == 1 and dj['hooks']['scenario'] == 'crc',
@@ -2333,6 +2356,62 @@ def selftest():
                   and dj['hooks'] == {'scenario': 'photo', 'open_ms': 90}
                   and len(dj['photos']) == 2 and dj['order'] == [4],
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
+            # S10 (D33): --lang e' un hook come open_ms — l'HOOK e' la lingua AUTOMATICA finta,
+            # l'IMPOSTAZIONE lang (byte 13 del blob) resta una voce di --settings: due cose diverse.
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'de'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--lang de: hooks = {scenario, lang}',
+                  rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'lang': 'de'}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'it',
+                                    '--open-ms', '2150'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--lang it --open-ms 2150: i due hook convivono',
+                  rc == 0 and dj == {'v': 1, 'seq': 1,
+                                     'hooks': {'scenario': 'photo', 'open_ms': 2150, 'lang': 'it'}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('senza --lang: nessun hook `lang` (il PKJS usa la lingua dell\'orologio)',
+                  rc == 0 and dj is not None and 'lang' not in dj.get('hooks', {}),
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'es'])
+            check('--lang non fra le quattro: errore di argparse, niente traceback',
+                  rc != 0 and 'Traceback' not in err and 'invalid choice' in err,
+                  'rc=%s err=%s' % (rc, err.strip()[-90:]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--album', paths[1], '--slots', '4',
+                                    '--lang', 'fr'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--album --lang fr: payload full con hooks = {scenario, lang: fr}',
+                  rc == 0 and dj is not None and dj.get('full') is True
+                  and dj['hooks'] == {'scenario': 'photo', 'lang': 'fr'},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            # impostazione `lang` (D31): 0..4 come SETTINGS_SPEC, 5 e' fuori intervallo
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 4}'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--settings \'{"lang": 4}\': impostazione lang = 4 (francese)',
+                  rc == 0 and dj is not None and dj.get('settings', {}).get('lang') == 4
+                  and 'lang' not in dj.get('hooks', {}),
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 5}'])
+            check('--settings \'{"lang": 5}\': fuori intervallo, errore senza traceback',
+                  rc != 0 and 'Traceback' not in err and '0..4' in err,
+                  'rc=%s err=%s' % (rc, err.strip()[-90:]))
             rc, out, err = run_cli(['--dump-json', 'state', '--page-dir', page_dir])
             try:
                 dj = json.loads(out)
@@ -2679,7 +2758,7 @@ def selftest():
                 fh.write(PAGE_CHECK_JS)
             two = [{'slot': 0, 'src': 0}, {'slot': 1, 'src': 1}]
             custom = default_settings()
-            custom.update({'layout': 1, 'interval_min': 5, 'info_row': 3})
+            custom.update({'layout': 1, 'interval_min': 5, 'info_row': 3, 'lang': 2})
             variants = {
                 'no': (DevState(pool, two, [0, 1], default_settings(), 'photo', settings_set=False),
                        'http://localhost:5555/close?'),
@@ -2891,6 +2970,7 @@ def build_parser():
                "  %(prog)s --album a.jpg b.jpg c.jpg --slots 3,7,11 --order 11,3,7 --scenario crc\n"
                "  %(prog)s --album a.jpg --photo-prep-args=\"--sunlight\"\n"
                "  %(prog)s --page-dir apps/galleria/src/pkjs/config      (S6: config page vera, relay)\n"
+               "  %(prog)s --album a.jpg --lang de                       (S10: pagina in tedesco automatico)\n"
                "  %(prog)s --selftest\n"
                "Poi, da un altro terminale: pebble emu-app-config --emulator emery\n"
                "Documentazione: tools/README.md §11 · specifica: docs/design/galleria.md §5.1 e §6.",
@@ -2915,6 +2995,10 @@ def build_parser():
                     help='hook dev: HELLO.OPEN_MS finto (0..65535 ms) per provare l\'avviso di avvio '
                          'lento della config page (il riquadro #slow scatta oltre una soglia '
                          'proporzionale al numero di foto sull\'orologio; 0 = nessun avviso)')
+    ap.add_argument('--lang', choices=PAGE_LANGS, metavar='en|it|de|fr',
+                    help='hook dev: lingua AUTOMATICA finta della config page (S10/D33), al posto '
+                         'di quella dell\'orologio, che in emulatore e\' sempre en_US; non tocca '
+                         'l\'impostazione `lang` (quella si sceglie con --settings \'{"lang": 3}\')')
     ap.add_argument('--work', metavar='DIR',
                     help='cartella dei raw e delle anteprime (default: temporanea, rimossa in '
                          'uscita sia con Ctrl-C sia con SIGTERM)')
@@ -2969,7 +3053,8 @@ def build_state(args, slots, order, settings, work, prep_args, verbose=True):
                     scenario=args.scenario,
                     settings_set=getattr(args, 'settings_set', bool(args.settings)),
                     relay=getattr(args, 'relay_mode', False),
-                    open_ms=getattr(args, 'open_ms', None))
+                    open_ms=getattr(args, 'open_ms', None),
+                    lang=getattr(args, 'lang', None))
 
 
 def main(argv=None):

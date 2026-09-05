@@ -29,12 +29,13 @@
 
 ## 2. Descrizione per lo store (testo unico, pronto da incollare)
 
-Lo store **non è localizzato**: un solo testo, inglese prima e una riga italiana breve alla fine.
-**1.493 caratteri** (`wc -m store/description.txt` = 1.494 con il newline finale), **tutto ASCII**.
-Aggiornato la **sera del 05/09/2026** con le decisioni U1/U4/U7: in fondo c'è la riga
-`Beta 0.1.0. Open source (MIT): github.com/Rediro-MC/galleria-da-polso` (69 caratteri) e, per farle posto senza
-sfondare il tetto di 1.500, la riga italiana è stata accorciata da 116 a 45 caratteri
-(«Italiano: le tue foto con l'ora grande sopra.»): il totale resta **1.493**.
+> **Riscritta il 05/09/2026 sera su richiesta dell'utente («più concisa»)**: **789 caratteri** ASCII invece di 1.493 (`wc -m store/description.txt` = 790 con il newline finale). Il testo pubblicato alle 20:41 è ancora quello lungo: la descrizione **non si aggiorna dalla CLI** (`PUBLISH.md` §9), va incollata in dashboard (https://appstore-api.repebble.com/dashboard) — **da fare insieme alla release 0.2.0 multilingua**, che è ciò che fa cadere la riga «the settings page is in Italian».
+>
+> **S10 (0.2.0)**: la riga sui limiti dice ora «Photo upload tested on Android. **Settings page in English, Italian, German and French**.» ⚠️ L'ultima riga porta ancora «Beta 0.1.0»: prima di incollare in dashboard va allineata alla versione pubblicata.
+
+Lo store **non è localizzato**: un solo testo in inglese (la riga italiana della prima stesura è
+caduta con la riscrittura corta). **789 caratteri**, **tutto ASCII**, 5 capoversi: foto e rotazione,
+ora e layout, limiti e piattaforme, procedura «rimuovi e reinstalla», crediti e licenza.
 
 > Il tetto reale dello store Core **non è noto**: nel sorgente di `pebble publish` non c'è nessun controllo di
 > lunghezza e le pagine `developer.repebble.com/guides/appstore-publishing/…` danno 404 (`PUBLISH.md`,
@@ -43,21 +44,15 @@ sfondare il tetto di 1.500, la riga italiana è stata accorciata da 116 a 45 car
 > Anche gli accenti sono evitati (il multipart va in UTF-8, ma il comportamento del server non è provato).
 
 ```text
-Your own photos, full screen, behind a big readable clock.
+Your photos as the watchface. Pick and crop them on your phone: up to 12 rotate on the watch, and a shake skips to the next one.
 
-Pick, crop and save the pictures on your phone, in the settings page: the watch holds up to 12 and moves to the next on its own, every 5 minutes to once a day, in order or shuffled; a shake skips ahead until the watchface restarts.
+Big bitmap clock: 6 fonts, 4 styles (solid, transparent, 3D), white or black text chosen from the photo. Two layouts: time with steps, battery and date, or time only. 12 h or 24 h.
 
-The time is drawn in bitmap digits: six fonts, four styles (solid, transparent, two with a 3D shadow), white or black text chosen by the watch from the photo. Two layouts: the time on a third of the screen with steps, battery and date, or on the whole screen alone; 12- or 24-hour, with or without the leading zero. It refreshes once a minute, no seconds and no animations, and works with the phone away: photos and settings live on the watch, two demo photos included.
+Works offline: photos and settings stay on the watch. Pebble Time 2 and Pebble 2 Duo, PebbleOS 4.32 or newer. Photo upload tested on Android. Settings page in English, Italian, German and French.
 
-Runs on Pebble Time 2 (colour) and Pebble 2 Duo (black and white), PebbleOS 4.32 or newer; the transparent and 3D styles are meant for the Pebble Time 2 (on the Pebble 2 Duo the 3D ones look like the flat ones). Loading photos has been tested with the Android Pebble app; iOS is untested, and the settings page is in Italian.
+Slow to start after many photo swaps? Remove Galleria and install it again: your photos come back from the phone.
 
-Slow to start after many photo swaps? Remove Galleria in the Pebble app (Remove, not Update) and install it again: your photos stay on the phone and come back.
-
-Italiano: le tue foto con l'ora grande sopra.
-
-Digits: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1). Demo photos: CC0 (Wikimedia Commons).
-
-Beta 0.1.0. Open source (MIT): github.com/Rediro-MC/galleria-da-polso
+Beta 0.2.0, open source (MIT): github.com/Rediro-MC/galleria-da-polso. Fonts: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (OFL). Demo photos: CC0.
 ```
 
 Lo stesso testo è in **`store/description.txt`** (usato dal comando di §6: `--description "$(cat store/description.txt)"`).
@@ -83,10 +78,38 @@ riavvio — D19, offset solo in RAM — e non «continua a saltare»). Le due co
 tetto prudenziale di 1.500 (resterebbe comunque sotto i 1.600 dichiarati da Rebble). Se l'utente le vuole, va
 accorciata prima un'altra frase.
 
-## 3. Release notes 0.1.0 (beta)
+## 3. Release notes
 
-**521 caratteri** (`wc -m store/release_notes_0.1.0.txt` = 522 con il newline finale), **5 righe**, ASCII. È l'**unico
-campo testuale modificabile nelle release successive** (`PUBLISH.md`, campo *releaseNotes*, `publish.py:547`).
+Sono l'**unico campo testuale che si aggiorna a ogni release** dalla CLI (`PUBLISH.md`, campo
+*releaseNotes*, `publish.py:547`): nome, descrizione e icone no (§9 di `PUBLISH.md`).
+
+### 3.1 Release notes 0.2.0 (S10, multilingua) — da usare con la prossima release
+
+**472 caratteri** (`wc -m store/release_notes_0.2.0.txt` = 473 con il newline finale), **6 righe**,
+**tutto ASCII** (niente accenti: `e'`, `Francais`, `reglages`) e nessuna virgoletta doppia, così la
+riga `--release-notes "$(cat …)"` resta innocua.
+
+```text
+Galleria 0.2.0 - the settings page now speaks four languages.
+- English: the page follows your watch language, or you can pick one under Language.
+- Italiano: la pagina delle impostazioni e' in italiano, come la data sull'orologio.
+- Deutsch: die Einstellungsseite ist auf Deutsch, ebenso das Datum auf der Uhr.
+- Francais: la page de reglages est en francais, comme la date sur la montre.
+- While photos are loading, the watch shows a sync icon and k/n instead of a word.
+```
+
+Copia in **`store/release_notes_0.2.0.txt`** (i due blocchi devono restare byte-identici).
+Lo store non è localizzato, quindi il testo resta un blocco unico: **una riga per lingua**, scritta
+in quella lingua, dice a chi legge che la pagina delle impostazioni parla anche la sua (decisione
+**D38** della spec S10). L'ultima riga copre l'altra novità visibile sull'orologio: durante il
+caricamento non c'è più la parola «Foto», ma un'**icona di sincronizzazione** e `k/n`
+(D32; `src/c/ui_time.c` `prv_draw_sync_icon`) — coerente con una pagina in quattro lingue.
+La data dell'orologio segue la stessa impostazione: in «Automatica» resta quella del firmware
+(*language pack*), altrimenti usa le abbreviazioni della lingua scelta (D34, `src/c/datefmt.c`).
+
+### 3.2 Release notes 0.1.0 (beta) — pubblicate il 05/09/2026
+
+**521 caratteri** (`wc -m store/release_notes_0.1.0.txt` = 522 con il newline finale), **5 righe**, ASCII.
 Riscritte la sera del 05/09/2026 per la prima release **0.1.0 (beta)** (decisione **U7**; il file si chiamava
 `release_notes_1.0.0.txt`).
 
@@ -142,6 +165,10 @@ Le righe con ⚠️ dipendono da un lavoro non ancora chiuso.
 I numeri di riga della config page si spostano a **ogni** intervento sulla pagina (P5 e R13 l'hanno già fatto il
 05/09): il riferimento stabile è l'identificatore indicato accanto (`photosCap`, `NO_3D`, `FIX_STEPS`, `FIX_TAIL`) —
 ricontrollare i numeri con `grep -n` prima di pubblicare.
+⚠️ **Dopo S10 (0.2.0) i testi non sono più in `page.html`/`page.js`**: quei file portano solo chiavi
+(`data-i18n="lbl_layout"`, `T('opt_order_random')`), e le frasi italiane citate qui sotto si cercano in
+**`apps/galleria/i18n/messages.json`** (`grep -n "Aggiungi foto" i18n/messages.json`). I riferimenti a `page.js:NN`
+delle righe 4–24 valgono quindi per la **struttura** (quale elemento mostra cosa), non per il testo.
 
 | # | Affermazione (descrizione / release notes / campo di §1) | Fonte |
 |---|---|---|
@@ -166,15 +193,17 @@ ricontrollare i numeri con `grep -n` prima di pubblicare.
 | 19 | Serve **PebbleOS 4.32 o più recente** | `docs/design/galleria.md` §2 D5 (SDK 4.33.1 → fw ≥ 4.32), **confermato dall'utente il 05/09/2026** (U5: si usa l'ultimo SDK, D5 chiusa); `README.md` §Requisiti |
 | 20 | Il caricamento delle foto **è provato con l'app Pebble per Android** | `docs/design/galleria-s8-risultati.md:11` (app Pebble **1.11.0.3**, LAN dev connection) e §O2 (sync di foto vere sul campo) |
 | 21 | **iOS non è provato** | `PIANO.md` §7 («iOS mai provato»: file input nella WebView, limite del close URL sconosciuto); `docs/design/galleria.md` §2 D1 |
-| 22 | La **pagina delle impostazioni è in italiano** | `src/pkjs/config/page.html` e `page.js` (tutte le etichette in italiano; nessuna localizzazione) |
+| 22 | La **pagina delle impostazioni è in inglese, italiano, tedesco e francese** (0.2.0) | `apps/galleria/i18n/messages.json` (**121 chiavi × 4 lingue**, sorgente unica) → `tools/build_i18n.py` → `src/pkjs/i18n.js`; `src/pkjs/config/page.html` e `page.js` non contengono più testi ma **chiavi** (`data-i18n`, `T(…)`), sostituite con indici da `tools/build_config_page.py`; `docs/design/galleria-s10-i18n.md` D35/D36. Fino alla 0.1.0 la descrizione diceva «the settings page is in Italian» |
+| 22b | La pagina **segue da sola la lingua dell'orologio**, e la si può scegliere a mano | `src/pkjs/index.js` `langAuto()` (D33: `getActiveWatchInfo().language` → `navigator.language` → `en`; log `[config] lang auto=…`); select «Lingua» prima riga di `#settings` (`s_lang`, D36); impostazione `lang` al **byte 13** del blob (`src/c/settings.h`, `src/pkjs/album.js:78`, D31) |
+| 22c | Anche **la data sull'orologio** segue la lingua scelta | `src/c/datefmt.c` (tabelle identiche ai language pack, formati per lingua: en «Sat 5 Sep», it «Sab 5 Set», de «Sa, 5. Sep», fr «Sam 5 Sept.»; separatore delle migliaia en `,` it/de `.` fr spazio) chiamato da `src/c/ui_time.c`; con «Automatica» resta `strftime` del firmware (D34) |
 | 23 | Se l'avvio diventa lento dopo molte sostituzioni di foto: **Rimuovi (non Aggiorna) e reinstalla** | `src/pkjs/config/page.js:532-533` (`FIX_STEPS`: «scegli Rimuovi (non Aggiorna)», «reinstalla Galleria»); `README.md` §«Galleria si avvia lentamente?»; `docs/design/galleria.md` §2 D27 |
 | 24 | Le foto **restano sul telefono** e tornano da sole | `src/pkjs/config/page.js:534` (`FIX_TAIL`); `docs/design/galleria.md` §5.1 (album in `localStorage`, diff stateless a ogni HELLO) |
 | 25 | Cifre: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches, **SIL OFL 1.1** | `resources/fonts/README.md` (inventario con versione, dimensione e sha256; `OFL-*.txt` per ogni famiglia) |
 | 26 | Foto demo **CC0 (Wikimedia Commons)** | `resources/photos/README.md` (licenza verificata con l'API di Commons e con il wikitext della pagina `File:`, provenienza, SHA, CRC32); §4 di questo file; le due CC0 sono nei `.raw` del repo dal 05/09 (CRC32 ricontrollati con `zlib.crc32`) |
 | 27 | Release notes: provata su un **Pebble Time 2 con PebbleOS 4.36.2** | `docs/design/galleria-s8-risultati.md:10` (PT2, PebbleOS v4.36.2, board obelix) |
 | 28 | Release notes: il build **Pebble 2 Duo** è controllato **solo in emulatore** e **iOS non è provato** | `PIANO.md` §7 (O11 non fatto: «da vedere sul Pebble 2 Duo vero»; «iOS mai provato»); `docs/design/galleria-s8-risultati.md` (ambiente del test: un solo orologio, PT2) |
-| 29 | Release notes: durante il caricamento un **contatore delle foto** è visibile **sullo schermo** | `src/c/ui_time.h:47-48` («Foto index/count» al posto di passi/icona BT nel layout A); `src/c/ui_time.c:968-970` (`"Foto %u/%u"`), `:680-682` (**U8/R10**: lo stesso contatore nella fascia dinamica del **layout B**, `MODE_B_SPRITE`) e `:425` (ridisegno al cambio layout / fine Quick View); `src/c/sync_proto.h:35` (R01, 05/09: le foto saltate contano, il contatore arriva a `n/n`) |
-| 30 | Nome dello store «Galleria for Pebble», versione **0.1.0** | spec S9 §2; `package.json` (`version` `0.1.0`, `displayName` «Galleria»), decisione **U7** del 05/09/2026 |
+| 29 | Release notes: durante il caricamento un **contatore delle foto** è visibile **sullo schermo** (0.2.0: **icona di sincronizzazione + «k/n»**, senza parole — D32, `src/c/ui_time.c` `prv_draw_sync_icon`, arco 40°–335° + punta su `GPath` statico) | `src/c/ui_time.h:47-48` («Foto index/count» al posto di passi/icona BT nel layout A); `src/c/ui_time.c:968-970` (`"Foto %u/%u"`), `:680-682` (**U8/R10**: lo stesso contatore nella fascia dinamica del **layout B**, `MODE_B_SPRITE`) e `:425` (ridisegno al cambio layout / fine Quick View); `src/c/sync_proto.h:35` (R01, 05/09: le foto saltate contano, il contatore arriva a `n/n`) |
+| 30 | Nome dello store «Galleria for Pebble», versione **0.2.0** (prima release **0.1.0**) | spec S9 §2; `package.json` (`displayName` «Galleria»), decisione **U7** del 05/09/2026 per la 0.1.0 e **D38** della spec S10 per la 0.2.0; il nome **non si cambia più dalla CLI** (`PUBLISH.md` §9) |
 | 31 | Descrizione e release notes: è una **beta 0.1.0** | `package.json` → `version` `0.1.0`; decisione **U7** (prima release pubblica in beta, tag `v0.1.0-beta`) |
 | 32 | Descrizione: **open source, licenza MIT**, sorgente `github.com/Rediro-MC/galleria-da-polso` | `LICENSE` in radice del repo (MIT, «Copyright (c) 2026 Rediro»), decisione **U1**; repo reso **pubblico**, decisione **U4** (`git config --get remote.origin.url` → `https://github.com/Rediro-MC/galleria-da-polso.git`, `PUBLISH.md` §6) |
 
@@ -198,9 +227,9 @@ cd ~/ProgettiClaude/Pebble/apps/galleria
 python3 ../../tools/build_config_page.py --check     # config page inlinata aggiornata
 make -C test                                         # test host + node + Python
 pebble clean && pebble build                         # gate: emery + flint verdi, senza GALLERIA_DEFINES
-unzip -p build/galleria.pbw appinfo.json             # atteso: versionLabel 0.1.0, companyName Rediro (appinfo.json e' generato)
+unzip -p build/galleria.pbw appinfo.json             # atteso: versionLabel = la versione da pubblicare, companyName Rediro (appinfo.json e' generato)
 python3 store/make_assets.py --check                 # icone e screenshot rigenerati con le demo NUOVE
-wc -m store/description.txt store/release_notes_0.1.0.txt   # 1.494 e 522 (con il newline finale)
+wc -m store/description.txt store/release_notes_0.2.0.txt   # 790 e 473 (con il newline finale)
 pebble login --status                                # account: sulla VM non risulta collegato (nessun firebase_oauth_storage.json)
 ```
 
@@ -210,7 +239,19 @@ pebble login --status                                # account: sulla VM non ris
 
 ### Comando
 
+**App già pubblicata**: la riga qui sotto è quella della **prima** pubblicazione (05/09/2026,
+`cdf80cc3bf6745b1a310e4c8`). Per la **0.2.0** e per ogni release successiva serve solo la variante
+«nuova release» — `--version` e `--release-notes`, niente nome/descrizione/icone, che dalla CLI non
+si aggiornano più (`PUBLISH.md` §4 e §9):
+
 ```bash
+pebble publish --non-interactive --no-gif-all-platforms \
+  --version 0.2.0 \
+  --release-notes "$(cat store/release_notes_0.2.0.txt)"
+```
+
+```bash
+# storico: comando della PRIMA pubblicazione (0.1.0, 05/09/2026)
 pebble publish --non-interactive --no-gif-all-platforms \
   --name "Galleria for Pebble" \
   --version 0.1.0 \
@@ -259,6 +300,9 @@ Da sapere prima di premere invio (tutto da `PUBLISH.md`):
   then be made private»*.
 
 ## 7. Decisioni U1–U9 (prese il 05/09/2026, sera) e punti ancora aperti
+
+> **Esito: pubblicata il 05/09/2026 alle 20:41** — app `cdf80cc3bf6745b1a310e4c8`, https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8 (dettagli in `PUBLISH.md`, in testa). Da qui in poi la CLI aggiorna solo versione, note e `.pbw` (§6, variante «nuova release»); nome, descrizione, icone e sorgente si cambiano in dashboard.
+
 
 | # | Decisione | Risposta dell'utente | Applicata in |
 |---|---|---|---|

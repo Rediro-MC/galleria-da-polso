@@ -38,6 +38,10 @@
  * Parte 4 — S7 (4a-4e), v1.9: 4f avviso di avvio lento #slow (soglia openMs) e sezione Aiuto
  * #help; S8-stile: 4g campo «Stile cifre» (digit_style), font 0..5 con le anteprime vere di
  * previews.js e regola D26 (su flint le due opzioni 3D sono spente e il valore scende a 1/0).
+ * Parte 5 — S10 lingua della pagina (D33/D35/D36): 5a automatica dall'orologio e override dalla
+ * select; 5b id e valori delle <option> stabili, nessun segnaposto residuo, decimali per lingua;
+ * 5c il rovescio della 5b — dopo applyLang nessuna etichetta (.rlab, h2, .btn) resta vuota a
+ * schermo, cioe' nessun data-i18n perso nel markup (i testi non stanno piu' nell'HTML).
  *
  * DUE GIRI (revisione S6, finding #8: nessun test eseguiva l'artefatto davvero spedito). Le
  * sezioni si registrano e girano identiche su due varianti:
@@ -56,7 +60,8 @@
  * Sensibilita' verificata a mano con mutanti su page.js/page_core.js (freeSlot senza deleted,
  * token non percent-encoded, LECO non forzato, sunlight ignorato, flintRect non applicato,
  * dimensioni flint, miniatura senza ripiego, pending, frecce, nome non troncato, clamp della
- * vista, order/data/hash): ognuno fa fallire almeno un'asserzione. Sul 2o giro, con mutanti
+ * vista, order/data/hash; S10: data-i18n tolto dalla label di #s_layout -> 5c rossa in entrambi i
+ * giri): ognuno fa fallire almeno un'asserzione. Sul 2o giro, con mutanti
  * sull'artefatto: testo cambiato in un <script> (fallisce solo «inlinato»), riga «//» rimasta,
  * previews e page scambiati (sezioni saltate), module.exports non stringa (1 fail).
  *
@@ -74,6 +79,21 @@ var CFG = path.join(__dirname, '..', 'src', 'pkjs', 'config');
 var MOD = path.join(__dirname, '..', 'src', 'pkjs', 'config_page.js');   /* l'artefatto spedito */
 var SCRIPTS = ['pipeline.js', 'page_core.js', 'previews.js', 'page.js'];
 var b64 = require(path.join(__dirname, '..', 'src', 'pkjs', 'b64.js'));
+/* S10: gli stessi dizionari che il PKJS mette nello stato (generati da tools/build_i18n.py).
+ * La pagina li riceve in state.i18n; nei test sui SORGENTI le chiavi sono ancora nomi, quindi
+ * il contesto espone anche GalI18nKeys (nell'artefatto sono gia' indici e non serve). */
+var I18N = require(path.join(__dirname, 'fixture_i18n.js'));
+var DICTS = { en: I18N.en, it: I18N.it, de: I18N.de, fr: I18N.fr };
+/* Chiave come appare nella variante in prova: nome nei sorgenti, indice nell'artefatto (dove
+ * build_config_page.py le ha gia' convertite). Serve solo dove la pagina mostra la CHIAVE,
+ * cioe' quando non c'e' stato e quindi nessun dizionario (D35). */
+function K(name) { return V.inlined ? String(I18N.keys.indexOf(name)) : name; }
+/* T italiano, identico a quello della pagina: i confronti restano sui testi veri */
+function Tit(k, a, b) {
+  var i = (typeof k === 'number') ? k : I18N.keys.indexOf(k);   /* l'artefatto passa gia' l'indice */
+  var t = (i >= 0 && i < I18N.it.length) ? I18N.it[i] : String(k), v = [a, b];
+  return t.replace(/\{([01])\}/g, function (m, n) { return v[+n] === undefined ? m : v[+n]; });
+}
 
 /* Sorgenti in uso: li imposta runVariant() prima di ogni giro, cosi' le STESSE sezioni girano
  * sui file di src/pkjs/config/ e poi sull'HTML inlinato di src/pkjs/config_page.js (finding #8:
@@ -117,16 +137,17 @@ function hashOf(state) { return b64.encodeUtf8(JSON.stringify(state)); }
 
 var DEFAULT_SETTINGS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, text_color: 0,
                          outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
-                         digit_style: 0 };
+                         digit_style: 0, lang: 0 };
 var SETTINGS_KEYS = ['layout', 'font', 'clock_mode', 'leading_zero', 'text_color', 'outline',
-                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style'];
+                     'interval_min', 'order', 'shake_next', 'info_row', 'digit_style', 'lang'];
+var N_SETTINGS = SETTINGS_KEYS.length;                       /* S10: 12 con lang */
 
 /* ============================================================ 1. page_core.js (puro) ==== */
 
 section('1a. decodeState', function () {
   var d = C.decodeState('');
   eq(d.ok, false, 'hash vuoto: ok false');
-  eq(d.error, 'hash assente', 'hash vuoto: error');
+  eq(d.error, 'state missing', 'hash vuoto: error in inglese (nessun dizionario, D35)');
   eq(d.platform, 'unknown', 'hash vuoto: platform unknown');
   eq(d.fmt, 1, 'hash vuoto: fmt 1');
   eq(d.cap_kb, 900, 'hash vuoto: cap_kb 900');
@@ -248,7 +269,7 @@ section('1c. normalizeSettings', function () {
   eqJson(C.normalizeSettings({}), DEFAULT_SETTINGS, 'normalizeSettings({}) = default');
   eqJson(C.normalizeSettings(null), DEFAULT_SETTINGS, 'normalizeSettings(null) = default');
   eqJson(C.normalizeSettings(undefined), DEFAULT_SETTINGS, 'normalizeSettings(undefined) = default');
-  eqJson(Object.keys(C.normalizeSettings({})), SETTINGS_KEYS, 'normalizeSettings: le 11 chiavi nell\'ordine di album.js');
+  eqJson(Object.keys(C.normalizeSettings({})), SETTINGS_KEYS, 'normalizeSettings: le chiavi nell\'ordine di album.js');
   eq(C.normalizeSettings({ layout: 5 }).layout, 0, 'layout fuori intervallo: default');
   eq(C.normalizeSettings({ text_color: 4 }).text_color, 4, 'text_color 4 ammesso');
   eq(C.normalizeSettings({ text_color: 5 }).text_color, 0, 'text_color 5: default');
@@ -283,11 +304,13 @@ section('1c. normalizeSettings', function () {
   eq(C.normalizeSettings({ font: 3, layout: 1, digit_style: 2 }).digit_style, 2,
      'LECO con layout 1 diventa font 0: lo stile resta quello scelto');
   eq(C.normalizeSettings({ font: 4, digit_style: 2 }).digit_style, 2, 'font 4: stile conservato');
-  eqJson(C.SETTINGS_FIELDS[C.SETTINGS_FIELDS.length - 1], ['digit_style', 0, 3, 0],
-         'SETTINGS_FIELDS: digit_style in coda (0..3, default 0)');
+  eqJson(C.SETTINGS_FIELDS[C.SETTINGS_FIELDS.length - 2], ['digit_style', 0, 3, 0],
+         'SETTINGS_FIELDS: digit_style (0..3, default 0)');
+  eqJson(C.SETTINGS_FIELDS[C.SETTINGS_FIELDS.length - 1], ['lang', 0, 4, 0],
+         'SETTINGS_FIELDS: lang in coda (0..4, default 0 = automatica; S10 D31)');
   eqJson(C.SETTINGS_FIELDS[1], ['font', 0, 5, 0], 'SETTINGS_FIELDS: font 0..5');
   eqJson(C.SETTINGS_FIELDS.map(function (f) { return f[0]; }), SETTINGS_KEYS, 'SETTINGS_FIELDS: nomi e ordine');
-  eq(C.SETTINGS_FIELDS.length, 11, 'SETTINGS_FIELDS: 11 campi');
+  eq(C.SETTINGS_FIELDS.length, N_SETTINGS, 'SETTINGS_FIELDS: ' + N_SETTINGS + ' campi');
   eqJson(C.INTERVALS, [0, 5, 15, 30, 60, 180, 1440], 'INTERVALS');
   eq(C.MAX_SLOTS, 12, 'MAX_SLOTS 12');
   eq(C.MAX_THUMB_CHARS, 6000, 'MAX_THUMB_CHARS 6000');
@@ -297,7 +320,8 @@ section('1c. normalizeSettings', function () {
 /* stato di comodo: foto negli slot indicati, con nome e crc del formato chiesto */
 function mkState(over) {
   var s = { v: 1, platform: 'emery', fmt: 1, cap_kb: 900, dev: true, settingsSet: true,
-            settings: {}, photos: [], order: [], deleted: [], watch: null }, k;
+            settings: {}, photos: [], order: [], deleted: [], watch: null,
+            i18n: DICTS, lang_auto: 'it' }, k;
   for (k = 0; k < 12; k++) { s.photos.push(null); }
   for (k in over) { if (Object.prototype.hasOwnProperty.call(over, k)) { s[k] = over[k]; } }
   return s;
@@ -376,7 +400,7 @@ section('1f. buildPayload, payloadKb, capMessage, truncateName, thumbFits', func
   eq(p.v, 1, 'buildPayload: v 1');
   eq(p.settings.font, 0, 'buildPayload: impostazioni normalizzate (LECO con layout 1)');
   eq(p.settings.interval_min, 30, 'buildPayload: intervallo non ammesso -> 30');
-  eq(Object.keys(p.settings).length, 11, 'buildPayload: 11 impostazioni');
+  eq(Object.keys(p.settings).length, N_SETTINGS, 'buildPayload: ' + N_SETTINGS + ' impostazioni');
   eq(p.settings.digit_style, 0, 'buildPayload: digit_style di default nel payload');
   eqJson(p.order, [4, 0, 7], 'buildPayload: order dalle tessere (senza duplicati/slot non validi) + le nuove');
   eqJson(p.deleted, [2], 'buildPayload: deleted normalizzato');
@@ -397,13 +421,20 @@ section('1f. buildPayload, payloadKb, capMessage, truncateName, thumbFits', func
 
   eq(C.capMessage(10, 900, 0), null, 'capMessage: sotto il tetto = null');
   eq(C.capMessage(900, 900, 1), null, 'capMessage: uguale al tetto = null');
-  eq(C.capMessage(901, 900, 0), 'Troppi dati per un solo invio (901 KB su 900)',
+  eq(C.capMessage(901, 900, 0, Tit), 'Troppi dati per un solo invio (901 KB su 900)',
      'capMessage: sopra il tetto senza foto nuove');
-  eq(C.capMessage(93, 60, 2), 'Troppi dati per un solo invio (93 KB su 60): togli 1 foto o salva in più volte',
+  eq(C.capMessage(93, 60, 2, Tit), 'Troppi dati per un solo invio (93 KB su 60): togli 1 foto o salva in più volte',
      'capMessage: 93 su 60 con 2 nuove = togli 1');
-  eq(C.capMessage(200, 60, 3), 'Troppi dati per un solo invio (200 KB su 60): togli 3 foto o salva in più volte',
+  eq(C.capMessage(200, 60, 3, Tit), 'Troppi dati per un solo invio (200 KB su 60): togli 3 foto o salva in più volte',
      'capMessage: 200 su 60 con 3 nuove = togli 3');
-  contains(C.capMessage(61, 60, 1), 'togli 1 foto', 'capMessage: una sola foto');
+  contains(C.capMessage(61, 60, 1, Tit), 'togli 1 foto', 'capMessage: una sola foto');
+  /* S10 D35: senza T (page_core usato da solo) il ripiego e' inglese, mai una chiave */
+  eq(C.capMessage(901, 900, 0), 'Too much data for one transfer (901 KB of 900)',
+     'capMessage senza T: ripiego inglese');
+  contains(C.capMessage(93, 60, 2), 'Photos to remove: 1', 'capMessage senza T: anche il consiglio');
+  /* D35 «niente plurali»: con una foto sola il testo inglese resta grammaticale (mai «1 photos») */
+  notContains(C.capMessage(93, 60, 2), '1 photos', 'capMessage senza T: nessun plurale sbagliato');
+  notContains(Ten('cap_over_fix').replace('{1}', '1'), '1 photos', 'cap_over_fix in inglese: nessun plurale sbagliato');
 
   eq(C.truncateName('abc'), 'abc', 'truncateName: corto invariato');
   eq(C.truncateName(longName).length, 64, 'truncateName: 64 caratteri');
@@ -710,6 +741,7 @@ function loadPage(opts) {
   setEnv(root, env);
   var doc = {
     body: root,
+    documentElement: new El('html'),          /* S10: applyLang ci scrive la lingua effettiva */
     getElementById: function (id) { return findById(root, String(id)); },
     createElement: function (tag) { var e = new El(tag); e._env = env; env.created.push(e); return e; },
     createTextNode: function (t) { var e = new El('#text'); e._text = String(t); e._env = env; return e; }
@@ -737,7 +769,8 @@ function loadPage(opts) {
     XMLHttpRequest: net.xhrClass(),
     URL: { createObjectURL: function () { env.objectUrls++; return 'blob:finto'; },
            revokeObjectURL: function () { env.revoked++; } },
-    Image: Img
+    Image: Img,
+    GalI18nKeys: I18N.keys        /* S10: solo il giro «sorgenti» ne ha bisogno (chiavi per nome) */
   };
   if (!opts.noPerformance) { sb.performance = { now: function () { clock += 1; return clock; } }; }
   if (opts.navigator) { sb.navigator = opts.navigator; }
@@ -826,7 +859,7 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('file').tagName, 'INPUT', 'markup: #file e\' un input');
   eq(get('file').type, 'file', 'markup: #file di tipo file');
   eq(get('file').accept, 'image/*', 'markup: #file accetta image/*');
-  eq(get('file').attrs.capture, undefined, 'markup: #file SENZA capture (si sceglie dalla Libreria)');
+  eq(get('file').attrs.capture, undefined, 'markup: #file SENZA capture (si sceglie dalla libreria foto)');
   eq(get('add').tagName, 'LABEL', 'markup: #add e\' una label');
   eq(get('add').attrs['for'], 'file', 'markup: la label #add apre #file');
   eq(get('save').tagName, 'BUTTON', 'markup: #save e\' un button');
@@ -836,6 +869,11 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('fit').type, 'button', 'markup: #fit type=button');
   eq(get('s_font').tagName, 'SELECT', 'markup: #s_font e\' una select');
   eq(get('s_font').children.length, 0, 'markup: #s_font vuota (la riempie page.js)');
+  /* S10 D36: la Lingua e' la PRIMA riga di #settings */
+  eq(get('s_lang').tagName, 'SELECT', 'markup: #s_lang e\' una select');
+  eq(get('s_lang').children.length, 0, 'markup: #s_lang vuota (la riempie page.js)');
+  check(PAGE_HTML.indexOf('id="s_lang"') < PAGE_HTML.indexOf('id="s_layout"'),
+        'markup: Lingua prima di Layout (prima riga delle impostazioni)');
   /* S8-stile: la riga "Stile cifre" sta subito dopo la riga Font */
   eq(get('s_digit_style').tagName, 'SELECT', 'markup: #s_digit_style e\' una select');
   eq(get('s_digit_style').children.length, 0, 'markup: #s_digit_style vuota (la riempie page.js)');
@@ -843,8 +881,8 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
         'markup: Stile cifre dopo Font');
   check(PAGE_HTML.indexOf('id="s_digit_style"') < PAGE_HTML.indexOf('id="s_clock_mode"'),
         'markup: Stile cifre prima di Formato ora');
-  contains(PAGE_HTML, '<label for="s_digit_style" class="rlab">Stile cifre</label>',
-           'markup: etichetta "Stile cifre" con for e classe rlab');
+  check(/<label for="s_digit_style" class="rlab" data-i18n="[^"]+"><\/label>/.test(PAGE_HTML),
+        'markup: etichetta "Stile cifre" con for, classe rlab e chiave (S10: testo vuoto)');
   /* S9 P5: l'aiuto sui font per lo stile trasparente, subito sotto la select e nascosto all'avvio */
   eq(get('s_style_hint').style.display, 'none', 'markup: aiuto dello stile nascosto all\'inizio');
   eq(get('s_style_hint').className, 'help', 'markup: l\'aiuto dello stile ha la classe help');
@@ -881,12 +919,15 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('helpBtn').type, 'button', 'markup: #helpBtn type=button');
   eq(get('helpBtn').attrs['aria-expanded'], 'false', 'markup: #helpBtn aria-expanded=false');
   eq(get('helpBtn').attrs['aria-controls'], 'helpBody', 'markup: #helpBtn aria-controls=helpBody');
-  eq(get('helpBtn').textContent, 'Galleria si avvia lentamente?', 'markup: titolo dell\'Aiuto');
+  eq(get('helpBtn').textContent, '', 'markup: titolo dell\'Aiuto vuoto (lo scrive applyLang)');
+  check(!!get('helpBtn').attrs['data-i18n'], 'markup: #helpBtn ha la chiave data-i18n');
   check(PAGE_HTML.indexOf('<section id="help">') > PAGE_HTML.indexOf('<section id="settings">'),
         'markup: la sezione Aiuto sta in fondo (dopo le impostazioni)');
   check(PAGE_HTML.indexOf('id="slow"') < PAGE_HTML.indexOf('<section id="photos">'),
         'markup: l\'avviso #slow sta in cima (prima delle foto)');
-  check(/lang="it"/.test(PAGE_HTML), 'markup: lang="it"');
+  /* S10 D35: <html lang> vuoto nel markup, scritto a runtime con la lingua effettiva */
+  check(/<html lang="">/.test(PAGE_HTML), 'markup: <html lang=""> (lo riempie applyLang)');
+  check(!/lang="it"/.test(PAGE_HTML), 'markup: nessuna lingua fissa nel markup');
   check(/<meta name="viewport"/.test(PAGE_HTML), 'markup: meta viewport');
   check(/charset="utf-8"/.test(PAGE_HTML), 'markup: charset utf-8');
   notContains(PAGE_HTML, 'http://', 'markup: nessuna risorsa http://');
@@ -943,7 +984,7 @@ section('2b. avvio con stato completo (emery, dev)', function () {
   eq(h.el('down_9').disabled, true, 'ultima tessera: freccia giu\' disabilitata');
   eq(h.el('del_9').disabled, false, 'estranea: si puo\' eliminare');
   eq(h.el('file').disabled, false, 'album non pieno: input file attivo');
-  eq(h.txt('addHelp'), 'scegli dalla Libreria', 'aiuto per l\'aggiunta');
+  eq(h.txt('addHelp'), 'scegli dalla libreria foto', 'aiuto per l\'aggiunta');
   check(/al massimo 12 foto \(ora \d+ su 12\)/.test(h.txt('photosCap')), 'limite di 12 foto descritto con il contatore (' + h.txt('photosCap').slice(0, 50) + ')');
   eq(h.txt('photosCap').indexOf('(ora ' + h.el('tiles').children.length + ' su 12)') > 0, true, 'contatore = numero di foto in elenco');
   check(h.txt('photosCap').indexOf('un decimo di secondo per foto') > 0, 'limite: spiega il costo all\'avvio per foto');
@@ -1002,22 +1043,25 @@ section('2c. avvisi: hash assente, settingsSet false, orologio sconosciuto, flin
   var h = loadPage({ hash: '', search: '', protocol: 'file:' });
   eq(h.G.state.ok, false, 'hash assente: stato non valido');
   eq(h.disp('status'), '', 'hash assente: avviso visibile');
-  contains(h.txt('status'), 'Stato non ricevuto', 'hash assente: testo dell\'avviso');
-  contains(h.txt('status'), 'modalità prova', 'hash assente: parla di modalita\' prova');
-  eq(h.txt('watch'), 'orologio sconosciuto: preparo foto a colori', 'hash assente: orologio sconosciuto');
+  /* S10 D35: senza stato non arriva nessun dizionario, quindi la pagina mostra la CHIAVE e il
+   * dettaglio dell'errore di page_core, che e' in inglese cablato (modalita' prova). */
+  contains(h.txt('status'), 'State not received', 'hash assente: chiave dell\'avviso');
+  contains(h.txt('status'), 'state missing', 'hash assente: dettaglio dell\'errore in inglese');
+  eq(h.txt('watch'), K('watch_unknown') + ' ' + K('watch_fmt_color'),
+     'hash assente: orologio sconosciuto (chiave + valore, senza dizionario)');
   eq(h.disp('settingsNote'), '', 'hash assente: impostazioni non salvate');
   eqJson(h.G.tiles, [], 'hash assente: nessuna tessera');
   eq(h.G.mode(), 'test', 'file: senza return_to = modalita\' prova');
 
   var h2 = loadPage({ hash: '#!!!rotto!!!', search: '', protocol: 'http:' });
   eq(h2.G.state.ok, false, 'hash rotto: stato non valido');
-  contains(h2.txt('status'), 'Stato non ricevuto', 'hash rotto: avviso');
-  contains(h2.txt('status'), 'hash non valido', 'hash rotto: dettaglio dell\'errore');
+  contains(h2.txt('status'), 'State not received', 'hash rotto: avviso (chiave)');
+  contains(h2.txt('status'), 'invalid state', 'hash rotto: dettaglio dell\'errore (inglese)');
 
   var h3 = loadPage({ state: mkState({ settingsSet: false, platform: 'flint', fmt: 2 }) });
   eq(h3.disp('settingsNote'), '', 'settingsSet false: nota visibile');
   contains(h3.txt('settingsNote'), 'non ancora salvate', 'settingsSet false: testo della nota');
-  eq(h3.txt('watch'), 'Pebble 2 Duo · 144×168 bianco e nero', 'etichetta orologio flint');
+  eq(h3.txt('watch'), 'Pebble 2 Duo · 144×168 in bianco e nero', 'etichetta orologio flint');
   eqJson(h3.el('dither').options().map(function (o) { return o._value; }), ['fs', 'atkinson', 'none'],
          'flint: Floyd-Steinberg, Atkinson, Nessuno');
   eq(h3.disp('sunlightRow'), 'none', 'flint: niente "Ottimizza per il vetro"');
@@ -1316,7 +1360,7 @@ section('2h. album pieno', function () {
   contains(h.txt('msg'), 'album pieno', 'album pieno: messaggio');
   h.click('del_4');
   eq(h.el('file').disabled, false, 'eliminata una foto: si puo\' aggiungere');
-  eq(h.txt('addHelp'), 'scegli dalla Libreria', 'aiuto ripristinato');
+  eq(h.txt('addHelp'), 'scegli dalla libreria foto', 'aiuto ripristinato');
   h.chooseFile('nuova.jpg');
   h.timers.run();
   h.click('addOk');
@@ -1362,8 +1406,8 @@ section('2i. impostazioni: LECO e layout, riga info, lettura nel payload', funct
   h.select('s_digit_style', '3');
   eqJson(G.buildPayload().settings,
          { layout: 0, font: 1, clock_mode: 2, leading_zero: 1, text_color: 4, outline: 2,
-           interval_min: 5, order: 1, shake_next: 1, info_row: 10, digit_style: 3 },
-         'payload: le 11 impostazioni lette dai campi');
+           interval_min: 5, order: 1, shake_next: 1, info_row: 10, digit_style: 3, lang: 0 },
+         'payload: le impostazioni lette dai campi');
   h.select('s_digit_style', '0');
 
   /* senza previews.js la pagina funziona lo stesso (script data-optional) */
@@ -1418,7 +1462,7 @@ section('2j. Salva in modalita\' dev (POST /save + token di ritorno)', function 
   var body = JSON.parse(h.net.posts[0].body);
   eqJson(Object.keys(body), ['v', 'settings', 'order', 'deleted', 'photos'], 'corpo: chiavi del payload');
   eq(body.v, 1, 'corpo: v 1');
-  eq(Object.keys(body.settings).length, 11, 'corpo: 11 impostazioni');
+  eq(Object.keys(body.settings).length, N_SETTINGS, 'corpo: ' + N_SETTINGS + ' impostazioni');
   check(Object.keys(body.settings).every(function (k) { return body.settings[k] === (body.settings[k] | 0); }),
         'corpo: impostazioni tutte intere');
   eqJson(body.order, [3, 0, 1, 9], 'corpo: order (senza la 5 eliminata, la nuova dopo l\'album, l\'estranea in coda)');
@@ -1496,7 +1540,7 @@ section('2l. tetto KB', function () {
   h.click('addOk');
   eq(G.overCap, true, 'con una foto da 45 KB si sfora');
   eq(h.el('save').disabled, true, 'sopra il tetto: Salva disabilitato');
-  eq(h.txt('msg'), C.capMessage(h.kbNum(), 30, 1), 'messaggio del tetto');
+  eq(h.txt('msg'), C.capMessage(h.kbNum(), 30, 1, Tit), 'messaggio del tetto');
   contains(h.txt('msg'), 'togli 1 foto o salva in più volte', 'messaggio: quante foto togliere');
   eq(h.el('msg').className, 'err', 'messaggio del tetto in rosso');
   notContains(h.txt('msg'), 'Foto aggiunta', 'sopra il tetto non si annuncia l\'aggiunta');
@@ -1775,7 +1819,7 @@ section('3a. #1 stato non ricevuto: Salva disabilitato, nessun payload autorevol
   eq(h.G.state.ok, false, '#1 hash assente: stato non valido');
   eq(h.G.mode(), 'dev', '#1 dev: c\'e\' return_to');
   eq(h.el('save').disabled, true, '#1 dev senza stato: Salva disabilitato');
-  contains(h.txt('status'), 'riapri le impostazioni', '#1 avviso: dice di riaprire le impostazioni dall\'app');
+  contains(h.txt('status'), 'State not received', '#1 avviso: chiave dell\'avviso (nessun dizionario)');
   eq(h.click('save'), false, '#1 il clic su Salva non parte');
   eq(h.net.posts.length, 0, '#1 nessun POST');
   eq(h.navs.length, 0, '#1 nessuna navigazione');
@@ -1787,7 +1831,7 @@ section('3a. #1 stato non ricevuto: Salva disabilitato, nessun payload autorevol
   h.el('save').disabled = false;                             /* pulsante riabilitato a mano: save() rifiuta lo stesso */
   h.click('save');
   eq(h.net.posts.length, 0, '#1 save() forzato: nessun POST');
-  contains(h.txt('msg'), 'stato non ricevuto: riapri le impostazioni dall\'app', '#1 save() forzato: messaggio');
+  contains(h.txt('msg'), K('msg_no_state_save'), '#1 save() forzato: messaggio (chiave: nessun dizionario)');
   eq(h.el('msg').className, 'err', '#1 messaggio in rosso');
   eq(h.G.lastPayload, null, '#1 nessun payload costruito');
   var h2 = loadPage({ hash: '#!!!', search: '', protocol: 'data:' });
@@ -2074,13 +2118,13 @@ section('3i. #24 etichette-guida con classe rlab; le label delle caselle no', fu
     else { cbLabels++; if (/\brlab\b/.test(lab.className)) { bad.push('checkbox:' + (lab.children[0] && lab.children[0].id)); } }
   }
   eq(bad.join(','), '', '#24 le label con for=… hanno rlab, quelle delle caselle no');
-  eq(forLabels, 14, '#24 etichette-guida (label con for=…): ' + forLabels);
+  eq(forLabels, 15, '#24 etichette-guida (label con for=…, S10: +Lingua): ' + forLabels);
   eq(cbLabels, 6, '#24 label delle caselle: ' + cbLabels);
   opts = findById(root, 's_info_row_b0').parentNode.parentNode;
   rigaRow = opts.parentNode;
   eq(rigaRow.children[0].tagName, 'SPAN', '#24 "Riga info:" e\' uno span (non un nodo di testo nudo)');
   contains(rigaRow.children[0].className, 'rlab', '#24 lo span ha la classe rlab');
-  eq(rigaRow.children[0].textContent.trim(), 'Riga info:', '#24 testo dello span');
+  check(!!rigaRow.children[0].attrs['data-i18n'], '#24 lo span "Riga info" ha la chiave data-i18n');
   eq(opts.tagName + '.' + opts.className, 'SPAN.opts', '#24 le 4 caselle stanno in uno span.opts (vanno a capo allineate sotto la prima riga)');
   eq(opts.children.length, 4, '#24 quattro caselle nello span.opts');
   check(opts.children.every(function (c) { return c.tagName === 'LABEL' && !/rlab/.test(c.className) && c.children[0].type === 'checkbox'; }), '#24 le 4 caselle della riga info senza rlab');
@@ -2349,7 +2393,7 @@ section('4d. #31 stato di versione ignota = stato non ricevuto', function () {
   var d = C.decodeState(hashOf({ v: 2, platform: 'flint', fmt: 2, cap_kb: 60, dev: true,
                                  settingsSet: true, order: [1], deleted: [2] }));
   eq(d.ok, false, '#31 v: 2 => ok false');
-  eq(d.error, 'versione dello stato non supportata', '#31 v: 2 => messaggio');
+  eq(d.error, 'unsupported state version', '#31 v: 2 => messaggio');
   eq(d.fmt, 1, '#31 v: 2 => nessun campo dello stato ignoto viene usato (fmt di default)');
   eq(d.cap_kb, 900, '#31 v: 2 => cap_kb di default');
   eq(d.platform, 'unknown', '#31 v: 2 => platform unknown');
@@ -2357,7 +2401,7 @@ section('4d. #31 stato di versione ignota = stato non ricevuto', function () {
   eqJson(d.order, [], '#31 v: 2 => order vuoto');
   eqJson(d.deleted, [], '#31 v: 2 => deleted vuoto');
   eqJson(d.settings, DEFAULT_SETTINGS, '#31 v: 2 => impostazioni di default');
-  eq(C.decodeState(hashOf({ platform: 'emery' })).error, 'versione dello stato non supportata',
+  eq(C.decodeState(hashOf({ platform: 'emery' })).error, 'unsupported state version',
      '#31 v assente: stesso trattamento');
   eq(C.decodeState(hashOf({ v: '1', platform: 'emery' })).ok, false, '#31 v stringa "1": non supportata');
   eq(C.decodeState(hashOf({ v: 0 })).ok, false, '#31 v: 0 non supportata');
@@ -2367,8 +2411,8 @@ section('4d. #31 stato di versione ignota = stato non ricevuto', function () {
   var h = loadPage({ state: s, search: DEV_SEARCH });
   eq(h.G.state.ok, false, '#31 pagina: stato non ricevuto');
   eq(h.disp('status'), '', '#31 pagina: avviso visibile');
-  contains(h.txt('status'), 'Stato non ricevuto', '#31 pagina: avviso "stato non ricevuto"');
-  contains(h.txt('status'), 'versione dello stato non supportata', '#31 pagina: dice il motivo');
+  contains(h.txt('status'), 'State not received', '#31 pagina: avviso "stato non ricevuto" (chiave)');
+  contains(h.txt('status'), 'unsupported state version', '#31 pagina: dice il motivo (inglese cablato)');
   eq(h.el('save').disabled, true, '#31 pagina: Salva disabilitato');
   eqJson(h.G.tiles, [], '#31 pagina: nessuna tessera (nessuna foto dello stato ignoto)');
   eq(h.click('save'), false, '#31 pagina: il click su Salva disabilitato non parte');
@@ -2376,7 +2420,7 @@ section('4d. #31 stato di versione ignota = stato non ricevuto', function () {
   eq(h.navs.length, 0, '#31 pagina: nessuna navigazione');
   h.el('save').disabled = false;                     /* forzato: nemmeno cosi' si salva (#1) */
   h.click('save');
-  contains(h.txt('msg'), 'stato non ricevuto', '#31 pagina: Salva forzato risponde comunque di no');
+  contains(h.txt('msg'), K('msg_no_state_save'), '#31 pagina: Salva forzato risponde comunque di no');
   eq(h.net.posts.length, 0, '#31 pagina: Salva forzato non manda niente');
   /* Esci funziona lo stesso: si torna all'app senza toccare l'album */
   h.click('cancel');
@@ -3056,6 +3100,153 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(hu.disp('styleFlintHelp'), 'none', 'piattaforma sconosciuta + stile trasparente: nessun avviso');
 });
 
+/* ======================= 5. S10: lingua della config page (D33, D35, D36) =============== */
+
+function optTexts(h, id) { return h.el(id).options().map(function (o) { return o.textContent; }); }
+function optVals(h, id) { return h.el(id).options().map(function (o) { return o._value; }); }
+function optIds(h, id) { return h.el(id).options().map(function (o) { return o.id; }); }
+function Ten(k) { var i = I18N.keys.indexOf(k); return I18N.en[i]; }
+function Tde(k) { var i = I18N.keys.indexOf(k); return I18N.de[i]; }
+
+section('5a. lingua: automatica dall\'orologio, override dalla select', function () {
+  var h = loadPage({ state: mkState({ settings: { lang: 0 } }) }), kb = h.kbNum();
+  eq(h.el('s_lang').value, '0', 'parte da Automatica (lang 0)');
+  eq(h.el('s_lang').options().length, 5, 'Lingua: Automatica + 4 lingue');
+  eqJson(optVals(h, 's_lang'), ['0', '1', '2', '3', '4'], 'valori 0..4 (= GalSettings.lang, D31)');
+  eqJson(optTexts(h, 's_lang').slice(1), ['English', 'Italiano', 'Deutsch', 'Français'],
+         'le 4 lingue con il loro nome (endonimi)');
+  contains(optTexts(h, 's_lang')[0], 'Italiano', 'Automatica dice quale lingua risulta (orologio it)');
+  eq(optTexts(h, 's_lang')[0], Tit('opt_lang_auto', 'Italiano'), 'etichetta di Automatica dal dizionario');
+  /* lang_auto = it => tutta la pagina in italiano */
+  eq(h.txt('watch'), Tit('watch_emery'), 'auto it: riga dell\'orologio in italiano');
+  eq(h.txt('kb'), Tit('kb_line', kb, 900), 'auto it: contatore KB in italiano');
+  eq(optTexts(h, 's_digit_style')[0], Tit('opt_style_solid'), 'auto it: prima voce di Stile cifre');
+
+  /* override: la select vince sulla lingua dell'orologio, subito e senza salvare */
+  h.select('s_lang', '1');
+  eq(h.txt('watch'), Ten('watch_emery'), 'inglese: riga dell\'orologio');
+  eq(h.txt('kb'), Ten('kb_line').replace('{0}', kb).replace('{1}', '900'), 'inglese: contatore KB');
+  eq(optTexts(h, 's_digit_style')[0], Ten('opt_style_solid'), 'inglese: prima voce di Stile cifre');
+  eq(h.txt('helpBtn'), Ten('help_btn'), 'inglese: pulsante dell\'Aiuto');
+  eq(optTexts(h, 's_lang')[0], Ten('opt_lang_auto').replace('{0}', 'Italiano'),
+     'inglese: Automatica resta l\'italiano dell\'orologio');
+  h.select('s_lang', '3');
+  eq(h.txt('watch'), Tde('watch_emery'), 'tedesco: riga dell\'orologio');
+  h.select('s_lang', '2');
+  eq(h.txt('watch'), Tit('watch_emery'), 'italiano: si torna indietro');
+  /* la lingua e' un'impostazione come le altre */
+  eq(h.G.buildPayload().settings.lang, 2, 'la lingua entra nel payload');
+  eq(h.el('save').disabled, false, 'nessun blocco: si salva come sempre');
+
+  /* lingua dell'orologio diversa: in automatica la pagina la segue (D33) */
+  var h2 = loadPage({ state: mkState({ lang_auto: 'de', settings: { lang: 0 } }) });
+  eq(h2.txt('watch'), Tde('watch_emery'), 'auto de: pagina in tedesco');
+  contains(optTexts(h2, 's_lang')[0], 'Deutsch', 'auto de: l\'etichetta lo dice');
+  var h3 = loadPage({ state: mkState({ lang_auto: 'de', settings: { lang: 2 } }) });
+  eq(h3.txt('watch'), Tit('watch_emery'), 'override it su orologio de');
+  /* lingua sconosciuta (orologio spagnolo, PKJS vecchio): ripiego inglese */
+  var h4 = loadPage({ state: mkState({ lang_auto: 'es', settings: { lang: 0 } }) });
+  eq(h4.txt('watch'), Ten('watch_emery'), 'lingua ignota: ripiego inglese');
+});
+
+section('5b. lingua: id e valori stabili, niente segnaposto, decimali (D35/D36)', function () {
+  var h = loadPage({ state: mkState({ settings: { lang: 2, font: 4, digit_style: 1 } }) });
+  var ids0 = {}, vals0 = {}, i, k, sel = ['lang', 'layout', 'font', 'digit_style', 'clock_mode',
+    'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
+  for (i = 0; i < sel.length; i++) { ids0[sel[i]] = optIds(h, 's_' + sel[i]).join(','); vals0[sel[i]] = optVals(h, 's_' + sel[i]).join(','); }
+  /* decimali: virgola in it/de/fr, punto in inglese */
+  h.range('gamma', 1.5); h.range('lift', 0.2);
+  eq(h.txt('gammaVal'), '1,50', 'italiano: 1,50');
+  eq(h.txt('liftVal'), '0,20', 'italiano: 0,20');
+  h.select('s_lang', '1');
+  eq(h.txt('gammaVal'), '1.50', 'inglese: 1.50');
+  eq(h.txt('liftVal'), '0.20', 'inglese: 0.20');
+  h.select('s_lang', '4');
+  eq(h.txt('gammaVal'), '1,50', 'francese: 1,50');
+  /* le <option> hanno cambiato solo il testo */
+  for (i = 0; i < sel.length; i++) {
+    k = sel[i];
+    eq(optIds(h, 's_' + k).join(','), ids0[k], 'id delle option invariati: ' + k);
+    eq(optVals(h, 's_' + k).join(','), vals0[k], 'valori delle option invariati: ' + k);
+  }
+  eq(h.el('s_font').value, '4', 'la scelta del font non si perde cambiando lingua');
+  eq(h.el('s_digit_style').value, '1', 'ne\' quella dello stile');
+  eq(h.el('dither').value, 'fs', 'ne\' il dithering (la select si rifa\' col formato)');
+  eqJson(optVals(h, 'dither'), ['fs', 'bayer', 'none'], 'dithering: valori invariati');
+  /* nessun testo vuoto e nessun segnaposto rimasto, in tutte e 4 le lingue */
+  function scan(node, out) {
+    var c = node.children, j, e, key;
+    for (j = 0; j < c.length; j++) {
+      e = c[j];
+      key = e.attrs && e.attrs['data-i18n'];
+      if (key) {
+        if (!e.textContent) { out.push('vuoto:' + key); }
+        if (/\{[01]\}/.test(e.textContent)) { out.push('segnaposto:' + key); }
+      }
+      scan(e, out);
+    }
+    return out;
+  }
+  var codes = ['1', '2', '3', '4'], n;
+  for (i = 0; i < codes.length; i++) {
+    h.select('s_lang', codes[i]);
+    eqJson(scan(h.root, []), [], 'lingua ' + codes[i] + ': nessun nodo vuoto o con segnaposto');
+    n = optTexts(h, 's_interval_min');
+    eq(n.length, 7, 'lingua ' + codes[i] + ': 7 intervalli');
+    check(n.every(function (t) { return t && t.indexOf('{') < 0; }), 'lingua ' + codes[i] + ': intervalli scritti');
+    check(h.txt('photosCap').indexOf('12') >= 0, 'lingua ' + codes[i] + ': il contatore delle foto dice 12');
+  }
+  /* le <option> del markup (Anteprima) e l'attributo title (data-i18n-title) */
+  h.select('s_lang', '2');
+  eqJson(optTexts(h, 'previewMode'), [Tit('opt_prev_sun'), Tit('opt_prev_nominal')],
+         'anteprima: le due opzioni del markup tradotte');
+  h.el('helpBtn').setAttribute('data-i18n-title', K('help_why'));
+  h.select('s_lang', '1');
+  eq(h.el('helpBtn').title, Ten('help_why'), 'data-i18n-title: anche l\'attributo title si traduce');
+  eqJson(optTexts(h, 'previewMode'), [Ten('opt_prev_sun'), Ten('opt_prev_nominal')],
+         'anteprima: opzioni in inglese');
+  /* <html lang> segue la lingua effettiva */
+  h.select('s_lang', '3');
+  eq(h.doc.documentElement.lang, 'de', '<html lang> aggiornato');
+  h.select('s_lang', '0');
+  eq(h.doc.documentElement.lang, 'it', '<html lang> torna alla lingua dell\'orologio');
+});
+
+/* 5c — il rovescio della 5b. Dopo S10 il markup non porta piu' i testi (nodi vuoti riempiti da
+ * applyLang): togliere o sbagliare un data-i18n lascia l'etichetta VUOTA a schermo per sempre, e
+ * la scansione della 5b non se ne accorge perche' guarda solo i nodi CHE HANNO data-i18n. Qui si
+ * guarda il risultato a schermo: nessuna etichetta-guida (.rlab), nessun titolo di sezione (h2) e
+ * nessun pulsante (.btn) puo' restare senza testo, in Automatica e in tutte e 4 le lingue.
+ * Sensibilita' verificata con un mutante su una copia dell'albero (data-i18n tolto dalla label di
+ * #s_layout, config_page.js rigenerato): rosso in entrambi i giri, verde sul codice vero. */
+section('5c. lingua: nessuna etichetta vuota a schermo dopo applyLang', function () {
+  var h = loadPage({ state: mkState({}) }), codes = ['0', '1', '2', '3', '4'], i, n = 0;
+  function watched(e) { return e.tagName === 'H2' || /\b(rlab|btn)\b/.test(e.className || ''); }
+  function nameOf(e) {
+    var a = e.attrs || {};
+    return e.tagName + ':' + (e.id || a['for'] || a['data-i18n'] || '?');
+  }
+  function scan(node, out) {
+    var c = node.children, j, e;
+    for (j = 0; j < c.length; j++) {
+      e = c[j];
+      if (watched(e) && !/\S/.test(String(e.textContent || ''))) { out.push(nameOf(e)); }
+      scan(e, out);
+    }
+    return out;
+  }
+  function count(node) {
+    var c = node.children, j;
+    for (j = 0; j < c.length; j++) { if (watched(c[j])) { n++; } count(c[j]); }
+  }
+  count(h.root);
+  check(n >= 24, 'la scansione copre le etichette del markup (h2 + .rlab + .btn): ' + n);
+  for (i = 0; i < codes.length; i++) {
+    h.select('s_lang', codes[i]);
+    eqJson(scan(h.root, []), [], 'lingua ' + codes[i] + ': nessuna etichetta .rlab/.btn/h2 vuota');
+  }
+});
+
 /* ==================================== varianti: sorgenti e artefatto inlinato =========== */
 
 /* corpi di <script>/<style> nell'ordine del documento. L'inliner garantisce che il contenuto non
@@ -3142,6 +3333,22 @@ function checkInlinedModule(v) {
     for (j = 0, n = 0; j < ROLES.length; j++) { if (ROLES[j][1].test(v.scripts[i].body)) { n++; } }
     eq(n, 1, 'inlinato: script ' + (i + 1) + ' assegna un solo globale noto');
   }
+  /* S10 (D35): nell'artefatto le chiavi sono indici e non c'e' NESSUN testo tradotto: i
+   * dizionari viaggiano nello stato. Si controllano le stringhe italiane che differiscono
+   * dall'inglese e sono lunghe abbastanza da non comparire per caso. */
+  var itLeft = [], attrs = [], m, re;
+  for (i = 0; i < I18N.keys.length; i++) {
+    if (I18N.it[i] !== I18N.en[i] && I18N.it[i].length >= 8 && v.html.indexOf(I18N.it[i]) >= 0) {
+      itLeft.push(I18N.keys[i]);
+    }
+  }
+  eq(itLeft.join(','), '', 'inlinato: nessun testo italiano nell\'artefatto');
+  re = /(?:^|[^A-Za-z0-9_$.])T\(\s*['"]/g;
+  eq((v.html.match(re) || []).length, 0, 'inlinato: nessuna chiamata a T con il nome della chiave');
+  check(/[^A-Za-z0-9_$.]T\(\d+[,)]/.test(v.html), 'inlinato: le chiamate a T portano l\'indice');
+  re = /data-i18n(?:-title)?="([^"]*)"/g;
+  while ((m = re.exec(v.html)) !== null) { if (!/^[0-9]+$/.test(m[1])) { attrs.push(m[1]); } }
+  eq(attrs.join(','), '', 'inlinato: data-i18n con il solo indice numerico');
   lines = v.html.split('\n');
   for (i = 0; i < lines.length; i++) { if (/^\s*\/\//.test(lines[i])) { bad.push(i + 1); } }
   eq(bad.length, 0, 'inlinato: nessuna riga di commento // (strip dell\'inliner; righe ' +
