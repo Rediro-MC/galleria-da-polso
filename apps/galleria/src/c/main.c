@@ -134,12 +134,16 @@ static void prv_init(void) {
 
   TMR(t_syn);
   sync_init();                                    /* S5a: AppMessage (inbox unica 4.153 B) dopo finestra e servizi */
+#ifdef GALLERIA_DEBUG_TIMING
+  const int ms_syn = TMR_MS(t_syn);              /* chiuso PRIMA del log heap (F24: il log non entra in syn) */
+#endif
   prv_log_heap("init");
 #ifdef GALLERIA_DEBUG_TIMING
   /* S8 perf: quanto costa l'avvio e dove (open = apertura del file persist da parte del firmware +
-   * chiave 0; man = ricerca del manifest; il primo render vero e' nella riga `draw:` di ui_time). */
+   * ricerca della chiave 0, la cui posizione dipende dalla storia del file; man = ricerca del manifest;
+   * il primo render vero e' nella riga `draw:` di ui_time). */
   APP_LOG(APP_LOG_LEVEL_INFO, "init: open=%d man=%d sto=%d set=%d mod=%d win=%d syn=%d tot=%d ms",
-          storage_debug_ms(0), storage_debug_ms(1), ms_sto, ms_set, ms_mod, ms_win, TMR_MS(t_syn), TMR_MS(t_tot));
+          storage_debug_ms(0), storage_debug_ms(1), ms_sto, ms_set, ms_mod, ms_win, ms_syn, TMR_MS(t_tot));
 #endif
 }
 

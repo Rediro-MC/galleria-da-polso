@@ -1,6 +1,6 @@
 /* settings.h — impostazioni dell'app (docs/design/galleria.md §4.1, GalSettings 20 B).
- * S1: default in RAM; S4: lette da persist (chiave 10) in settings_init e salvate con debounce da
- * settings_apply (S5a/S6: blob SETTINGS dal telefono). Header PURO (usabile dai test host). */
+ * S1: default in RAM; S4: lette da persist in settings_init e salvate con debounce da settings_apply
+ * (S5a/S6: blob SETTINGS dal telefono); dallo schema 2 (S8-perf) vivono nel manifest (chiave 1). Header PURO (usabile dai test host). */
 #ifndef GALLERIA_SETTINGS_H
 #define GALLERIA_SETTINGS_H
 

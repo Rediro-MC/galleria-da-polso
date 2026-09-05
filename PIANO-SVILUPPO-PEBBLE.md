@@ -578,7 +578,7 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 
 ### 17.2 Modo di lavorare
 - Implementare → `pebble build` (leggere `MEMORY USAGE`) → `pebble install --emulator emery` → screenshot → controllare visivamente (colori con correzione) → ripetere su `flint`. Mai dichiarare "fatto" senza build verde e screenshot.
-- Per ogni lavoro delegato ad agenti/workflow (ricerca, tool, test, codice, revisione): dividere in compiti di importanza **bassa / media / alta**; bassa e media → modello **Opus**, alta → **Fable** (regola permanente del progetto, 27/08/2026; vedi `CLAUDE.md`).
+- Per ogni lavoro delegato ad agenti/workflow (ricerca, tool, test, codice, revisione): dividere in compiti di importanza **alta / medio-alta / medio-bassa / bassa** (4 livelli dal 05/09/2026; prima bassa/media/alta); alta e medio-alta → **Fable**, medio-bassa e bassa → modello **Opus** (regola permanente del progetto, 27/08/2026; vedi `CLAUDE.md`).
 - Mai commit/PR/push senza conferma dell'utente (regola di progetto esistente). Mai installare nulla fuori dall'HOME; niente sudo.
 - Aggiornare `docs/CONTINUA-QUI.md` a fine sessione e `docs/design/<app>.md` quando cambiano scelte.
 

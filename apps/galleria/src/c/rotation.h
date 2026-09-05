@@ -1,7 +1,7 @@
 /* rotation.h — rotazione STATELESS delle foto (docs/design/galleria.md D10). Modulo PURO: nessun
  * pebble.h (test host in test/test_rotation.c). Lo slot mostrato è una funzione del tempo locale,
  * delle impostazioni e di un contatore di shake: nessuna scrittura persist a regime e la stessa
- * foto dopo un riavvio (il contatore è salvato solo in deinit, chiave 2).
+ * foto dopo un riavvio (D19: il contatore di shake vive solo in RAM e riparte da 0 a ogni avvio).
  *
  *   t = now_min / interval_min          (interval_min 0 "mai" → t = 0;
  *                                        1440 "giornaliera" → cambio al primo tick dopo le 04:00)

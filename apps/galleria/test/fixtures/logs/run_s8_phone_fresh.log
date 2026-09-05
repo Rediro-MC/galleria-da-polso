@@ -1,0 +1,63 @@
+[20:36:03] pkjs> Galleria:193:28) [sync] chunk off=4096 n=4096 ack 517 ms
+[20:36:06] pkjs> Galleria:193:28) [sync] chunk off=12288 n=4096 ack 549 ms
+[20:36:07] pkjs> Galleria:193:28) [sync] chunk off=20480 n=4096 ack 662 ms
+[20:36:08] pkjs> Galleria:193:28) [sync] chunk off=28672 n=4096 ack 649 ms
+[20:36:09] pkjs> Galleria:193:28) [sync] PHOTO_END slot 4
+[20:36:09] sync.c:371> sync: gap n=8 max 2742 avg 827
+[20:36:09] sync.c:374> sync: end s=4 c=0 n=9 commit 31 photo 7093 ch max 2539 avg 595 heap 44400
+[20:36:09] pkjs> Galleria:193:28) [sync] foto slot 4 OK: 34200 B in 9 messaggi, 7169 ms
+[20:36:09] pkjs> Galleria:193:28) [sync] foto 4/4: slot 5 id 0x727c3eb8 fmt 1 len 34200 crc 0x727c3eb8
+[20:36:09] pkjs> Galleria:193:28) [sync] PHOTO_BEGIN slot 5 offset 0
+[20:36:09] sync.c:381> sync: msg=5 f=7e -> act=1 out=8 code=0 off=0 st=1 heap 44400
+[20:36:09] ui_time.c:646> draw: mode=1 full=0 8 ms info 4
+[20:36:10] pkjs> Galleria:193:28) [sync] chunk off=0 n=4096 ack 671 ms
+[20:36:11] pkjs> Galleria:193:28) [sync] chunk off=8192 n=4096 ack 828 ms
+[20:36:13] pkjs> Galleria:193:28) [sync] chunk off=16384 n=4096 ack 885 ms
+[20:36:15] pkjs> Galleria:193:28) [sync] chunk off=24576 n=4096 ack 942 ms
+[20:36:16] pkjs> Galleria:193:28) [sync] chunk off=32768 n=1432 ack 447 ms
+[20:36:16] sync.c:371> sync: gap n=8 max 941 avg 841
+[20:36:16] sync.c:374> sync: end s=5 c=0 n=9 commit 66 photo 7371 ch max 813 avg 630 heap 44400
+[20:36:16] pkjs> Galleria:193:28) [sync] STATUS OK slot=5 offset=34200 re=7
+[20:36:16] pkjs> Galleria:193:28) [album] foto slot 5: OK
+[20:36:16] sync.c:381> sync: msg=9 f=0 -> act=0 out=0 code=0 off=0 st=0 heap 44400
+[20:36:16] ui_photo.c:178> photo: slot 5 persist crc ok 134 ch 31 ms heap 58912/44400
+[20:36:16] ui_time.c:682> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=14(62/14) mean=87 fg=c0 halo=0
+[20:36:16] model.c:108> rot(album): t=29809236 int=180 ord=0 shk=0 slot=5 demo=255 valid=4 bad=0
+[20:36:16] sync.c:220> heap sync_end: used=58912 free=44400
+[20:36:16] pkjs> Galleria:193:28) [sync] fine: {"photosOk":4,"photosFailed":0,"settings":"OK","order":"OK","deletes":[],"photoCodes":[]}
+[20:36:16] ui_time.c:646> draw: mode=1 full=1 8 ms info 0
+[20:36:58] main.c:154> heap unsub: used=52184 free=51128
+[20:36:58] main.c:15> heap deinit: used=6440 free=96872
+[20:36:58] main.c:177> deinit: mod=0 fl=0 win=0 tot=12 ms
+[20:36:58] ocess_manager.c:506> Heap Usage for App <Galleria>: Total Size <103312B> Used <58992B> Still allocated <0B>
+[20:36:59] main.c:15> heap main: used=24 free=103288
+[20:36:59] main.c:84> watch: fw 4.36.2 model=11
+[20:36:59] main.c:23> batt: 56% chg=0 plug=0 up 0 min
+[20:36:59] storage.c:283> storage: quota=1048576 album=1 schema=2 manifest=persist valid=4
+[20:36:59] settings.c:93> settings: persist layout=0 font=0 interval=180 order=0 shake=1
+[20:36:59] ui_photo.c:178> photo: slot 5 persist crc ok 134 ch 59 ms heap 45664/57648
+[20:36:59] model.c:108> rot(init): t=29809236 int=180 ord=0 shk=0 slot=5 demo=255 valid=4 bad=0
+[20:36:59] ui_time.c:732> ui_time: cs=2 bt=1 loc=it_IT 200x228 unob=228 lay=0 font=0 mode=1 band=106
+[20:36:59] ui_time.c:682> luma(photo): m=1 b=0+106 h=106 ph=1 w=0 bad=14(62/14) mean=87 fg=c0 halo=0
+[20:36:59] main.c:15> heap window_load: used=52576 free=50736
+[20:36:59] ui_time.c:801> tick: 27 ms
+[20:36:59] main.c:133> heap services: used=54628 free=48684
+[20:36:59] sync.c:475> sync: open(4153/110) -> 0 chunk=4096 heap 58992/44320 (cost 4364)
+[20:36:59] main.c:15> heap init: used=58992 free=44320
+[20:36:59] main.c:141> init: open=90 man=47 sto=149 set=7 mod=79 win=66 syn=19 tot=343 ms
+[20:36:59] ui_time.c:642> heap after first render: used=58992 free=44320
+[20:36:59] ui_time.c:646> draw: mode=1 full=1 110 ms info 4
+[20:36:59] ui_time.c:801> tick: 4 ms
+[20:36:59] main.c:32> heap tick: used=58912 free=44400
+[20:36:59] pkjs> Galleria:193:28) [album] pronto (telefono): 4 foto [0:6 3:6 4:6 5:6] ordine [3,4,5,0] eliminazioni [] settings crc 0xcca7
+[20:36:59] ui_time.c:646> draw: mode=1 full=0 7 ms info 0
+[20:36:59] ui_time.c:646> draw: mode=1 full=1 8 ms info 0
+[20:37:00] sync.c:381> sync: msg=1 f=0 -> act=1 out=2 code=0 off=0 st=0 heap 44400
+[20:37:00] pkjs> Galleria:193:28) [sync] HELLO proto=1 maxChunk=4096 slots=8cd476b2,-,-,52318615,c47e6e7f,727c3eb8,-,-,-,-,-,-
+[20:37:00] pkjs> Galleria:193:28) [sync] fine: {"photosOk":0,"photosFailed":0,"settings":null,"order":null,"deletes":[],"photoCodes":[]}
+[20:37:00] ui_time.c:801> tick: 0 ms
+[20:37:00] main.c:32> heap tick: used=58912 free=44400
+[20:37:00] ui_time.c:646> draw: mode=1 full=0 8 ms info 0
+[20:37:03] main.c:154> heap unsub: used=52184 free=51128
+[20:37:03] main.c:15> heap deinit: used=6440 free=96872
+[20:37:03] main.c:177> deinit: mod=0 fl=0 win=0 tot=11 ms

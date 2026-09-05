@@ -418,7 +418,9 @@ sec('2. album vuoto e impostazioni');
     var w = new FakeWatch({}), d = {};
     d[mkeys.MSG] = FakeWatch.MSG.SETTINGS; d[mkeys.SETTINGS] = blob;
     var out = w.handle(d);
-    return { code: out.length ? out[0][mkeys.CODE] : -1, watch: w };
+    /* FakeWatch.get: con GAL_NAMEKEYS=1 (shim/fakewatch.js) i payload verso il PKJS hanno le
+     * chiavi-NOME dell'app Core Devices, qui leggo il CODE in tutte e due le forme. */
+    return { code: out.length ? FakeWatch.get(out[0], 'CODE') : -1, watch: w };
   }
 
   var font, style, s, r;
@@ -1016,7 +1018,7 @@ function threePhotos(st) {
     eq(a.count(), 3, what + ': nessuna foto eliminata');
     eqJson(r.deleted, [], what + ': res.deleted vuoto');
     eqJson(a.data.deleted, [], what + ': nessuna eliminazione pendente');
-    check(hasErr(r, 'photos non è un array'), what + ': errore "photos non è un array"');
+    check(hasErr(r, 'photos non e\' un array'), what + ': errore "photos non e\' un array"');
     check(hasErr(r, SKIPPED), what + ': errore "eliminazioni implicite saltate"');
     eq(r.errors.length, 2, what + ': esattamente due errori');
     eqJson(a.data.order, [0, 3, 7], what + ': ordine invariato');
@@ -1094,7 +1096,7 @@ function threePhotos(st) {
   }
   var r = a.applyPayload({ v: 1, photos: many }, { full: true, allowUrl: true });
   eq(r.ok, true, '25 voci full: ok');
-  check(hasErr(r, 'photos: 25 voci, al più 24'), '25 voci full: errore "al più 24"');
+  check(hasErr(r, 'photos: 25 voci, al piu\' 24'), '25 voci full: errore "al piu\' 24"');
   check(hasErr(r, SKIPPED), '25 voci full: errore "saltate"');
   eq(r.errors.length, 2, '25 voci full: due errori');
   eq(a.count(), 4, '25 voci full: 0 e 7 conservati, 3 sostituita, 5 nuova');

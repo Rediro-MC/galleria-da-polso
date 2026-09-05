@@ -2,7 +2,7 @@
  * Slot = rotation_slot(minuti locali, manifest, impostazioni, shake) ricalcolato al tick al minuto
  * e caricato SOLO se cambia (una lettura persist per intervallo, mai per tick); album vuoto / slot
  * illeggibili → foto demo da risorsa, ruotate con la stessa regola. Shake (accel_tap_service) =
- * offset in RAM (+1), persistito solo in deinit (chiave 2); niente cambio foto mentre la watchface è
+ * offset SOLO in RAM (+1), mai persistito (D19, perf 04/09: vale fino al riavvio della watchface); niente cambio foto mentre la watchface è
  * coperta (app_focus_service): si recupera al ritorno in primo piano. Stessa regola durante una sync
  * (model_sync_hold, F1): il manifest in RAM cambia già al PHOTO_BEGIN, quindi la rotazione è congelata
  * e applicata al rilascio (fine sync o timeout). Ogni cambio foto notifica ui_time_photo_changed()
@@ -16,7 +16,7 @@
 /* Dopo storage_init/settings_init e PRIMA della finestra: carica la prima foto in silenzio
  * (ui_time_init calcola colore e redraw). Iscrive il tap service se shake_next è attivo. */
 void model_init(void);
-/* Disiscrive il tap service; salva GalRotState se lo shake è cambiato. */
+/* Disiscrive il tap service. Nessuna scrittura persist (D19). */
 void model_deinit(void);
 
 /* Tick al minuto (dal tick handler, prima di ui_time_tick). */

@@ -5,9 +5,17 @@
  *   status_t + StatusCode, APP_LOG/app_log, AppTimer + register/reschedule/cancel, PBL_API_EXISTS,
  *   clock_is_24h_style (settings.c, S5a); per model.c (revisione 29/08, F1): time/localtime (<time.h>),
  *   AccelAxisType/AccelTapHandler + accel_tap_service_subscribe/unsubscribe, PBL_IF_COLOR_ELSE,
- *   RESOURCE_ID_DEMO_x, ResHandle, resource_get_handle/size/load_byte_range e time_ms (solo
- *   GALLERIA_DEBUG_SEED), i tipi GPoint/GSize/GRect/GContext/Window/BatteryChargeState dichiarati
- *   da ui_photo.h/ui_time.h (le loro funzioni sono finte in ui_fake.c, hook in ui_fake.h).
+ *   RESOURCE_ID_DEMO_x, ResHandle, resource_get_handle/size/load_byte_range, time_ms (firma SDK
+ *   `uint16_t time_ms(time_t *, uint16_t *)`: la usa SEMPRE storage_init per HELLO.OPEN_MS, oltre a
+ *   sync.c/model.c/gal_log.h per le misure; orologio finto impostabile: shim_set_time_ms,
+ *   shim_advance_time_ms, shim_set_time_step_ms), i tipi GPoint/GSize/GRect/GContext/Window/
+ *   BatteryChargeState dichiarati da ui_photo.h/ui_time.h (le loro funzioni sono finte in ui_fake.c,
+ *   hook in ui_fake.h).
+ * Ricerche persist (revisione v1.9, F10): ogni persist_* su una chiave DIVERSA dall'ultima toccata
+ * conta una ricerca (sul PT2 = una scansione lineare del file); sulla stessa chiave il firmware
+ * riprende dal record trovato (persist_exists → get_size → read_data = 1 ricerca). shim_lookup_count/
+ * shim_lookup_missing (chiavi assenti: ricerche a vuoto) pinnano il contratto "nessuna chiave letta a
+ * vuoto, una sola ricerca per record" di storage.c.
  * Timer (F2): il timer unico ha anche lo stato "scaduto ma non consumato" del firmware (evented_timer:
  * expired=true, callback in coda dietro l'evento in corso): shim_timer_expire() lo mette in quello
  * stato, app_timer_reschedule allora ritorna false, app_timer_cancel scarta il callback,
@@ -52,9 +60,11 @@ AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, voi
 bool app_timer_reschedule(AppTimer *timer_handle, uint32_t new_timeout_ms);
 void app_timer_cancel(AppTimer *timer_handle);
 
-/* ---- Ora di sistema (pebble.h ~370-373, ~9100) ---- */
+/* ---- Ora di sistema (pebble.h ~370-373, ~9113) ---- */
 bool clock_is_24h_style(void);
-void time_ms(time_t *utc_time, uint16_t *out_ms);
+/* Firma ESATTA dell'SDK: ritorna la parte in ms (come out_ms). Default: time(NULL) e 0 ms; con
+ * shim_set_time_ms/shim_advance_time_ms/shim_set_time_step_ms un orologio finto (vedi hook). */
+uint16_t time_ms(time_t *utc_time, uint16_t *out_ms);
 
 /* ---- Piattaforma (pebble.h ~3560-3616): l'host finge emery (colore) ---- */
 #define PBL_IF_COLOR_ELSE(if_true, if_false) (if_true)
@@ -252,7 +262,7 @@ AppMessageResult app_message_outbox_send(void);
 
 /* ---- MESSAGE_KEY_* (l'SDK li genera in message_keys.auto.h da package.json; qui 10000 + indice
  * nell'ordine di package.json: MSG, PROTO, MAX_CHUNK, SLOTS, COUNT, SLOT, PHOTO_ID, FORMAT,
- * LENGTH, CRC, OFFSET, DATA, CODE, ORDER, SETTINGS, REPLY_TO) ---- */
+ * LENGTH, CRC, OFFSET, DATA, CODE, ORDER, SETTINGS, REPLY_TO, OPEN_MS — 17 chiavi dalla v1.9) ---- */
 #define MESSAGE_KEY_MSG        10000u
 #define MESSAGE_KEY_PROTO      10001u
 #define MESSAGE_KEY_MAX_CHUNK  10002u
@@ -287,6 +297,19 @@ void   shim_fail_writes_code(status_t code);
 int    shim_write_count(void);
 void   shim_reset_write_count(void);
 int    shim_delete_count(void);
+/* Ricerche di chiave (F10, revisione v1.9): ogni persist_exists/get_size/read_int/read_data/
+ * write_int/write_data/delete su una chiave DIVERSA dall'ultima toccata conta 1 (sul PT2 = una
+ * scansione lineare del file, ~0,4 s con 12 foto); sulla stessa chiave il firmware riprende dal
+ * record appena trovato/scritto e non conta (approssimazione: vale anche dopo una ricerca a vuoto,
+ * caso che storage.c non produce). shim_lookup_missing = ricerche contate su chiavi ASSENTI (a
+ * vuoto: costano una scansione intera). Azzerati da shim_persist_reset e da shim_lookup_reset
+ * (che NON dimentica l'ultima chiave toccata: e' stato del file, non del contatore). */
+int    shim_lookup_count(void);
+int    shim_lookup_missing(void);
+void   shim_lookup_reset(void);
+/* Chiamate persist_* totali (anche sulla stessa chiave): a differenza di shim_lookup_count vede un
+ * persist_exists/get_size in più prima di una lettura della stessa chiave (revisione 05/09). */
+int    shim_persist_calls(void);
 /* Ispezione diretta del persist. */
 bool   shim_key_exists(uint32_t key);
 int    shim_key_len(uint32_t key);           /* -1 se assente */
@@ -315,6 +338,16 @@ int      shim_accel_tap_unsubscribes(void);
 AccelTapHandler shim_accel_tap_handler(void);
 /* Valore ritornato da clock_is_24h_style() (default true; shim_persist_reset lo rimette a true). */
 void   shim_set_24h(bool is24h);
+/* Orologio finto di time_ms (F48/F13, revisione v1.9). Default (e dopo shim_persist_reset): ora
+ * reale time(NULL) con ms = 0, passo 0. shim_set_time_ms fissa il campione corrente e attiva
+ * l'orologio finto; shim_advance_time_ms lo sposta (anche indietro, ms normalizzati in [0, 999]);
+ * shim_set_time_step_ms fa avanzare l'orologio di `per_call` ms DOPO ogni chiamata a time_ms (anche
+ * negativo: orologio che salta indietro), cosi' due letture consecutive dentro storage_init
+ * misurano esattamente `per_call` (open_ms). shim_time_ms_calls conta le chiamate dal reset. */
+void   shim_set_time_ms(time_t s, uint16_t ms);
+void   shim_advance_time_ms(int32_t ms);
+void   shim_set_time_step_ms(int32_t per_call);
+int    shim_time_ms_calls(void);
 /* Chiave dell'ultima scrittura RIUSCITA (write_data/write_int); SHIM_NO_KEY se nessuna dal reset.
  * Serve a verificare che il manifest sia scritto PER ULTIMO (storage.h, sync_proto PHOTO_END). */
 #define SHIM_NO_KEY 0xFFFFFFFFu
@@ -348,8 +381,8 @@ bool  shim_timer_fire_ctx(void *data);
 
 /* ================= AppMessage: stato finto e hook ================= */
 
-/* Dimensioni massime dello shim: outbox ≤ 2 KB (sync.c ne chiede 110), inbox ≤ 4.608 B
- * (4.096 di DATA + intestazioni). */
+/* Dimensioni massime dello shim: outbox ≤ 2 KB (sync.c ne chiede 119 dalla v1.9: HELLO con
+ * OPEN_MS), inbox ≤ 4.608 B (4.096 di DATA + intestazioni). */
 #define SHIM_AM_OUTBOX_CAP 2048u
 #define SHIM_AM_INBOX_CAP  4608u
 #define SHIM_AM_SENT_MAX   64                /* messaggi spediti REGISTRATI per scenario (S7: era 16,
@@ -372,6 +405,7 @@ enum ShimSentField {
   SHIM_S_SLOT      = 1u << 7,
   SHIM_S_OFFSET    = 1u << 8,
   SHIM_S_REPLY_TO  = 1u << 9,
+  SHIM_S_OPEN_MS   = 1u << 10,               /* v1.9: HELLO.OPEN_MS (F13) */
 };
 
 /* Copia decodificata di un messaggio passato a app_message_outbox_send(). */
@@ -381,6 +415,7 @@ typedef struct {
   uint16_t fields;                           /* ShimSentField presenti */
   uint8_t  msg, proto, format, code, slot, reply_to;
   uint16_t max_chunk, crc;
+  uint16_t open_ms;                          /* v1.9: MESSAGE_KEY_OPEN_MS decodificata (F13) */
   uint32_t offset;
   uint16_t slots_len;
   uint8_t  slots[SHIM_AM_SLOTS_CAP];
@@ -395,7 +430,7 @@ int      shim_am_open_count(void);           /* chiamate ad app_message_open (an
 bool     shim_am_is_open(void);
 AppMessageResult shim_am_last_open_result(void);
 uint32_t shim_am_inbox_size(void);           /* dimensione richiesta all'apertura */
-uint32_t shim_am_outbox_size(void);          /* idem (F4: 110 B) */
+uint32_t shim_am_outbox_size(void);          /* idem (F4: 119 B dalla v1.9) */
 void     shim_am_set_inbox_max(uint32_t n);  /* valore di app_message_inbox_size_maximum() */
 void     shim_am_set_open_result(AppMessageResult r);  /* open forzata a fallire (≠ OK) */
 /* F4: cambia la dimensione dell'outbox DOPO l'apertura (sync.c la calcola in sync_init: è l'unico

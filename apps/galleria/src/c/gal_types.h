@@ -41,7 +41,8 @@ typedef struct __attribute__((packed)) {
   uint8_t     schema;                /* GAL_SCHEMA */
   uint8_t     slot_count;            /* GAL_MAX_SLOTS */
   uint8_t     order[GAL_MAX_SLOTS];  /* indici slot in ordine di rotazione, GAL_SLOT_NONE = fine */
-  uint16_t    shake_offset;          /* schema 2: previsto per lo shake, NON usato (resta 0: perf 04/09, D10) */
+  uint16_t    shake_offset;          /* riservato: l'app non lo legge né lo aggiorna (D19); 0 su file nuovo, sul file
+                                        migrato resta congelato l'ultimo valore della chiave 2 (storage.c, migrazione) */
   GalSlotMeta slots[GAL_MAX_SLOTS];  /* 192 B */
   GalSettings settings;              /* 20 B (schema 1: chiave 10 separata) */
   uint16_t    crc16;                 /* CRC-16/CCITT-FALSE dei 232 B precedenti */

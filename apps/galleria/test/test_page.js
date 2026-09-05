@@ -812,7 +812,7 @@ function stateEmery(over) {
 
 section('2a. page.html: id, tag e vincoli del markup', function () {
   var root = parseHtml(PAGE_HTML), get = function (id) { return findById(root, id); };
-  var ids = ['head', 'watch', 'kb', 'status', 'photos', 'tiles', 'add', 'file', 'addHelp', 'editor',
+  var ids = ['head', 'watch', 'kb', 'status', 'photos', 'photosCap', 'tiles', 'add', 'file', 'addHelp', 'editor',
              'editName', 'cropWrap', 'crop', 'zoom', 'fit', 'gamma', 'gammaVal', 'lift', 'liftVal',
              'dither', 'sunlight', 'sunlightRow', 'previewMode', 'previewModeRow', 'preview', 'etime',
              'addOk', 'addCancel', 'settings', 'settingsNote', 's_layout', 's_font', 'fontPreview',
@@ -935,6 +935,9 @@ section('2b. avvio con stato completo (emery, dev)', function () {
   eq(h.el('del_9').disabled, false, 'estranea: si puo\' eliminare');
   eq(h.el('file').disabled, false, 'album non pieno: input file attivo');
   eq(h.txt('addHelp'), 'scegli dalla Libreria', 'aiuto per l\'aggiunta');
+  check(/al massimo 12 foto \(ora \d+ su 12\)/.test(h.txt('photosCap')), 'limite di 12 foto descritto con il contatore (' + h.txt('photosCap').slice(0, 50) + ')');
+  eq(h.txt('photosCap').indexOf('(ora ' + h.el('tiles').children.length + ' su 12)') > 0, true, 'contatore = numero di foto in elenco');
+  check(h.txt('photosCap').indexOf('un decimo di secondo per foto') > 0, 'limite: spiega il costo all\'avvio per foto');
 
   /* impostazioni scritte nei campi */
   eq(h.el('s_layout').value, '0', 'campo layout');
@@ -1297,6 +1300,7 @@ section('2h. album pieno', function () {
   eq(h.el('add').disabled, true, 'album pieno: pulsante Aggiungi disabilitato');
   eq(h.el('add').className, 'btn off', 'album pieno: classe off');
   eq(h.txt('addHelp'), 'album pieno: elimina una foto', 'album pieno: testo di aiuto');
+  check(h.txt('photosCap').indexOf('(ora 12 su 12)') > 0, 'album pieno: contatore 12 su 12 (' + h.txt('photosCap').slice(0, 60) + ')');
   eq(fire(h.el('file'), 'change'), false, 'album pieno: l\'input disabilitato non manda change');
   G.addFile({ name: 'tredicesima.jpg' });
   eq(G.editorOpen, false, 'album pieno: l\'editor non si apre');
@@ -2609,11 +2613,23 @@ section('4e. #41 pulsanti disabilitati: contrasto >= 3:1 in cima alla cascata', 
   eq(full.el('add').className, 'btn off', '#41 album pieno: "Aggiungi foto" prende la classe off');
 });
 
-/* v1.9 (perf 04/09): stato di prova con un OPEN_MS scelto ('via' = campo assente, orologio vecchio) */
-function pageOpenMs(ms) {
-  var st = stateEmery();
+/* v1.9 (perf 04/09, revisione F04): stato di prova con un OPEN_MS scelto ('via' = campo assente,
+ * orologio vecchio) e, se dato, con n foto valide sull'orologio (slot con state 1). La soglia
+ * dell'avviso dipende da n: senza n vale lo stato standard di emery, 2 slot pieni -> 600 ms. */
+function pageOpenMs(ms, n) {
+  var st = stateEmery(), k;
+  if (typeof n === 'number') {
+    for (k = 0; k < 12; k++) { st.watch.slots[k] = { state: (k < n) ? 1 : 0, crc: (k < n) ? 111 : 0 }; }
+  }
   if (ms === 'via') { delete st.watch.openMs; } else { st.watch.openMs = ms; }
   return loadPage({ state: st, search: DEV_SEARCH });
+}
+/* snapshot minimo per la logica pura: n slot con state 1, piu' openMs se dato */
+function watchOf(n, ms) {
+  var w = { slots: [] }, k;
+  for (k = 0; k < 12; k++) { w.slots.push({ state: (k < n) ? 1 : 0, crc: 0 }); }
+  if (ms !== undefined) { w.openMs = ms; }
+  return w;
 }
 function liTexts(el) {
   var out = [], k;
@@ -2625,18 +2641,46 @@ function liTexts(el) {
 }
 
 section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', function () {
-  /* --- soglia, in page_core (logica pura) --- */
-  eq(C.SLOW_OPEN_MS, 1000, 'soglia dell\'avviso: 1000 ms');
+  /* --- soglia proporzionale alle foto, in page_core (logica pura; revisione F04) ---
+   * OPEN_MS comprende la ricerca della chiave 0, cioe' una scansione del file persist: il tempo
+   * "normale" cresce con le foto tenute sull'orologio, quindi la soglia e' 400 + 100 x foto. */
+  eq(C.SLOW_BASE_MS, 400, 'soglia: base 400 ms (orologio senza foto)');
+  eq(C.SLOW_PER_PHOTO_MS, 100, 'soglia: 100 ms per ogni foto valida');
+  eq(C.SLOW_OPEN_MS, undefined, 'la vecchia soglia fissa non esiste piu\'');
+  eq(C.slowThresholdMs(null), 400, 'soglia: nessuno snapshot -> 400 ms');
+  eq(C.slowThresholdMs({}), 400, 'soglia: snapshot senza slots -> 400 ms');
+  eq(C.slowThresholdMs({ slots: 'x' }), 400, 'soglia: slots non un array -> 400 ms');
+  eq(C.slowThresholdMs(watchOf(0)), 400, 'soglia: 0 foto -> 400 ms');
+  eq(C.slowThresholdMs(watchOf(4)), 800, 'soglia: 4 foto -> 800 ms');
+  eq(C.slowThresholdMs(watchOf(12)), 1600, 'soglia: 12 foto (album pieno) -> 1600 ms');
+  eq(C.slowThresholdMs({ slots: [null, { state: 1 }, { state: 0 }, { state: 1, crc: 5 }] }), 600,
+     'soglia: contati solo gli slot con state 1 (le voci vuote non contano)');
+  eq(C.slowThresholdMs({ slots: watchOf(12).slots.concat(watchOf(8).slots) }), 1600,
+     'soglia: mai oltre i 12 slot, anche con un array piu\' lungo');
   eq(C.secondsText(2150), '2,2', 'secondsText: 2150 ms -> "2,2"');
   eq(C.secondsText(1001), '1,0', 'secondsText: 1001 ms -> "1,0" (mai "1")');
   eq(C.secondsText(0), '0,0', 'secondsText: 0');
   eq(C.slowSeconds(null), null, 'slowSeconds: nessuno snapshot -> null');
   eq(C.slowSeconds({ openMs: null }), null, 'slowSeconds: openMs null (orologio vecchio) -> null');
   eq(C.slowSeconds({}), null, 'slowSeconds: openMs assente -> null');
+  eq(C.slowSeconds(watchOf(12)), null, 'slowSeconds: album pieno ma openMs assente -> null');
   eq(C.slowSeconds({ openMs: 0 }), null, 'slowSeconds: 0 (non misurato/istantaneo) -> null');
-  eq(C.slowSeconds({ openMs: 1000 }), null, 'slowSeconds: sulla soglia -> nessun avviso');
-  eq(C.slowSeconds({ openMs: 1001 }), '1,0', 'slowSeconds: appena sopra la soglia');
-  eq(C.slowSeconds({ openMs: 2150 }), '2,2', 'slowSeconds: file gonfio');
+  /* 0 foto: soglia 400 */
+  eq(C.slowSeconds(watchOf(0, 400)), null, 'slowSeconds: 0 foto, 400 ms (sulla soglia) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(0, 401)), '0,4', 'slowSeconds: 0 foto, 401 ms -> avviso');
+  /* 4 foto: soglia 800; misure di campo 90 ms (file nuovo) e 2.145 ms (file gonfio) */
+  eq(C.slowSeconds(watchOf(4, 90)), null, 'slowSeconds: 4 foto, file nuovo (90 ms) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(4, 800)), null, 'slowSeconds: 4 foto, 800 ms (sulla soglia) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(4, 801)), '0,8', 'slowSeconds: 4 foto, 801 ms -> avviso');
+  eq(C.slowSeconds(watchOf(4, 2145)), '2,1', 'slowSeconds: 4 foto, file gonfio (2145 ms) -> avviso');
+  /* 12 foto sane: 650-1.200 ms stimati devono restare sotto la soglia di 1.600 (F07) */
+  eq(C.slowSeconds(watchOf(12, 650)), null, 'slowSeconds: 12 foto sane (650 ms) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(12, 1200)), null, 'slowSeconds: 12 foto sane (1200 ms) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(12, 1600)), null, 'slowSeconds: 12 foto, 1600 ms (sulla soglia) -> nessun avviso');
+  eq(C.slowSeconds(watchOf(12, 1601)), '1,6', 'slowSeconds: 12 foto, 1601 ms -> avviso');
+  /* lo stesso openMs vale o non vale un avviso a seconda delle foto */
+  eq(C.slowSeconds(watchOf(2, 1000)), '1,0', 'slowSeconds: 1000 ms con 2 foto -> avviso');
+  eq(C.slowSeconds(watchOf(12, 1000)), null, 'slowSeconds: gli stessi 1000 ms con 12 foto -> nessun avviso');
   /* normWatch: il campo arriva dallo stato dell'hash, con i valori strani neutralizzati */
   eq(C.decodeState('#' + hashOf(stateEmery())).watch.openMs, null, 'normWatch: snapshot senza openMs -> null');
   (function () {
@@ -2646,15 +2690,21 @@ section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', functi
     eq(C.decodeState('#' + hashOf(st)).watch.openMs, null, 'normWatch: openMs negativo -> null');
     st.watch.openMs = 'x';
     eq(C.decodeState('#' + hashOf(st)).watch.openMs, null, 'normWatch: openMs non numerico -> null');
+    /* la soglia si calcola sullo stato normalizzato dell'hash come sullo snapshot grezzo */
+    eq(C.slowThresholdMs(C.decodeState('#' + hashOf(stateEmery())).watch), 600,
+       'soglia dallo stato dell\'hash: le 2 foto valide di stateEmery -> 600 ms');
   })();
 
-  /* --- avviso nascosto: file sano, campo assente, orologio vecchio, sotto soglia --- */
-  [[0, 'openMs 0'], ['via', 'campo assente'], [null, 'openMs null'], [900, 'openMs 900'],
-   [1000, 'openMs 1000 (sulla soglia)']].forEach(function (c) {
-    var h = pageOpenMs(c[0]);
-    eq(h.disp('slow'), 'none', 'avviso nascosto con ' + c[1]);
-    eq(h.txt('slowLead'), '', 'nessun testo dell\'avviso con ' + c[1]);
-    eq(h.txt('slowFix'), '', 'nessuna procedura nell\'avviso con ' + c[1]);
+  /* --- avviso nascosto: file sano, campo assente, orologio vecchio, sotto o sulla soglia --- */
+  [[0, null, 'openMs 0'], ['via', null, 'campo assente'], [null, null, 'openMs null'],
+   [599, null, 'openMs 599 con 2 foto'], [600, null, 'openMs 600, sulla soglia con 2 foto'],
+   [400, 0, 'openMs 400 senza foto (sulla soglia)'], [90, 4, 'openMs 90 con 4 foto (file nuovo)'],
+   [800, 4, 'openMs 800 con 4 foto (sulla soglia)'], [1200, 12, 'openMs 1200 con 12 foto sane'],
+   [1600, 12, 'openMs 1600 con 12 foto (sulla soglia)']].forEach(function (c) {
+    var h = pageOpenMs(c[0], c[1] === null ? undefined : c[1]);
+    eq(h.disp('slow'), 'none', 'avviso nascosto con ' + c[2]);
+    eq(h.txt('slowLead'), '', 'nessun testo dell\'avviso con ' + c[2]);
+    eq(h.txt('slowFix'), '', 'nessuna procedura nell\'avviso con ' + c[2]);
   });
   (function () {                                     /* hash assente: nessuno snapshot, nessun avviso */
     var h = loadPage({ hash: '' });
@@ -2662,25 +2712,36 @@ section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', functi
     check(h.disp('help') !== 'none', 'stato non ricevuto: l\'Aiuto resta disponibile');
   })();
 
-  /* --- avviso visibile: 1001 ms e 2150 ms --- */
+  /* --- avviso visibile: appena sopra la soglia con 0, 2 e 12 foto --- */
+  [[401, 0, '0,4'], [601, 2, '0,6'], [1601, 12, '1,6']].forEach(function (c) {
+    var h = pageOpenMs(c[0], c[1]), lead = h.txt('slowLead');
+    eq(h.disp('slow'), '', 'openMs ' + c[0] + ' con ' + c[1] + ' foto: avviso visibile');
+    check(lead.indexOf('(' + c[2] + ' s)') >= 0, 'openMs ' + c[0] + ': l\'avviso dice "' + c[2] + ' s" (' + lead + ')');
+  });
+  /* il caso di campo: 4 foto e file gonfio di record morti (run_s8_09_new.log, open = 2145 ms) */
   (function () {
-    var h = pageOpenMs(1001), lead = h.txt('slowLead');
-    eq(h.disp('slow'), '', 'openMs 1001: avviso visibile');
-    check(lead.indexOf('(1,0 s)') >= 0, 'openMs 1001: l\'avviso dice "1,0 s" (' + lead + ')');
-  })();
-  (function () {
-    var h = pageOpenMs(2150), lead = h.txt('slowLead'), fix = h.txt('slowFix'), passi = liTexts(h.el('slowFix'));
-    eq(h.disp('slow'), '', 'openMs 2150: avviso visibile');
+    var h = pageOpenMs(2145, 4), lead = h.txt('slowLead'), fix = h.txt('slowFix'), passi = liTexts(h.el('slowFix'));
+    eq(h.disp('slow'), '', 'openMs 2145 con 4 foto: avviso visibile');
     eq(h.el('slow').className, 'warn', 'l\'avviso usa la classe warn');
-    check(lead.indexOf('Galleria si avvia lentamente (2,2 s)') === 0, 'testo dell\'avviso con i secondi: ' + lead);
+    check(lead.indexOf('Galleria si avvia lentamente (2,1 s)') === 0, 'testo dell\'avviso con i secondi: ' + lead);
     check(lead.indexOf('Non è un guasto') > 0, 'l\'avviso rassicura ("Non è un guasto")');
     eq(passi.length, 4, 'procedura in 4 passi');
     check(passi[0].indexOf('app Pebble') >= 0, '1) apri l\'app Pebble');
     check(passi[1].indexOf('Galleria') >= 0, '2) tocca Galleria nell\'elenco');
-    check(passi[2].indexOf('Rimuovi') >= 0, '3) scegli Rimuovi');
+    /* F11: il terzo passo e' load-bearing (Aggiorna NON cancella il file persist, Rimuovi si'):
+     * si pinna per intero, cosi' una riscrittura che inverte l'istruzione fa fallire il test. */
+    eq(passi[2], 'scegli Rimuovi (non Aggiorna)', '3) il passo dice esattamente "scegli Rimuovi (non Aggiorna)"');
+    check(/\bRimuovi\b/.test(passi[2]), '3) nomina Rimuovi');
+    check(/non[^)]*Aggiorna/.test(passi[2]), '3) avverte che NON e\' Aggiorna');
     check(passi[3].indexOf('reinstalla') >= 0, '4) reinstalla Galleria');
     check(fix.indexOf('al sicuro nel telefono') >= 0, 'le foto restano al sicuro nel telefono');
-    check(fix.indexOf('un minuto') >= 0, 'tornano da sole in circa un minuto');
+    /* F06: con l'album pieno il ritorno delle foto dura minuti, non "circa un minuto" */
+    check(fix.indexOf('in pochi minuti (circa mezzo minuto per foto)') >= 0,
+          'la stima del ritorno e\' "in pochi minuti (circa mezzo minuto per foto)": ' + fix);
+    check(fix.indexOf('circa un minuto') < 0, 'niente piu\' promessa di "circa un minuto"');
+    /* stessa procedura, parola per parola, nell'avviso e nell'Aiuto */
+    eqJson(liTexts(h.el('slowFix')), liTexts(h.el('helpFix')), 'avviso e Aiuto: gli stessi 4 passi');
+    eq(h.txt('slowFix'), h.txt('helpFix'), 'avviso e Aiuto: lo stesso testo completo');
     /* l'avviso non tocca il resto della pagina */
     eq(h.disp('status'), 'none', 'avviso di stato ancora nascosto');
     check(h.kbNum() >= 0, 'contatore KB calcolato lo stesso');
@@ -2692,20 +2753,57 @@ section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', functi
     check(h.disp('help') !== 'none', 'la sezione Aiuto è sempre visibile');
     eq(h.disp('helpBody'), 'none', 'il corpo dell\'Aiuto parte ripiegato');
     eq(h.el('helpBtn').textContent, 'Galleria si avvia lentamente?', 'titolo/pulsante dell\'Aiuto');
+    eq(h.env.scrolls.length, 0, '#42 con l\'Aiuto chiuso non si e\' ancora scorso');
     h.click('helpBtn');
     eq(h.disp('helpBody'), '', 'un tocco apre l\'Aiuto');
     eq(h.el('helpBtn').attrs['aria-expanded'], 'true', 'aria-expanded true da aperto');
+    /* #42: l'Aiuto e' l'ultima sezione sopra il footer fisso: aprendolo lo si porta in vista */
+    eq(h.env.scrolls.length, 1, '#42 aprendo l\'Aiuto si scorre una volta sola');
+    eq(h.env.scrolls[0].id, 'helpBody', '#42 si porta in vista #helpBody');
+    eqJson(h.env.scrolls[0].opt, { block: 'start' }, '#42 opzione {block: "start"}');
+    eq(h.env.scrolls[0].disp, '', '#42 chiamata quando il pannello e\' gia\' visibile');
     passi = liTexts(h.el('helpFix'));
     eq(passi.length, 4, 'Aiuto: la stessa procedura in 4 passi');
-    check(passi[2].indexOf('Rimuovi') >= 0, 'Aiuto: il passo "Rimuovi"');
+    eq(passi[2], 'scegli Rimuovi (non Aggiorna)', 'Aiuto: il passo "Rimuovi (non Aggiorna)" per intero');
+    check(/non[^)]*Aggiorna/.test(passi[2]), 'Aiuto: avverte che NON e\' Aggiorna');
     check(h.txt('helpFix').indexOf('al sicuro nel telefono') >= 0, 'Aiuto: foto al sicuro nel telefono');
-    check(h.txt('helpWhy').indexOf('più di rado') > 0, 'Aiuto: spiega che con questa versione capita più di rado');
+    check(h.txt('helpFix').indexOf('in pochi minuti (circa mezzo minuto per foto)') >= 0,
+          'Aiuto: la stessa stima "in pochi minuti (circa mezzo minuto per foto)"');
+    check(h.txt('helpWhy').indexOf('più di rado') < 0, 'Aiuto: nessuna promessa sulla frequenza (richiesta utente 05/09)');
     check(h.txt('helpWhy').length > 60, 'Aiuto: spiegazione del perché succede');
     h.click('helpBtn');
     eq(h.disp('helpBody'), 'none', 'un secondo tocco lo richiude');
     eq(h.el('helpBtn').attrs['aria-expanded'], 'false', 'aria-expanded false da chiuso');
+    eq(h.env.scrolls.length, 1, '#42 chiudendo l\'Aiuto non si scorre');
     h.click('helpBtn');
     eq(h.disp('helpBody'), '', 'si riapre (nessuno stato bloccato)');
+    eq(h.env.scrolls.length, 2, '#42 riaprendolo si scorre di nuovo');
+  })();
+  /* l'Aiuto si apre anche con l'avviso visibile, e mostra la stessa procedura (F11) */
+  (function () {
+    var h = pageOpenMs(2145, 4);
+    h.click('helpBtn');
+    eq(h.disp('helpBody'), '', 'Aiuto aperto anche con l\'avviso visibile');
+    eq(h.env.scrolls[0].id, 'helpBody', '#42 si scorre anche con l\'avviso visibile');
+    eqJson(liTexts(h.el('helpFix')), ['apri l\'app Pebble sul telefono', 'tocca Galleria nell\'elenco delle app',
+                                      'scegli Rimuovi (non Aggiorna)', 'reinstalla Galleria'],
+           'Aiuto con avviso: i 4 passi parola per parola');
+  })();
+  /* #42 guardato: DOM senza scrollIntoView (WebView vecchia) e scrollIntoView che lancia */
+  (function () {
+    var h = pageOpenMs(0), threw = false, called = 0, h2;
+    h.el('helpBody').scrollIntoView = undefined;
+    try { h.click('helpBtn'); } catch (e) { threw = true; }
+    eq(threw, false, '#42 senza scrollIntoView: nessuna eccezione');
+    eq(h.disp('helpBody'), '', '#42 senza scrollIntoView: l\'Aiuto si apre lo stesso');
+    eq(h.env.scrolls.length, 0, '#42 senza scrollIntoView: nessuna chiamata registrata');
+    h2 = pageOpenMs(0);
+    h2.el('helpBody').scrollIntoView = function () { called++; throw new TypeError('argomento non valido'); };
+    threw = false;
+    try { h2.click('helpBtn'); } catch (e) { threw = true; }
+    eq(threw, false, '#42 scrollIntoView che lancia: nessuna eccezione fuori dalla pagina');
+    eq(called, 1, '#42 scrollIntoView che lancia: chiamata comunque');
+    eq(h2.disp('helpBody'), '', '#42 scrollIntoView che lancia: l\'Aiuto resta aperto');
   })();
 });
 

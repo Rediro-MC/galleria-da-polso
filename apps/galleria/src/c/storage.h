@@ -45,14 +45,17 @@ void storage_settings_changed(const GalSettings *s);
 /* Scrive subito le impostazioni pendenti (deinit). Uno shake pendente da solo NON viene scritto. */
 void storage_flush(void);
 
-/* Offset shake (nel manifest): lettura (false se nessun record); scrittura con debounce 10 s
- * (chiamare a ogni scossa: costa nulla; invariato → nessuna scrittura). */
+/* Offset shake (campo del manifest, riservato): SOLO per i test host e per completezza dell'API.
+ * L'app NON le chiama (D19: lo shake vive in RAM in model.c e riparte da 0 a ogni avvio); la
+ * scrittura passa dallo stesso debounce delle impostazioni. */
 bool storage_read_rotstate(GalRotState *out);
 bool storage_write_rotstate(const GalRotState *st);
 
-/* ms della prima chiamata persist di questa esecuzione (= apertura del file da parte del firmware:
- * 2 scansioni di tutti i record, morti compresi). Misurato sempre: HELLO.OPEN_MS → config page
- * ("Galleria si avvia lentamente?" con la procedura di rimozione + reinstallazione). */
+/* ms della prima chiamata persist di questa esecuzione = apertura del file da parte del firmware
+ * (2 scansioni di tutti i record, morti compresi) + ricerca della chiave 0 (fino a una scansione in
+ * più se la chiave è in coda, p.es. dopo una migrazione: F04). Misurato sempre: HELLO.OPEN_MS →
+ * config page ("Galleria si avvia lentamente?" con la procedura di rimozione + reinstallazione),
+ * che lo confronta con una soglia proporzionale al numero di foto sull'orologio. */
 uint16_t storage_open_ms(void);
 /* Build M (GALLERIA_DEBUG_TIMING): 0 = come storage_open_ms, 1 = ms della ricerca del manifest.
  * Sempre 0 nella build P. */

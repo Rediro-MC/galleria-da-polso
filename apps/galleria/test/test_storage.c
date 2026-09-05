@@ -13,7 +13,15 @@
  * Contratti pinnati qui: s_schema_ok (la chiave 0 gia' allineata non viene riscritta), un solo
  * timer per impostazioni e shake, flush che scrive SOLO con impostazioni pendenti (uno shake da
  * solo va perso), scrittura fallita -> dirty mantenuti, settings_apply identiche -> nessuna
- * scrittura, migrazione V1 in tutte le sue varianti. */
+ * scrittura, migrazione V1 in tutte le sue varianti.
+ * Revisione v1.9 (05/09/2026): (15) RICERCHE persist contate dallo shim (F10: init schema 2 = 2
+ * ricerche e 0 a vuoto, file vuoto = 2 a vuoto, migrazione = 4 [0, 1, 10, 2], impostazioni
+ * identiche / set_order identico / clear_slot su EMPTY / flush senza dirty = 0, chunk senza
+ * persist_exists); (16) impostazioni pendenti + commit/set_order/clear entro i 10 s = un solo record
+ * (F05); (17) ritentativi del timer: 1 + STORAGE_WRITE_RETRIES scatti, contatore azzerato da ogni
+ * evento nuovo, register NULL nel ritentativo (F12); (18) init con timer pendente, chiave 0 con
+ * errore generico, chiave 10 di schema diverso, open_ms con l'orologio finto (F34/F48);
+ * clear_slot idempotente (F31) in (11). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1145,7 +1153,24 @@ static void test_clear_and_order(void) {
   CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), storage_manifest(), sizeof(GalManifest)) == 0);
   CHECK_EQ(storage_manifest()->order[0], 3);                    /* order non viene compattato */
   CHECK_EQ(storage_manifest()->order[1], 7);
-  CHECK_EQ(storage_clear_slot(3), STORAGE_OK);                  /* idempotente */
+  /* F31 (revisione 05/09): idempotente — slot gia' EMPTY ⇒ STORAGE_OK senza scrivere ne' cercare
+   * (un ALBUM_DELETE ritrasmesso dal telefono non appende un record morto: come set_order con
+   * ordine identico), anche su uno slot mai usato e anche con la scrittura impossibile */
+  w = shim_write_count();
+  shim_lookup_reset();
+  CHECK_EQ(storage_clear_slot(3), STORAGE_OK);
+  CHECK_EQ(shim_write_count(), w);
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK_EQ(storage_clear_slot(9), STORAGE_OK);                  /* slot mai usato */
+  CHECK_EQ(shim_write_count(), w);
+  shim_fail_writes_after(0);
+  CHECK_EQ(storage_clear_slot(3), STORAGE_OK);                  /* no-op: mai NO_SPACE per nulla */
+  CHECK_EQ(storage_clear_slot(9), STORAGE_OK);
+  shim_fail_writes_after(-1);
+  CHECK_EQ(shim_write_count(), w);
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), storage_manifest(), sizeof(GalManifest)) == 0);
+  CHECK_EQ(storage_manifest()->slots[3].generation, 1);         /* metadati ancora conservati */
   CHECK_EQ(storage_valid_slots(), 1);
 
   /* set_order: 12 B copiati alla lettera + manifest riscritto */
@@ -1663,6 +1688,582 @@ static void test_settings_apply(void) {
   CHECK_EQ(shim_write_count(), w);
 }
 
+
+/* ---- 15. ricerche persist (F10, revisione v1.9): il contratto centrale di S8-perf ----
+ * Sul PT2 ogni ricerca di chiave e' una scansione lineare del file (~0,4 s con 12 foto) e una
+ * chiave assente costa una scansione intera a vuoto: lo shim conta le ricerche (chiave diversa
+ * dall'ultima toccata) e quelle a vuoto. */
+
+static void test_lookups(void) {
+  GalSettings s, out, same;
+  GalRotState rs;
+  static uint8_t data[GAL_CHUNK_BYTES];
+  static uint8_t rd[GAL_CHUNK_BYTES];
+  memset(data, 0x3C, sizeof(data));
+
+  /* (a) file vuoto: 2 ricerche (chiave 0, chiave 1), entrambe a vuoto, nessuna scrittura */
+  reset_all(QUOTA_OK);
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 2);
+  CHECK_EQ(shim_write_count(), 0);
+  /* la prima scrittura (timer) crea chiave 0 e record: 2 ricerche nuove, entrambe a vuoto (una
+   * chiave NUOVA costa una scansione: "riempire l'album e' cubico nelle foto") */
+  shim_lookup_reset();
+  mk_settings(&s, 2);
+  storage_settings_changed(&s);
+  CHECK_EQ(shim_lookup_count(), 0);                    /* solo il timer: nessun accesso al file */
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 2);
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 2);
+  /* la seconda scrittura della stessa esecuzione, dopo che il tick ha toccato un chunk: UNA
+   * ricerca (chiave 1), nessuna a vuoto (sulla stessa chiave dell'ultima scrittura il firmware
+   * riprenderebbe dal record: qui in mezzo c'e' un'altra chiave, come sull'orologio) */
+  mk_settings(&s, 3);
+  storage_settings_changed(&s);
+  CHECK(storage_read_chunk(0, 0, rd, sizeof(rd)) < 0);   /* il tick: un'altra chiave (a vuoto) */
+  shim_lookup_reset();
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), 3);
+  CHECK_EQ(shim_lookup_count(), 1);
+  CHECK_EQ(shim_lookup_missing(), 0);
+
+  /* (b) schema 2 con una foto: init = 2 ricerche (chiave 0 + manifest), 0 a vuoto; get_size e
+   *     read_data riprendono dal record trovato */
+  build_valid_state();
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 0);
+  /* letture dalla RAM: mai una ricerca */
+  shim_lookup_reset();
+  CHECK(storage_read_settings(&out));
+  CHECK(storage_read_rotstate(&rs));
+  (void)storage_manifest();
+  (void)storage_valid_slots();
+  (void)storage_open_ms();
+  CHECK_EQ(shim_lookup_count(), 0);
+
+  /* (c) impostazioni IDENTICHE (settings_apply) e storage_settings_changed: 0 ricerche; il timer
+   *     scrive il record con UNA ricerca (chiave 1: la chiave 0 e' gia' verificata in init) */
+  settings_init();
+  shim_lookup_reset();
+  same = *settings_get();
+  CHECK(settings_apply(&same));
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_lookup_count(), 0);
+  mk_settings(&s, 4);
+  storage_settings_changed(&s);
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK_EQ(storage_read_chunk(3, 0, rd, sizeof(rd)), GAL_CHUNK_BYTES);   /* un tick in mezzo */
+  shim_lookup_reset();
+  {
+    const int w = shim_write_count();
+    CHECK(shim_timer_fire());
+    CHECK_EQ(shim_write_count(), w + 1);
+  }
+  CHECK_EQ(shim_lookup_count(), 1);                    /* solo la chiave 1: la 0 non viene ricercata */
+  CHECK_EQ(shim_lookup_missing(), 0);
+  storage_settings_changed(&s);                        /* stessa copia: 0 ricerche finche' il timer non scatta */
+  CHECK_EQ(shim_lookup_count(), 1);
+  CHECK_EQ(storage_read_chunk(3, 1, rd, sizeof(rd)), GAL_CHUNK_BYTES);
+  shim_lookup_reset();
+  storage_flush();                                     /* impostazioni "pendenti" identiche: 1 ricerca (storage non confronta) */
+  CHECK_EQ(shim_lookup_count(), 1);
+
+  /* (d) set_order identico, clear_slot su EMPTY, flush senza dirty: 0 ricerche e 0 scritture */
+  shim_lookup_reset();
+  {
+    const int w = shim_write_count();
+    uint8_t ord[GAL_MAX_SLOTS];
+    memcpy(ord, storage_manifest()->order, sizeof(ord));
+    CHECK_EQ(storage_set_order(ord), STORAGE_OK);
+    CHECK_EQ(storage_clear_slot(0), STORAGE_OK);      /* mai usato */
+    CHECK_EQ(storage_clear_slot(11), STORAGE_OK);
+    storage_flush();
+    storage_flush();
+    CHECK_EQ(shim_write_count(), w);
+  }
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK(!shim_timer_pending());
+
+  /* (e) chunk: storage_read_chunk = una ricerca per chunk SENZA persist_exists (un chunk assente
+   *     e' una ricerca a vuoto, non due); storage_write_chunk su chiave nuova = una ricerca a vuoto,
+   *     su chiave esistente (foto sostituita) = una ricerca piena */
+  shim_lookup_reset();
+  CHECK_EQ(storage_read_chunk(3, 0, rd, sizeof(rd)), GAL_CHUNK_BYTES);
+  CHECK_EQ(shim_persist_calls(), 1);       /* ESATTAMENTE una persist_*: niente exists/get_size prima del read */
+  CHECK_EQ(storage_read_chunk(3, 1, rd, sizeof(rd)), GAL_CHUNK_BYTES);
+  CHECK_EQ(storage_read_chunk(3, 2, rd, sizeof(rd)), GAL_CHUNK_BYTES);
+  CHECK_EQ(shim_lookup_count(), 3);
+  CHECK_EQ(shim_persist_calls(), 3);
+  CHECK_EQ(shim_lookup_missing(), 0);
+  CHECK(storage_read_chunk(3, PHOTO_CHUNKS, rd, sizeof(rd)) < 0);
+  CHECK_EQ(shim_lookup_count(), 4);
+  CHECK_EQ(shim_persist_calls(), 4);       /* chunk assente: una sola chiamata (E_DOES_NOT_EXIST), non exists+read */
+  CHECK_EQ(shim_lookup_missing(), 1);
+  CHECK(storage_read_chunk(GAL_MAX_SLOTS, 0, rd, sizeof(rd)) < 0);   /* argomenti invalidi: nessuna ricerca */
+  CHECK_EQ(shim_lookup_count(), 4);
+  shim_lookup_reset();
+  CHECK_EQ(storage_write_chunk(4, 0, data, GAL_CHUNK_BYTES), STORAGE_OK);
+  CHECK_EQ(storage_write_chunk(4, 1, data, 100), STORAGE_OK);
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 2);
+  CHECK_EQ(storage_write_chunk(3, 0, data, GAL_CHUNK_BYTES), STORAGE_OK);   /* sostituzione */
+  CHECK_EQ(shim_lookup_count(), 3);
+  CHECK_EQ(shim_lookup_missing(), 2);
+  CHECK_EQ(storage_write_chunk(3, 0, NULL, 8), STORAGE_ERR);               /* invalido: niente */
+  CHECK_EQ(shim_lookup_count(), 3);
+  /* commit: una sola ricerca (manifest esistente), chiave 0 mai ricercata */
+  shim_lookup_reset();
+  CHECK_EQ(storage_commit_slot(4, FMT_RAW6, 356u, 0x44u, 44u), STORAGE_OK);
+  CHECK_EQ(shim_lookup_count(), 1);
+  CHECK_EQ(shim_lookup_missing(), 0);
+
+  /* (f) migrazione: 4 ricerche (0, 1, 10, 2), nessuna a vuoto se le chiavi legacy esistono; il
+   *     timer poi scrive con 2 ricerche (chiave 0 da 1 a 2 + record) */
+  setup_v1(3, 0);
+  mk_settings(&s, 5);
+  write_legacy_settings(&s, 0);
+  write_legacy_rotstate(777, 0);
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 4);
+  CHECK_EQ(shim_lookup_missing(), 0);
+  CHECK(shim_timer_pending());
+  shim_lookup_reset();
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 0);
+  /* riavvio dopo la migrazione: di nuovo 2 ricerche, le chiavi 2/10 non vengono piu' lette */
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 0);
+  CHECK(!shim_timer_pending());
+  /* chiave 10 assente: 4 ricerche, 1 a vuoto; chiavi 10 e 2 assenti: 4 ricerche, 2 a vuoto */
+  setup_v1(2, 0);
+  write_legacy_rotstate(5, 0);
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 4);
+  CHECK_EQ(shim_lookup_missing(), 1);
+  setup_v1(2, 0);
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 4);
+  CHECK_EQ(shim_lookup_missing(), 2);
+  /* V1 corrotto: 2 ricerche (0, 1), le chiavi legacy non vengono nemmeno cercate */
+  setup_v1(2, 1);
+  write_legacy_settings(&s, 0);
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 2);
+  CHECK_EQ(shim_lookup_missing(), 0);
+
+  /* (g) schema futuro: la ricerca delle chiavi da cancellare e' inevitabile (4 delete), poi il
+   *     manifest a vuoto: nessuna ricerca in piu' oltre a quelle */
+  build_valid_state();
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, GAL_SCHEMA + 1), 4);
+  CHECK_EQ(storage_read_chunk(3, 0, rd, sizeof(rd)), GAL_CHUNK_BYTES);   /* ultima chiave toccata: un chunk */
+  shim_lookup_reset();
+  CHECK(storage_init());
+  CHECK_EQ(shim_lookup_count(), 5);                    /* 0 (letta e cancellata), 1, 2, 10, poi 1 a vuoto */
+  CHECK_EQ(shim_lookup_missing(), 3);                  /* 2 e 10 assenti, 1 appena cancellata */
+}
+
+/* ---- 16. impostazioni pendenti + commit/set_order/clear entro i 10 s: UN solo record (F05) ----
+ * Ogni sync con impostazioni cambiate manda SETTINGS -> SYNC_REQUEST -> PHOTO_* (4-9 s a foto): il
+ * commit cade quasi sempre dentro il debounce. prv_write_manifest_any azzera i dirty anche quando
+ * la chiama commit/set_order/clear: il timer che scatta dopo NON deve riscrivere il manifest. */
+
+static void test_pending_then_commit(void) {
+  GalSettings s, s2, s3, s4, out;
+  GalManifest rec;
+  uint8_t ord[GAL_MAX_SLOTS];
+  static uint8_t data[GAL_CHUNK_BYTES];
+  memset(data, 0x42, sizeof(data));
+  mk_settings(&s, 5);
+  mk_settings(&s2, 6);
+  mk_settings(&s3, 7);
+  mk_settings(&s4, 8);
+
+  /* (a) persist nuovo: SETTINGS (timer) -> chunk -> commit: chiave 0 + manifest = 2 scritture, il
+   *     record porta gia' le impostazioni nuove, il manifest e' l'ultima chiave scritta */
+  fresh(QUOTA_OK);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_pending());
+  CHECK_EQ(storage_write_chunk(0, 0, data, GAL_CHUNK_BYTES), STORAGE_OK);
+  int w = shim_write_count();
+  CHECK_EQ(storage_commit_slot(0, FMT_RAW6, GAL_CHUNK_BYTES, 0x1u, 0x10u), STORAGE_OK);
+  CHECK_EQ(shim_write_count(), w + 2);
+  CHECK_EQ(shim_last_write_key(), GAL_KEY_MANIFEST);
+  CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s));
+  CHECK_EQ(rec.settings.schema, GAL_SETTINGS_SCHEMA);
+  CHECK_EQ(rec.settings.crc16, crc16_ccitt((const uint8_t *)&rec.settings, (uint32_t)sizeof(GalSettings) - 2u));
+  CHECK_EQ(rec.slots[0].state, GAL_SLOT_VALID);
+  CHECK_EQ(rec.order[0], 0);
+  CHECK(shim_timer_pending());                         /* il commit non cancella il timer... */
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), w + 2);                 /* ...ma il callback non scrive (dirty azzerati) */
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_timer_orphans(), 0);
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w + 2);
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), storage_manifest(), sizeof(GalManifest)) == 0);
+
+  /* (b) idem con set_order: 1 scrittura (la chiave 0 c'e' gia'), impostazioni s2 nel record */
+  storage_settings_changed(&s2);
+  CHECK(shim_timer_pending());
+  memset(ord, GAL_SLOT_NONE, sizeof(ord));
+  ord[0] = 5;
+  ord[1] = 0;
+  w = shim_write_count();
+  CHECK_EQ(storage_set_order(ord), STORAGE_OK);
+  CHECK_EQ(shim_write_count(), w + 1);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s2));
+  CHECK_EQ(rec.order[0], 5);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), w + 1);
+  CHECK(!shim_timer_pending());
+
+  /* (c) idem con clear_slot */
+  storage_settings_changed(&s3);
+  w = shim_write_count();
+  CHECK_EQ(storage_clear_slot(0), STORAGE_OK);
+  CHECK_EQ(shim_write_count(), w + 1);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s3));
+  CHECK_EQ(rec.slots[0].state, GAL_SLOT_EMPTY);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), w + 1);
+  CHECK(!shim_timer_pending());
+
+  /* (d) shake pendente + commit: anche lo shake viaggia col manifest del commit */
+  {
+    const GalRotState st = { .shake_offset = 21, .crc16 = 0 };
+    CHECK(storage_write_rotstate(&st));
+    CHECK(shim_timer_pending());
+    w = shim_write_count();
+    CHECK_EQ(storage_commit_slot(0, FMT_RAW6, GAL_CHUNK_BYTES, 0x2u, 0x11u), STORAGE_OK);
+    CHECK_EQ(shim_write_count(), w + 1);
+    memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+    CHECK_EQ(rec.shake_offset, 21);
+    CHECK_EQ(rec.slots[0].generation, 2);
+    CHECK(shim_timer_fire());
+    CHECK_EQ(shim_write_count(), w + 1);
+  }
+
+  /* (e) commit che FALLISCE: le impostazioni nuove restano in RAM e dirty, il timer e' intatto e
+   *     alla scadenza le scrive SENZA lo slot fallito; il record in persist non e' stato toccato */
+  storage_settings_changed(&s4);
+  memcpy(g_ref, key_bytes(GAL_KEY_MANIFEST), sizeof(GalManifest));
+  w = shim_write_count();
+  shim_fail_writes_after(0);
+  CHECK_EQ(storage_commit_slot(1, FMT_RAW6, GAL_CHUNK_BYTES, 0x3u, 0x12u), STORAGE_NO_SPACE);
+  CHECK_EQ(shim_write_count(), w);
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), g_ref, sizeof(GalManifest)) == 0);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s4));               /* RAM: impostazioni nuove conservate */
+  CHECK_EQ(storage_manifest()->slots[1].state, GAL_SLOT_EMPTY);
+  CHECK(shim_timer_pending());
+  shim_fail_writes_after(-1);
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_write_count(), w + 1);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s4));
+  CHECK_EQ(rec.slots[1].state, GAL_SLOT_EMPTY);
+  CHECK_EQ(rec.slots[0].state, GAL_SLOT_VALID);
+  CHECK(!shim_timer_pending());
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w + 1);                 /* non piu' dirty */
+  CHECK_EQ(shim_timer_orphans(), 0);
+
+  /* (f) riavvio: tutto coerente e nessun timer */
+  CHECK(storage_init());
+  CHECK(!shim_timer_pending());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s4));
+  CHECK_EQ(storage_manifest()->shake_offset, 21);
+  CHECK_EQ(storage_valid_slots(), 1);
+}
+
+/* ---- 17. ritentativi del timer (F12): 1 + STORAGE_WRITE_RETRIES scatti, poi silenzio ----
+ * STORAGE_WRITE_RETRIES vive in storage.c (non esportata): il pin qui sotto la fissa a 3. Una
+ * regressione (<= invece di <, contatore non azzerato, timer non ri-registrato) cambia il numero di
+ * scatti/registrazioni. */
+
+#define WRITE_RETRIES 3
+
+/* Fa scattare il timer finche' e' pendente (con una guardia): ritorna il numero di scatti. */
+static int fire_until_idle(void) {
+  int n = 0;
+  while (shim_timer_pending() && n < 16) {
+    CHECK(shim_timer_fire());
+    n++;
+  }
+  return n;
+}
+
+static void test_timer_retries(void) {
+  GalSettings s, s2, out;
+  GalManifest rec;
+  GalRotState st = { .shake_offset = 3, .crc16 = 0 };
+  mk_settings(&s, 11);
+  mk_settings(&s2, 12);
+  build_valid_state();
+  memcpy(g_ref, key_bytes(GAL_KEY_MANIFEST), sizeof(GalManifest));
+  CHECK_EQ(shim_timer_registrations(), 0);             /* contatori puliti da fresh() */
+  CHECK_EQ(shim_timer_cancels(), 0);
+
+  /* (a) scritture SEMPRE fallite: scatto originale + 3 ritentativi a 10 s, 4 registrazioni, nessun
+   *     orfano, 4 ERROR, poi nessun timer; RAM conserva la copia pendente, persist il record vecchio */
+  storage_settings_changed(&s);
+  const int w0 = shim_write_count();
+  shim_fail_writes_after(0);
+  shim_log_reset();
+  CHECK(shim_timer_fire());                            /* scatto 1: fallisce, ritentativo programmato */
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_timeout(), STORAGE_SETTINGS_DEBOUNCE_MS);
+  CHECK_EQ(shim_timer_registrations(), 2);
+  CHECK_EQ(fire_until_idle(), WRITE_RETRIES);          /* scatti 2..4 */
+  CHECK_EQ(shim_timer_registrations(), 1 + WRITE_RETRIES);
+  CHECK_EQ(shim_timer_orphans(), 0);
+  CHECK_EQ(shim_timer_cancels(), 0);
+  CHECK_EQ(shim_log_errors(), 1 + WRITE_RETRIES);
+  CHECK_EQ(shim_log_find("storage: write key 1"), 1 + WRITE_RETRIES);
+  CHECK(!shim_timer_pending());
+  CHECK(!shim_timer_fire());                           /* niente in coda */
+  CHECK_EQ(shim_write_count(), w0);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK(memcmp(key_bytes(GAL_KEY_MANIFEST), g_ref, sizeof(GalManifest)) == 0);
+
+  /* (b) evento nuovo (uno shake basta) azzera il contatore: altri 1 + 3 scatti */
+  CHECK(storage_write_rotstate(&st));
+  CHECK(shim_timer_pending());
+  CHECK_EQ(shim_timer_registrations(), 2 + WRITE_RETRIES);
+  CHECK_EQ(fire_until_idle(), 1 + WRITE_RETRIES);
+  CHECK_EQ(shim_timer_registrations(), 2 * (1 + WRITE_RETRIES));
+  CHECK_EQ(shim_log_errors(), 2 * (1 + WRITE_RETRIES));
+  CHECK_EQ(shim_write_count(), w0);
+  CHECK_EQ(shim_timer_orphans(), 0);
+  CHECK(!shim_timer_pending());
+
+  /* (c) la scrittura torna possibile: UNA scrittura con impostazioni + shake accumulati */
+  shim_fail_writes_after(-1);
+  storage_settings_changed(&s2);
+  CHECK_EQ(fire_until_idle(), 1);
+  CHECK_EQ(shim_write_count(), w0 + 1);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s2));
+  CHECK_EQ(rec.shake_offset, 3);
+  CHECK_EQ(rec.slots[3].state, GAL_SLOT_VALID);
+
+  /* (d) ritentativi esauriti, poi il flush di deinit: le impostazioni pendenti si scrivono */
+  mk_settings(&s, 13);
+  storage_settings_changed(&s);
+  shim_fail_writes_after(0);
+  CHECK_EQ(fire_until_idle(), 1 + WRITE_RETRIES);
+  shim_fail_writes_after(-1);
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w0 + 2);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+
+  /* (e) ritentativi esauriti con SOLO lo shake pendente: il flush non scrive (D19) */
+  st.shake_offset = 5;
+  CHECK(storage_write_rotstate(&st));
+  shim_fail_writes_after(0);
+  CHECK_EQ(fire_until_idle(), 1 + WRITE_RETRIES);
+  shim_fail_writes_after(-1);
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w0 + 2);
+
+  /* (f) app_timer_register NULL DENTRO un ritentativo: catena interrotta (a differenza della prima
+   *     programmazione, che scrive subito), nessuna scrittura finche' non arriva il flush */
+  mk_settings(&s2, 14);
+  storage_settings_changed(&s2);
+  CHECK(shim_timer_pending());
+  const int reg = shim_timer_registrations();
+  shim_fail_writes_after(0);
+  shim_fail_timer_register(true);
+  shim_log_reset();
+  CHECK(shim_timer_fire());                            /* scrittura fallita, register del ritentativo -> NULL */
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_timer_registrations(), reg);
+  CHECK_EQ(shim_log_errors(), 1);
+  CHECK_EQ(shim_write_count(), w0 + 2);
+  shim_fail_writes_after(-1);                          /* anche con la scrittura tornata possibile... */
+  CHECK(!shim_timer_fire());                           /* ...nessuno riprova da solo */
+  CHECK_EQ(shim_write_count(), w0 + 2);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s2));               /* RAM */
+  storage_flush();                                     /* il flush di deinit recupera */
+  CHECK_EQ(shim_write_count(), w0 + 3);
+  memcpy(&rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+  CHECK(settings_eq_payload(&rec.settings, &s2));
+  shim_fail_timer_register(false);
+  CHECK_EQ(shim_timer_orphans(), 0);
+}
+
+/* ---- 18. rami minori di storage_init (F34) e open_ms con l'orologio finto (F48) ---- */
+
+static void test_init_edges(void) {
+  GalSettings s, out, def;
+  GalRotState rs;
+  settings_set_defaults(&def);
+  mk_settings(&s, 5);
+
+  /* (1) storage_init con il timer pendente (solo test host: init ripetuto): cancel, dirty azzerati
+   *     senza scrivere; le impostazioni pendenti si perdono (vince il record riletto) */
+  build_valid_state();
+  storage_settings_changed(&s);
+  CHECK(shim_timer_pending());
+  const int can = shim_timer_cancels();
+  const int w = shim_write_count();
+  CHECK(storage_init());
+  CHECK_EQ(shim_timer_cancels(), can + 1);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_write_count(), w);
+  CHECK(storage_read_settings(&out));
+  CHECK(!settings_eq_payload(&out, &s));               /* riletto dal record: le pendenti sono perse */
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w);                     /* dirty azzerati: il flush non scrive */
+  CHECK(!shim_timer_fire());
+  CHECK_EQ(shim_timer_orphans(), 0);
+
+  /* (2) chiave 0 assente e persist_write_int che fallisce con un errore GENERICO: STORAGE_ERR
+   *     (ritentabile per il telefono), non NO_SPACE; chiave 0 e manifest assenti, RAM ripristinata */
+  fresh(QUOTA_OK);
+  {
+    const status_t codes[3] = { E_ERROR, E_INTERNAL, E_INVALID_OPERATION };
+    for (size_t i = 0; i < 3; i++) {
+      shim_fail_writes_after(0);
+      shim_fail_writes_code(codes[i]);
+      shim_log_reset();
+      CHECK_EQ(storage_commit_slot(0, FMT_RAW6, 256u, 1u, 1u), STORAGE_ERR);
+      CHECK(!shim_key_exists(GAL_KEY_SCHEMA));
+      CHECK(!shim_key_exists(GAL_KEY_MANIFEST));
+      CHECK_EQ(storage_manifest()->slots[0].state, GAL_SLOT_EMPTY);
+      CHECK_EQ(storage_valid_slots(), 0);
+      CHECK_EQ(shim_log_find("storage: write schema"), 1);
+      CHECK_EQ(shim_log_errors(), 1);
+    }
+    shim_fail_writes_code(E_OUT_OF_STORAGE);
+    CHECK_EQ(storage_commit_slot(0, FMT_RAW6, 256u, 1u, 1u), STORAGE_NO_SPACE);
+    shim_fail_writes_after(-1);
+    /* finita l'emergenza la chiave 0 viene scritta (il fallimento non ha alzato s_schema_ok) */
+    CHECK_EQ(storage_commit_slot(0, FMT_RAW6, 256u, 1u, 1u), STORAGE_OK);
+    CHECK_EQ(shim_write_count(), 2);
+    CHECK_EQ(persist_read_int(GAL_KEY_SCHEMA), GAL_SCHEMA);
+  }
+
+  /* (3) migrazione con chiave 10 di SCHEMA diverso (CRC valido): default, shake migrato lo stesso */
+  {
+    const uint8_t schemas[2] = { GAL_SETTINGS_SCHEMA + 1, 0 };
+    for (size_t i = 0; i < 2; i++) {
+      setup_v1(2, 0);
+      GalSettings t = s;
+      t.schema = schemas[i];
+      t.crc16 = crc16_ccitt((const uint8_t *)&t, (uint32_t)sizeof(t) - 2u);
+      CHECK_EQ(persist_write_data(GAL_KEY_SETTINGS, &t, sizeof(t)), (int)sizeof(t));
+      write_legacy_rotstate(7, 0);
+      shim_log_reset();
+      CHECK(storage_init());
+      CHECK(shim_timer_pending());
+      CHECK(storage_read_settings(&out));
+      CHECK(settings_eq_payload(&out, &def));
+      CHECK(!settings_eq_payload(&out, &s));
+      CHECK(storage_read_rotstate(&rs));
+      CHECK_EQ(rs.shake_offset, 7);
+      CHECK_EQ(shim_log_find("migrated (settings 0 shake 7)"), 1);
+    }
+  }
+
+  /* (4) open_ms = ms fra le due letture di time_ms in storage_init, con clamp [0, 65535] (F48):
+   *     l'orologio finto avanza di `step` ms dopo ogni lettura */
+  reset_all(QUOTA_OK);
+  shim_set_time_ms(100, 900);
+  shim_set_time_step_ms(1300);                         /* 1 s + 300 ms, a cavallo del secondo */
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 1300);
+#ifndef GALLERIA_DEBUG_TIMING
+  CHECK_EQ(shim_time_ms_calls(), 2);                   /* due letture per storage_init (regola 11) */
+  CHECK_EQ(storage_debug_ms(0), 0);                    /* build P: sempre 0 */
+  CHECK_EQ(storage_debug_ms(1), 0);
+#else
+  CHECK_EQ(shim_time_ms_calls(), 4);                   /* + TMR(t_man) e TMR_MS */
+  CHECK_EQ(storage_debug_ms(0), 1300);
+#endif
+  shim_set_time_step_ms(70000);                        /* 70 s: clamp */
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 65535);
+  shim_set_time_step_ms(65536);
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 65535);
+  shim_set_time_step_ms(65535);                        /* esattamente il massimo */
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 65535);
+  shim_set_time_step_ms(-500);                         /* orologio che salta indietro: mai negativo */
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 0);
+  shim_set_time_step_ms(0);                            /* orologio fermo */
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 0);
+  shim_set_time_ms(5, 999);
+  shim_set_time_step_ms(1);
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 1);
+  shim_set_time_ms(2000000000, 999);                   /* time_t grande: nessun overflow */
+  shim_set_time_step_ms(1);
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 1);
+  /* misurato anche con album disabilitato (HELLO con MAX_CHUNK 0: F49) e con schema futuro */
+  shim_set_quota(QUOTA_BAD);
+  shim_set_time_ms(7, 100);
+  shim_set_time_step_ms(2150);                         /* il numero di campo del 04/09 (file gonfio) */
+  CHECK(!storage_init());
+  CHECK_EQ(storage_open_ms(), 2150);
+  shim_set_quota(QUOTA_OK);
+  CHECK_EQ(persist_write_int(GAL_KEY_SCHEMA, GAL_SCHEMA + 1), 4);
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 2150);
+  /* il valore misurato non dipende dal contenuto del file: stesso passo, file con record e chunk */
+  build_valid_state();                                 /* reset_all rimette l'orologio reale */
+  shim_set_time_ms(7, 100);
+  shim_set_time_step_ms(2150);
+  CHECK(storage_init());
+  CHECK_EQ(storage_open_ms(), 2150);
+  CHECK_EQ(storage_valid_slots(), 1);
+  /* lo shim stesso: firma SDK (ritorna i ms), campione e avanzamento */
+  {
+    time_t ts = 0;
+    uint16_t ms = 0;
+    shim_set_time_ms(42, 1500);                        /* ms >= 1000 traboccano nei secondi */
+    shim_set_time_step_ms(0);
+    CHECK_EQ(time_ms(&ts, &ms), 500);
+    CHECK_EQ(ms, 500);
+    CHECK_EQ(ts, 43);
+    shim_advance_time_ms(-600);
+    CHECK_EQ(time_ms(&ts, &ms), 900);
+    CHECK_EQ(ts, 42);
+    CHECK_EQ(time_ms(NULL, NULL), 900);                /* argomenti NULL ammessi dall'SDK */
+    shim_persist_reset();                              /* torna l'orologio reale: ms = 0 */
+    CHECK_EQ(time_ms(&ts, &ms), 0);
+    CHECK_EQ(ms, 0);
+    CHECK(ts >= 1756000000);                           /* > 24/08/2026: ora reale */
+  }
+}
+
 int main(void) {
   shim_set_log(getenv("GALLERIA_TEST_VERBOSE") != NULL);
   test_sizes();
@@ -1679,6 +2280,10 @@ int main(void) {
   test_schema_key_writes();
   test_migrate_v1();
   test_settings_apply();
+  test_lookups();
+  test_pending_then_commit();
+  test_timer_retries();
+  test_init_edges();
   printf("storage: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

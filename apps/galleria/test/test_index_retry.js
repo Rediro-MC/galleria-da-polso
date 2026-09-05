@@ -22,6 +22,16 @@
  *   e  ALBUM_ORDER → STORAGE_ERR con 0 foto → 'photo' (retry con tetto), non successo
  *   f  esito 'none' (sync riuscita da un HELLO spontaneo) cancella il retry pendente
  *   g  HELLO con MAX_CHUNK 0 → error NOT_SUPPORTED → 'permanent'
+ *   h  'link' poi 'photo': photoRetries separato
+ *   i  SETTINGS/ALBUM_DELETE → STORAGE_ERR: etichette settings:/delete:
+ *   j  dev (v1.9, F09/F45): hooks.open_ms forza HELLO.OPEN_MS nel piano — log della sostituzione col
+ *      valore VERO dell'orologio, snapshot dell'album (= config page) col valore forzato — e uno
+ *      stato dev successivo SENZA l'hook (dev server riavviato senza --open-ms) lo azzera
+ *   k  dev: hooks.open_ms 0 (valido: avviso spento), non numerico e negativo (ignorati)
+ *   l  fuori dall'emulatore (platform android) l'hook non ha alcun effetto: il token dev è rifiutato
+ *
+ * I casi j-l girano con platform 'pypkjs' e devserver.js stubbato via require.cache (nessun server:
+ * lo stato dev arriva da devStub.state / devStub.saveState), come in test_devstorage.js.
  *
  * Esecuzione: cd test && NODE_PATH=shim node test_index_retry.js (oppure make -C test jstest). */
 var FakeWatch = require('fakewatch');
@@ -31,7 +41,27 @@ var b64 = require('../src/pkjs/b64');
 var crc = require('../src/pkjs/crc');
 var fixture = require('./fixture_photo');
 var Album = require('../src/pkjs/album');
+var Module = require('module');
 var INDEX = require.resolve('../src/pkjs/index');
+var DEVSERVER = require.resolve('../src/pkjs/devserver');
+
+/* devserver.js stubbato PRIMA di caricare index.js: `require('./devserver')` risolve allo stesso
+ * path, quindi in modalità dev (casi j-l) lo stato arriva da devStub.state (/state.json) e
+ * devStub.saveState (/save.json) senza nessun server. Nei casi android index.js non lo usa. */
+var devStub = {
+  base: 'http://localhost:8765',
+  state: null,                           /* risposta di /state.json, altrimenti 'no server' */
+  saveState: null,                       /* risposta di /save.json, altrimenti 'no server' */
+  fetchState: function (cb) { if (devStub.state) { cb(null, devStub.state); } else { cb('no server'); } },
+  fetchSave: function (cb) { if (devStub.saveState) { cb(null, devStub.saveState); } else { cb('no server'); } },
+  fetchPhotoB64: function (slot, fmt, cb) { cb('no server'); }
+};
+(function stubDevserver() {
+  var m = new Module(DEVSERVER, null);
+  m.filename = DEVSERVER; m.loaded = true;
+  m.exports = devStub;
+  require.cache[DEVSERVER] = m;
+})();
 
 var pass = 0, fail = 0;
 var origLog = console.log;
@@ -112,8 +142,11 @@ function env(opts) {
   sweepTimers();
   sync._reset();
   divisor = opts.divisor || 1000;
-  en.watch = new FakeWatch({ format: 1, maxChunk: 4096, albumEnabled: opts.albumEnabled !== false, log: function () {} });
-  en.pebble = new FakePebble(en.watch, { platform: 'android' });
+  en.watch = new FakeWatch({ format: 1, maxChunk: 4096, albumEnabled: opts.albumEnabled !== false,
+                             openMs: opts.openMs || 0, log: function () {} });
+  en.pebble = new FakePebble(en.watch, { platform: opts.platform || 'android' });
+  devStub.state = opts.devState || null;         /* /state.json del caso (solo con platform 'pypkjs') */
+  devStub.saveState = null;
   global.Pebble = en.pebble;
   global.localStorage = seededStorage();
   origHandle = en.watch.handle;
@@ -144,6 +177,27 @@ function storageErrAtEnd(en, times) {
     en.watch.order = en.watch.order.filter(function (k) { return k !== slot; });
     return [en.watch._status(7, slot, 0)];
   };
+}
+
+/* openMs dello snapshot dell'ultimo HELLO (galleria.v1.watch): è il valore che la config page
+ * legge dall'hash, quindi quello che decide l'avviso di avvio lento. */
+function snapOpenMs() {
+  var raw = null, w = null;
+  try { raw = global.localStorage.getItem(Album.WKEY); } catch (e) { raw = null; }
+  try { w = raw ? JSON.parse(raw) : null; } catch (e2) { w = null; }
+  return w ? w.openMs : undefined;
+}
+
+/* Save della pagina di prova in dev: /save.json risponde `state`, index.js lo applica e risincronizza.
+ * cb(l) riceve l'indice dei log da cui guardare (prima del Save). */
+function devSave(en, state, cb) {
+  var l = logs.length;
+  devStub.saveState = state;
+  en.pebble.fire('webviewclosed', { response: JSON.stringify({ v: 1, dev: true, seq: state.seq }) });
+  waitFor(function () { return findLog(en, FINE, l) >= 0; }, function (err) {
+    check(!err, 'devSave seq ' + state.seq + ': sync conclusa');
+    cb(l);
+  });
 }
 
 var cases = [];
@@ -390,6 +444,73 @@ cases.push(['i SETTINGS e ALBUM_DELETE → STORAGE_ERR: etichette settings:/dele
     check(en.watch.slots[0].state === 1, 'i: slot 0 ancora VALID sull\'orologio (eliminazione fallita)');
     check(liveLong() === 0, 'i: nessun timer lungo vivo');
     next();
+  });
+}]);
+
+cases.push(['j dev: hooks.open_ms forza HELLO.OPEN_MS (log della sostituzione), uno stato senza hook lo azzera', function (next) {
+  /* v1.9 (F45/F09): l'unico modo di provare in emulatore l'avviso "Galleria si avvia lentamente".
+   * Il log '[sync] HELLO ... open=' resta quello VERO dell'orologio (sync.js lo scrive prima del
+   * piano): la riga '[dev] HELLO.OPEN_MS forzato ...' è ciò che impedisce a run.log e config page
+   * di contraddirsi. */
+  var en = env({ platform: 'pypkjs', openMs: 7,
+                 devState: { v: 1, seq: 1, hooks: { scenario: 'photo', open_ms: 2150 } } });
+  waitFor(function () { return countLog(en, FINE) >= 1; }, function (err) {
+    check(!err, 'j: prima sync conclusa');
+    check(hasLog(en, '[dev] hook open_ms: HELLO.OPEN_MS forzato a 2150 ms (avviso di avvio lento)'), 'j: hook letto da /state.json');
+    check(hasLog(en, '[dev] HELLO.OPEN_MS forzato a 2150 ms (orologio: 7 ms)'), 'j: log della sostituzione, col valore vero dell\'orologio');
+    check(hasLog(en, /^\[sync\] HELLO proto=1 .* open=7ms /), 'j: il log dell\'HELLO resta quello vero (non falsificato)');
+    check(snapOpenMs() === 2150, 'j: snapshot dell\'HELLO (config page) col valore forzato, got ' + snapOpenMs());
+    check(en.watch.slots[0].state === 1, 'j: la sync gira normalmente');
+    /* controprova: dev server riavviato senza --open-ms → hooks senza open_ms */
+    devSave(en, { v: 1, seq: 2, hooks: { scenario: 'photo' } }, function (l) {
+      check(hasLog(en, '[dev] hook open_ms rimosso: HELLO.OPEN_MS torna quello dell\'orologio', l), 'j: hook azzerato dallo stato senza open_ms');
+      check(!hasLog(en, /HELLO\.OPEN_MS forzato/, l), 'j: nessuna sostituzione dopo l\'azzeramento');
+      check(snapOpenMs() === 7, 'j: snapshot col valore vero dopo l\'azzeramento, got ' + snapOpenMs());
+      next();
+    });
+  });
+}]);
+
+cases.push(['k dev: hooks.open_ms 0 (valido), non numerico e negativo (ignorati)', function (next) {
+  var en = env({ platform: 'pypkjs', openMs: 7,
+                 devState: { v: 1, seq: 1, hooks: { scenario: 'photo', open_ms: 0 } } });
+  waitFor(function () { return countLog(en, FINE) >= 1; }, function (err) {
+    check(!err, 'k: prima sync conclusa');
+    /* 0 è un valore, non un hook assente (l'orologio sano manda 0): l'avviso resta spento */
+    check(hasLog(en, '[dev] hook open_ms: HELLO.OPEN_MS forzato a 0 ms (avviso di avvio lento)'), 'k: 0 accettato');
+    check(hasLog(en, '[dev] HELLO.OPEN_MS forzato a 0 ms (orologio: 7 ms)'), 'k: sostituzione con 0');
+    check(snapOpenMs() === 0, 'k: snapshot 0, got ' + snapOpenMs());
+    devSave(en, { v: 1, seq: 2, hooks: { scenario: 'photo', open_ms: 'x' } }, function (l1) {
+      check(hasLog(en, '[dev] hook open_ms non valido (x): ignorato', l1), 'k: hook non numerico rifiutato');
+      check(hasLog(en, '[dev] hook open_ms rimosso: HELLO.OPEN_MS torna quello dell\'orologio', l1), 'k: e il valore forzato azzerato');
+      check(snapOpenMs() === 7, 'k: valore vero dopo un hook non numerico, got ' + snapOpenMs());
+      devSave(en, { v: 1, seq: 3, hooks: { scenario: 'photo', open_ms: -1 } }, function (l2) {
+        check(hasLog(en, '[dev] hook open_ms non valido (-1): ignorato', l2), 'k: hook negativo rifiutato');
+        check(!hasLog(en, /HELLO\.OPEN_MS forzato/, l2), 'k: nessuna sostituzione con un hook negativo');
+        check(snapOpenMs() === 7, 'k: valore vero dopo un hook negativo, got ' + snapOpenMs());
+        next();
+      });
+    });
+  });
+}]);
+
+cases.push(['l fuori dall\'emulatore l\'hook open_ms non ha effetto (token dev rifiutato)', function (next) {
+  /* platform 'android': DEV è false, /state.json non viene nemmeno letto e il token dev del
+   * webviewclosed è rifiutato → devOpenMs resta null e l'HELLO non viene mai falsificato. */
+  var en = env({ openMs: 7, devState: { v: 1, seq: 1, hooks: { scenario: 'photo', open_ms: 2150 } } });
+  waitFor(function () { return countLog(en, FINE) >= 1; }, function (err) {
+    var l = logs.length;
+    check(!err, 'l: prima sync conclusa');
+    check(!hasLog(en, /^\[dev\]/), 'l: nessuna riga [dev] sul telefono');
+    check(snapOpenMs() === 7, 'l: snapshot col valore vero, got ' + snapOpenMs());
+    devStub.saveState = { v: 1, seq: 2, hooks: { scenario: 'photo', open_ms: 2150 } };
+    en.pebble.fire('webviewclosed', { response: JSON.stringify({ v: 1, dev: true, seq: 2 }) });
+    realSetTimeout(function () {
+      check(hasLog(en, '[config] token dev fuori dall\'emulatore: ignorato', l), 'l: token dev rifiutato');
+      check(!hasLog(en, /HELLO\.OPEN_MS forzato/), 'l: mai una sostituzione fuori DEV');
+      check(snapOpenMs() === 7, 'l: snapshot invariato, got ' + snapOpenMs());
+      next();
+    }, 300);
   });
 }]);
 

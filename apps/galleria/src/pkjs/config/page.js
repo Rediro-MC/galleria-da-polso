@@ -162,6 +162,8 @@
     for (i = 0; i < n; i++) { box.appendChild(tileNode(G.tiles[i], i, nm)); }
     el('file').disabled = full; el('add').disabled = full; el('add').className = 'btn' + (full ? ' off' : '');
     el('addHelp').textContent = full ? 'album pieno: elimina una foto' : 'scegli dalla Libreria';
+    /* limite di 12 foto spiegato nella pagina (richiesta dell'utente, 05/09): contatore + perché */
+    el('photosCap').textContent = 'L\'orologio tiene al massimo 12 foto (ora ' + n + ' su 12). Quando sono piene, elimina una foto per aggiungerne un\'altra. Più foto ci sono, più l\'avvio della watchface si allunga: circa un decimo di secondo per foto.';
   }
 
   /* -- contatore KB e tetto -- */
@@ -370,14 +372,15 @@
   }
 
   /* -- editor: apertura, aggiunta, chiusura -- */
-  /* #2: su telefono l'editor nasce sotto l'elenco delle foto e non si vede: lo si porta in cima.
-   * Guardato due volte perche' non c'e' un DOM garantito (test, WebView vecchie): la funzione puo'
-   * mancare, e chi non conosce l'oggetto {block} puo' lanciare invece di ignorarlo. */
-  function scrollToEditor() {
-    var e = el('editor');
+  /* #2: su telefono l'editor nasce sotto l'elenco delle foto e non si vede: lo si porta in cima
+   * (#42: stessa cosa per il pannello dell'Aiuto). Guardato due volte perche' non c'e' un DOM
+   * garantito (test, WebView vecchie): la funzione puo' mancare, e chi non conosce l'oggetto
+   * {block} puo' lanciare invece di ignorarlo. */
+  function scrollInto(e) {
     if (!e || typeof e.scrollIntoView !== 'function') { return; }
     try { e.scrollIntoView({ block: 'start' }); } catch (x) { /* niente: resta dov'e' */ }
   }
+  function scrollToEditor() { scrollInto(el('editor')); }
   function openEditor(file) {
     var name = (file && file.name) ? String(file.name) : 'foto', g = ++gen;   /* #12: vale solo l'ultimo file scelto */
     if (G.editorOpen) { closeEditor(); }
@@ -517,12 +520,13 @@
 
   /* -- avvio lento del persist (v1.9, perf 04/09) -- */
   /* Stessa procedura in due posti: l'avviso #slow (solo se l'orologio ha misurato un'apertura del
-   * file persist oltre C.SLOW_OPEN_MS) e la sezione #help, sempre disponibile. Il testo sta qui una
-   * volta sola e viene costruito nel DOM: nessuna duplicazione nell'HTML inlinato (tetto 64 KB). */
+   * file persist oltre C.slowThresholdMs(), che cresce col numero di foto) e la sezione #help,
+   * sempre disponibile. Il testo sta qui una volta sola e viene costruito nel DOM: nessuna
+   * duplicazione nell'HTML inlinato (tetto 64 KB). */
   var FIX_STEPS = ['apri l\'app Pebble sul telefono', 'tocca Galleria nell\'elenco delle app',
                    'scegli Rimuovi (non Aggiorna)', 'reinstalla Galleria'];
-  var FIX_TAIL = 'Le tue foto sono al sicuro nel telefono e torneranno da sole sull\'orologio in circa un minuto.';
-  var HELP_WHY = 'Succede perché l\'orologio tiene da parte anche i dati vecchi (le foto sostituite) finché la sua memoria non è piena, e la watchface deve rileggerli tutti a ogni avvio. Con questa versione capita molto più di rado.';
+  var FIX_TAIL = 'Le tue foto sono al sicuro nel telefono e torneranno da sole sull\'orologio in pochi minuti (circa mezzo minuto per foto).';
+  var HELP_WHY = 'Succede perché l\'orologio tiene da parte anche i dati vecchi (le foto sostituite) finché la sua memoria non è piena, e la watchface deve rileggerli tutti a ogni avvio.';   /* 05/09: niente promesse sulla frequenza (richiesta utente) */
   function fixProcedure(box) {
     var ol = mk('ol'), i;
     box.textContent = '';
@@ -544,6 +548,7 @@
       var open = body.style.display === 'none';
       show(body, open);
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) { scrollInto(body); }        /* #42: sotto c'e' solo il footer fisso: aperto non si vedrebbe */
     });
   }
 

@@ -91,9 +91,9 @@ typedef struct {
   uint16_t       settings_len;
 } SyncIn;
 
-/* Messaggio da spedire (msg = 0: nessuno). HELLO: proto, format, max_chunk, settings_crc,
- * slots[slots_len]; SYNC_READY: max_chunk; STATUS: code, slot (GAL_SLOT_NONE se non pertinente),
- * offset, reply_to (il MSG ricevuto). */
+/* Messaggio da spedire (msg = 0: nessuno). HELLO: proto, format, max_chunk, settings_crc, open_ms
+ * (v1.9), slots[slots_len]; SYNC_READY: max_chunk; STATUS: code, slot (GAL_SLOT_NONE se non
+ * pertinente), offset, reply_to (il MSG ricevuto). */
 typedef struct {
   uint8_t        msg;
   uint8_t        code;
@@ -118,11 +118,11 @@ typedef enum {
 } SyncAction;
 
 #define SYNC_SLOTS_BYTES     (GAL_MAX_SLOTS * 5)   /* HELLO.SLOTS: 12 × {state u8, crc32 u32 LE} */
-/* Byte di valore del HELLO (PROTO u8 + FORMAT u8 + MAX_CHUNK u16 + CRC u16 + OPEN_MS u16 + SLOTS) = 69 (v1.9):
- * l'outbox di sync.c è dict_calc_buffer_size(7, 1, 1, 1, 2, 2, 2, SYNC_SLOTS_BYTES) = 1 + 7·7 + 69 = 119 B (F4).
- * Il test host pinna solo il VALORE atteso (69/119): sync.c non è compilato su host, quindi la guardia reale per
- * un campo aggiunto senza aggiornare la chiamata di sync_init è il WARNING (tripwire) di prv_pump_one
- * al primo HELLO in emulatore. Un campo in più nel HELLO va aggiunto QUI, in sync_init e nel pin. */
+/* Byte di valore del HELLO (MSG u8 + PROTO u8 + FORMAT u8 + MAX_CHUNK u16 + CRC u16 + OPEN_MS u16 +
+ * SLOTS 60) = 69 (v1.9): l'outbox di sync.c è dict_calc_buffer_size(7, 1, 1, 1, 2, 2, 2, SYNC_SLOTS_BYTES)
+ * = 1 + 7·7 + 69 = 119 B (F4). Guardie: il pin di test_sync_proto.c (69/119) e test_sync.c, che dal S7
+ * compila sync.c su host e misura l'outbox reale; il WARNING (tripwire) di prv_pump_one al primo HELLO
+ * in emulatore resta la rete di sicurezza. Un campo in più nel HELLO va aggiunto QUI, in sync_init e nei pin. */
 #define SYNC_HELLO_VALUE_BYTES (1 + 1 + 1 + 2 + 2 + 2 + SYNC_SLOTS_BYTES)   /* v1.9: + OPEN_MS u16 */
 #define SYNC_IDLE_TIMEOUT_MS 30000                 /* silenzio in SYNCING → IDLE (foto in corso abbandonata) */
 #define SYNC_MAX_CHUNK_BYTES (16u * GAL_CHUNK_BYTES)  /* 4.096 B: 16 chunk persist per messaggio (D9 rivista in S5a) */

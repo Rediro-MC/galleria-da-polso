@@ -8,8 +8,10 @@
  * test non consegna l'esito). sync_proto.c, storage.c, settings.c, model.c e rotation.c sono quelli
  * VERI (F1 end-to-end: l'hold della rotazione si osserva sulle chiamate finte di ui_photo/ui_time).
  *
- * Copre (spec S7 §2.7): F4 (outbox esatto 119 B, HELLO completo, tripwire "incompleto" con outbox
- * forzato a 100 dopo l'apertura), F2 (timer di silenzio: reschedule, scaduto-non-consumato,
+ * Copre (spec S7 §2.7): F4 (outbox esatto 119 B, HELLO completo — con OPEN_MS decodificata dal
+ * dizionario e forzata ≠ 0 dall'orologio finto dello shim (v1.9, F13/F49), anche con l'album
+ * disabilitato e fra le tuple superstiti del tripwire —, tripwire "incompleto" con outbox forzato
+ * a 100 dopo l'apertura; JS_READY → HELLO senza ricerche persist), F2 (timer di silenzio: reschedule, scaduto-non-consumato,
  * callback stantio, timeout vero, nessun orfano), F1 (rotazione congelata durante la sostituzione
  * dello slot mostrato e un solo ricaricamento a fine sync), coda outbox (4 messaggi, il 5o scartato,
  * drenaggio, NOT_CONNECTED che svuota, SEND_TIMEOUT che prosegue, outbox_begin fallita), decodifica
@@ -146,6 +148,18 @@ static void start(void) {
   shim_reset_write_count();
   shim_log_reset();
 }
+
+/* v1.9 (F13/F49): forza storage_open_ms() = ms con l'orologio finto dello shim (le due letture di
+ * time_ms in storage_init distano `ms`), poi ferma l'orologio. Dopo fresh() e prima di start(). */
+static void force_open_ms(uint16_t ms) {
+  shim_set_time_ms(7, 100);
+  shim_set_time_step_ms((int32_t)ms);
+  (void)storage_init();
+  shim_set_time_step_ms(0);
+  CHECK_EQ(storage_open_ms(), ms);
+}
+
+#define HELLO_FIELDS (SHIM_S_MSG | SHIM_S_PROTO | SHIM_S_FORMAT | SHIM_S_MAX_CHUNK | SHIM_S_CRC | SHIM_S_OPEN_MS)
 
 /* Consegna l'esito positivo a tutti i messaggi in volo (il telefono ACKa tutto). */
 static void ack_all(void) {
@@ -295,14 +309,21 @@ static void test_init_sizes(void) {
 /* --- HELLO: contenuto e dimensione esatta --- */
 static void test_hello(void) {
   fresh(QUOTA_OK, INBOX_MAX_STD, FMT_RAW6);
+  force_open_ms(2150);                       /* il numero di campo del 04/09 (file gonfio) */
   start();
+  shim_lookup_reset();
   js_ready();
+  CHECK_EQ(shim_lookup_count(), 0);          /* JS_READY → HELLO: solo RAM, nessuna ricerca persist (F10) */
   CHECK_EQ(shim_am_sent_count(), 1);
   const ShimSentMsg *m = shim_am_last_sent();
   CHECK(m != NULL);
   if (m) {
     CHECK_EQ(m->msg, SYNC_MSG_HELLO);
     CHECK_EQ(m->tuples, 7);                  /* MSG, PROTO, FORMAT, MAX_CHUNK, CRC, OPEN_MS, SLOTS */
+    CHECK_EQ(m->fields, HELLO_FIELDS | SHIM_S_SLOTS);
+    CHECK(m->fields & SHIM_S_OPEN_MS);       /* v1.9 (F13): OPEN_MS sul filo, con la chiave giusta... */
+    CHECK_EQ(m->open_ms, 2150);              /* ...e il valore di storage_open_ms (u16) */
+    CHECK_EQ(m->open_ms, storage_open_ms());
     CHECK_EQ(m->bytes, OUTBOX_EXACT);        /* il HELLO riempie l'outbox al byte */
     CHECK_EQ(m->proto, SYNC_PROTO_VERSION);
     CHECK_EQ(m->format, FMT_RAW6);
@@ -323,14 +344,17 @@ static void test_hello(void) {
   CHECK_EQ(sync_proto_state(), SYNC_ST_IDLE);
   CHECK(!shim_timer_pending());              /* fuori da SYNCING nessun timer di silenzio */
 
-  /* con una foto in album: SLOTS[0] = {1, crc32 LE} */
+  /* con una foto in album: SLOTS[0] = {1, crc32 LE}; open_ms di un file nuovo (90 ms il 04/09) */
   fresh(QUOTA_OK, INBOX_MAX_STD, FMT_RAW6);
   seed_photo(3, g_photo, g_crc_a, 0x777u);
+  force_open_ms(90);
   start();
   js_ready();
   m = shim_am_last_sent();
   CHECK(m != NULL);
   if (m) {
+    CHECK(m->fields & SHIM_S_OPEN_MS);
+    CHECK_EQ(m->open_ms, 90);
     CHECK_EQ(m->slots_len, SYNC_SLOTS_BYTES);
     CHECK_EQ(m->slots[3 * 5 + 0], 1);
     CHECK_EQ(m->slots[3 * 5 + 1], (uint8_t)(g_crc_a & 0xFF));
@@ -341,8 +365,10 @@ static void test_hello(void) {
     CHECK_EQ(m->bytes, OUTBOX_EXACT);
   }
 
-  /* album disabilitato (quota < 1 MiB): HELLO con MAX_CHUNK 0 */
+  /* album disabilitato (quota < 1 MiB): HELLO con MAX_CHUNK 0 — e OPEN_MS comunque presente: e'
+   * l'unica informazione utile di questa sync (F49: l'avviso "Galleria lenta" della config page) */
   fresh(QUOTA_BAD, INBOX_MAX_STD, FMT_RAW6);
+  force_open_ms(2150);
   start();
   js_ready();
   m = shim_am_last_sent();
@@ -350,13 +376,26 @@ static void test_hello(void) {
   if (m) {
     CHECK_EQ(m->msg, SYNC_MSG_HELLO);
     CHECK_EQ(m->max_chunk, 0);
+    CHECK_EQ(m->tuples, 7);
+    CHECK_EQ(m->fields, HELLO_FIELDS | SHIM_S_SLOTS);
+    CHECK(m->fields & SHIM_S_OPEN_MS);
+    CHECK_EQ(m->open_ms, 2150);
     CHECK_EQ(m->bytes, OUTBOX_EXACT);
+  }
+  ack_all();
+  /* un secondo JS_READY nella stessa esecuzione (telefono riconnesso) manda lo stesso open_ms */
+  js_ready();
+  m = shim_am_last_sent();
+  CHECK(m != NULL);
+  if (m) {
+    CHECK_EQ(m->open_ms, 2150);
   }
 }
 
 /* --- F4: tripwire dell'outbox (una tupla non entra) --- */
 static void test_outbox_tripwire(void) {
   fresh(QUOTA_OK, INBOX_MAX_STD, FMT_RAW6);
+  force_open_ms(3000);
   start();
   /* la dimensione la calcola sync_init: la si forza DOPO l'apertura (spec S7 2.7) */
   shim_am_force_outbox_size(100);
@@ -373,6 +412,8 @@ static void test_outbox_tripwire(void) {
     CHECK_EQ(m->tuples, 6);                  /* SLOTS (67 B) non entra in 100 B */
     CHECK_EQ(m->slots_len, 0);
     CHECK_EQ(m->fields & SHIM_S_SLOTS, 0);
+    CHECK_EQ(m->fields, HELLO_FIELDS);       /* OPEN_MS resta fra le 6 tuple superstiti (F13) */
+    CHECK_EQ(m->open_ms, 3000);
     CHECK_EQ(m->bytes, 52u);                 /* 1 + 6 tuple: MSG, PROTO, FORMAT, MAX_CHUNK, CRC, OPEN_MS */
     CHECK_EQ(m->max_chunk, MAX_CHUNK);       /* le tuple scritte PRIMA restano valide */
     CHECK_EQ(m->proto, SYNC_PROTO_VERSION);
@@ -389,6 +430,8 @@ static void test_outbox_tripwire(void) {
   if (m) {
     CHECK_EQ(m->tuples, 7);
     CHECK_EQ(m->slots_len, SYNC_SLOTS_BYTES);
+    CHECK_EQ(m->fields, HELLO_FIELDS | SHIM_S_SLOTS);
+    CHECK_EQ(m->open_ms, 3000);
     CHECK_EQ(m->bytes, OUTBOX_EXACT);
   }
   ack_all();
@@ -1354,7 +1397,60 @@ static void test_two_photos(void) {
   }
   CHECK_EQ(mismatch, 0);
   CHECK_EQ(shim_log_warnings(), 0);          /* nessun tripwire, nessuna coda piena */
+  CHECK_EQ(shim_log_find("sync: end"), 2);   /* una riga per PHOTO_END */
+#ifndef GALLERIA_DEBUG_TIMING
+  CHECK_EQ(shim_log_find("sync: gap"), 0);   /* la riga gap e' solo della build M */
+#endif
 }
+
+#ifdef GALLERIA_DEBUG_TIMING
+/* --- F36 (build M, make run-test_sync_timing): la riga "sync: gap n= max avg" esce UNA volta per
+ * foto, al PHOTO_END che la chiude; un PHOTO_END ritrasmesso (BUSY in IDLE, SEQ_ERR in SYNCING senza
+ * foto pendente) NON la ripete con statistiche stantie (logstats la attaccherebbe alla END successiva). --- */
+static void test_gap_once(void) {
+  fresh(QUOTA_OK, INBOX_MAX_STD, FMT_RAW6);
+  start();
+  shim_set_time_step_ms(10);                 /* orologio finto che avanza: intervalli > 0 */
+  sync_request(1);
+  ack_all();
+  CHECK_EQ(send_photo(0, 0xF001u, g_photo, g_crc_a, (uint16_t)MAX_CHUNK), 9);
+  CHECK_EQ(shim_log_find("sync: gap"), 1);
+  CHECK(shim_log_find_last("sync: gap n=8 ") != NULL);   /* 9 PHOTO_DATA -> 8 intervalli */
+  CHECK_EQ(shim_log_find("sync: end"), 1);
+  in_msg(SYNC_MSG_SYNC_DONE);
+  CHECK(deliver());
+  CHECK_EQ(sync_proto_state(), SYNC_ST_IDLE);
+
+  /* PHOTO_END ritrasmesso in IDLE: STATUS BUSY, riga end si', riga gap no */
+  photo_end(0);
+  ack_all();
+  const ShimSentMsg *m = last();
+  CHECK_EQ(m->code, SYNC_CODE_BUSY);
+  CHECK_EQ(m->reply_to, SYNC_MSG_PHOTO_END);
+  CHECK_EQ(shim_log_find("sync: end"), 2);
+  CHECK_EQ(shim_log_find("sync: gap"), 1);
+
+  /* PHOTO_END in SYNCING senza foto pendente: SEQ_ERR, ancora nessuna gap */
+  sync_request(1);
+  ack_all();
+  photo_end(0);
+  ack_all();
+  m = last();
+  CHECK_EQ(m->code, SYNC_CODE_SEQ_ERR);
+  CHECK_EQ(shim_log_find("sync: end"), 3);
+  CHECK_EQ(shim_log_find("sync: gap"), 1);
+
+  /* la seconda foto produce la sua riga (statistiche azzerate al PHOTO_BEGIN) */
+  CHECK_EQ(send_photo(1, 0xF002u, g_photo2, g_crc_b, (uint16_t)MAX_CHUNK), 9);
+  CHECK_EQ(shim_log_find("sync: gap"), 2);
+  CHECK(shim_log_find_last("sync: gap n=8 ") != NULL);
+  in_msg(SYNC_MSG_SYNC_DONE);
+  CHECK(deliver());
+  CHECK_EQ(storage_valid_slots(), 2);
+  CHECK_EQ(shim_log_warnings(), 0);
+  shim_set_time_step_ms(0);
+}
+#endif
 
 /* --- CRC sbagliato: STATUS CRC_ERR e manifest intatto --- */
 static void test_crc_error(void) {
@@ -1523,6 +1619,9 @@ int main(void) {
   run("deinit",              test_deinit);
   run("open_failure",        test_open_failure);
   run("two_photos",          test_two_photos);
+#ifdef GALLERIA_DEBUG_TIMING
+  run("gap_once",            test_gap_once);
+#endif
   run("crc_error",           test_crc_error);
   printf("sync: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;

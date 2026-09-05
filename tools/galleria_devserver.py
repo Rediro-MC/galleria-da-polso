@@ -2304,9 +2304,35 @@ def selftest():
             check('--open-ms 2150: hooks = {scenario, open_ms}',
                   rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'open_ms': 2150}},
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
+            # 0 e' il caso limite: l'hook c'e' quando `open_ms is not None`, non quando e' vero
+            # (con `if self.open_ms:` sparirebbe proprio il caso «openMs 0 → nessun avviso»).
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--open-ms', '0'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--open-ms 0: hooks = {scenario, open_ms: 0} (0 non e\' "hook assente")',
+                  rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'open_ms': 0}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
             rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--open-ms', '99999'])
             check('--open-ms fuori intervallo: errore, niente traceback',
                   rc != 0 and 'Traceback' not in err, 'rc=%s err=%s' % (rc, err.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--open-ms', 'abc'])
+            check('--open-ms non numerico: errore di argparse, niente traceback',
+                  rc != 0 and 'Traceback' not in err and 'intero' in err,
+                  'rc=%s err=%s' % (rc, err.strip()[-90:]))
+            # ramo POOL (--album): il payload resta `full: true` e porta lo stesso hook
+            rc, out, err = run_cli(['--dump-json', 'state', '--album', paths[1], '--slots', '4',
+                                    '--open-ms', '90'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--album --open-ms 90: payload full con hooks = {scenario, open_ms: 90}',
+                  rc == 0 and dj is not None and dj.get('full') is True
+                  and dj['hooks'] == {'scenario': 'photo', 'open_ms': 90}
+                  and len(dj['photos']) == 2 and dj['order'] == [4],
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
             rc, out, err = run_cli(['--dump-json', 'state', '--page-dir', page_dir])
             try:
                 dj = json.loads(out)
@@ -2425,6 +2451,53 @@ def selftest():
             code, st6 = rjson('GET', '/state.json')
             check('relay: dopo il Save della pagina /state.json resta {v, seq, hooks} (seq 2)',
                   code == 200 and st6 == {'v': 1, 'seq': 2, 'hooks': {'scenario': 'photo'}}, str(st6))
+
+            # --- v1.9: un SERVER avviato con --open-ms 0 (F16) ---
+            # `save_dict()` e' l'altra strada che passa da `_hooks()`: e' quella che index.js
+            # rilegge in `webviewclosed`. Con `open_ms = 0` l'hook deve esserci lo stesso.
+            zero_state = DevState([], photos=[], order=[], settings=default_settings(),
+                                  scenario='photo', relay=True, open_ms=0)
+            zero_httpd = make_server(zero_state, PAGE_HTML, '127.0.0.1', 0, page_dir=page_dir)
+            zero_httpd.quiet = True
+            zport = zero_httpd.server_address[1]
+            zthread = threading.Thread(target=zero_httpd.serve_forever,
+                                       kwargs={'poll_interval': 0.05})
+            zthread.daemon = True
+            zthread.start()
+            try:
+                def zjson(method, path, obj=None):
+                    conn = http.client.HTTPConnection('127.0.0.1', zport, timeout=20)
+                    try:
+                        corpo = None if obj is None else json.dumps(obj).encode('utf-8')
+                        intestazioni = {'Content-Type': 'application/json'} if corpo else {}
+                        conn.request(method, path, body=corpo, headers=intestazioni)
+                        resp = conn.getresponse()
+                        stato, blob = resp.status, resp.read()
+                    finally:
+                        conn.close()
+                    try:
+                        return stato, json.loads(blob.decode('utf-8'))
+                    except ValueError:
+                        return stato, None
+
+                code, stz = zjson('GET', '/state.json')
+                check('--open-ms 0: /state.json manda hooks.open_ms = 0',
+                      code == 200 and stz == {'v': 1, 'seq': 1,
+                                              'hooks': {'scenario': 'photo', 'open_ms': 0}},
+                      'code=%s %s' % (code, stz))
+                code, resz = zjson('POST', '/save', page_body())
+                check('--open-ms 0: POST /save della config page → 200 {ok, seq 2}',
+                      code == 200 and resz == {'ok': True, 'seq': 2}, str(resz))
+                code, svz = zjson('GET', '/save.json')
+                check('--open-ms 0: /save.json dopo il Save tiene hooks.open_ms = 0 '
+                      '(e\' quello che index.js rilegge in webviewclosed)',
+                      code == 200 and svz is not None and 'full' not in svz and svz['seq'] == 2
+                      and svz['hooks'] == {'scenario': 'photo', 'open_ms': 0}
+                      and svz['deleted'] == [0], str(svz)[:110])
+            finally:
+                zero_httpd.shutdown()
+                zero_httpd.server_close()
+                zthread.join(timeout=5)
             code, res = rjson('POST', '/save',
                               page_body(deleted=[3], order=[3], photos=[photo_entry(slot=3)]))
             check('POST pagina: foto nuova su uno slot appena eliminato → 200 (design §3)',
@@ -2796,7 +2869,8 @@ def build_parser():
                     help='guasto iniettato nella sync del PKJS (default: photo = nessun guasto)')
     ap.add_argument('--open-ms', type=open_ms_arg, metavar='N',
                     help='hook dev: HELLO.OPEN_MS finto (0..65535 ms) per provare l\'avviso di avvio '
-                         'lento della config page (sopra 1000 ms la pagina mostra il riquadro #slow)')
+                         'lento della config page (il riquadro #slow scatta oltre una soglia '
+                         'proporzionale al numero di foto sull\'orologio; 0 = nessun avviso)')
     ap.add_argument('--work', metavar='DIR',
                     help='cartella dei raw e delle anteprime (default: temporanea, rimossa in '
                          'uscita sia con Ctrl-C sia con SIGTERM)')

@@ -48,6 +48,9 @@ LECO_TICK = 'run_s7_timing_a_leco_flint_tick.log'
 S8_M = 'run_s8_emu_m_newlines.log'          # build M in emulatore (righe nuove di S8)
 S8_INIT = 'run_s8_emu_m_init_emery.log'     # build M 04/09: riga `init:` + migrazione schema 1->2
 S8_DEINIT = 'run_s8_emu_m_deinit_restart.log'   # `deinit:` di un avvio e `init:` di quello dopo
+# Estratto (63 righe, 04/09) del log dell'OROLOGIO REALE run_s8_10_fresh.log: le righe PKJS
+# hanno il prefisso dell'app Pebble (`Galleria:193:28) `), non quello di pypkjs.
+S8_TELEFONO = 'run_s8_phone_fresh.log'
 
 # Fixture PRECEDENTI alle righe `init:`/`deinit:` (build di produzione o build M piu' vecchia):
 # la sezione 13 deve restare vuota e tutti gli altri numeri devono essere quelli di prima.
@@ -363,6 +366,107 @@ def prova_avvio_uscita(p):
     p.vero('nessuna migrazione dello schema' in testo2, 'nota della migrazione assente')
 
 
+def prova_pkjs_orologio_reale(p):
+    """run_s8_phone_fresh.log: estratto di 63 righe del log dell'orologio REALE (04/09,
+    `pebble logs --phone`). Ogni riga PKJS ha il prefisso dell'app Pebble — `Galleria:193:28) `,
+    con la parentesi chiusa — invece di `./src/pkjs/index.js:97:0 ` dell'emulatore: prima della
+    correzione finivano TUTTE fra le «ignorate» e le sezioni del telefono restavano vuote.
+    Numeri contati a mano nel file (grep): 63 righe, 19 PKJS, 9 `chunk`, 1 HELLO, 2 `sync: end`."""
+    if not os.path.isfile(os.path.join(LOGS, S8_TELEFONO)):
+        sys.stdout.write('test_logstats: %s assente, controlli PKJS reali saltati\n' % S8_TELEFONO)
+        return
+    j = dati([S8_TELEFONO])
+    r = j['righe']
+    p.uguale(r['totali'], 63, 'righe totali dell estratto del log reale')
+    p.uguale(r['pkjs'], 19, 'diciannove righe PKJS con il prefisso dell app reale')
+    p.uguale(r['orologio'], 43, 'quarantatre righe dell orologio')
+    p.uguale(r['ignorate'], 1, 'una sola riga ignorata (`Heap Usage for App` del firmware)')
+    p.uguale(r['orologio'] + r['pkjs'] + r['fault'] + r['ignorate'] + r['fuori_filtro'],
+             r['totali'], 'i conteggi dell intestazione tornano')
+    p.uguale(j['pkjs']['tag'], {'[sync]': 17, '[album]': 2}, 'tag PKJS del log reale')
+    p.uguale([(e['ora'], e['tipo']) for e in j['pkjs']['eventi']],
+             [('20:36:09', 'foto OK'), ('20:36:09', 'foto k/n'), ('20:36:16', 'fine'),
+              ('20:36:59', 'pronto'), ('20:37:00', 'HELLO'), ('20:37:00', 'fine')],
+             'eventi PKJS riconosciuti nel log reale')
+    # orologio pre-v1.9: l'HELLO non porta ancora `open=`
+    p.uguale(j['pkjs']['hello'], [{'ora': '20:37:00', 'open_ms': None}],
+             'un HELLO senza open= (build precedente alla v1.9)')
+    p.uguale((j['pkjs']['chunk_ack']['n'], j['pkjs']['chunk_ack']['min'],
+              j['pkjs']['chunk_ack']['max']), (9, 447, 942), 'ack dei nove chunk')
+    p.uguale(j['pkjs']['phonesim'], 0, 'nessuna riga PHONESIM sull orologio reale')
+    p.uguale(j['anomalie'], [], 'nessuna anomalia in questo estratto')
+    # righe dell'orologio dello stesso file (build M di S8, prima di S8-stile: niente `sty=`)
+    p.uguale((j['orologio']['fw'], j['orologio']['model']), ('4.36.2', 11), 'firmware e modello')
+    p.uguale(len(j['orologio']['ui_time']), 1, 'una riga ui_time')
+    p.uguale((j['orologio']['ui_time'][0]['sty'], j['orologio']['ui_time'][0]['band']),
+             (None, 106), 'ui_time senza sty= (log precedente a S8-stile)')
+    p.uguale((j['init']['settings'][0]['sty'], j['init']['settings'][0]['interval']),
+             (None, 180), 'settings senza sty=, intervallo 180 min')
+    p.uguale(j['init']['storage'][0]['schema'], 2, 'schema 2 del persist')
+    p.uguale([(e['slot'], e['code']) for e in j['sync']['end']], [(4, 0), (5, 0)],
+             'due END, tutte e due ok')
+    p.uguale([f['ms'] for f in j['foto_persist']['righe']], [31, 59],
+             'ms delle due letture da persist')
+    a = j['avvio_uscita']['avvii']
+    p.uguale(len(a), 2, 'due segmenti (uscita del primo avvio, avvio del secondo)')
+    p.uguale(a[1]['init'], {'ora': '20:36:59', 'open': 90, 'man': 47, 'sto': 149, 'set': 7,
+                            'mod': 79, 'win': 66, 'syn': 19, 'resto': 23, 'tot': 343},
+             'riga init: dell orologio reale (open 90 ms su file nuovo)')
+    p.uguale(j['avvio_uscita']['migrazioni'], [], 'nessuna migrazione (schema gia 2)')
+    codice, testo, _ = esegui(log(S8_TELEFONO))
+    p.uguale(codice, 0, 'resa testuale del log reale')
+    p.vero('[sync]' in testo and 'foto OK' in testo, 'la sezione 11 non e piu vuota')
+
+
+# Formati della build ATTUALE (v1.9 + S8-stile) che le fixture non hanno ancora: `sty=` in
+# `settings:`/`ui_time:` e ` open=…ms` / ` open=-` nell'HELLO del telefono, con i tre prefissi
+# PKJS (app reale con e senza colonna, pypkjs). Le ultime due righe sono nel formato vecchio.
+LOG_V19 = """[21:00:00] main.c:15> heap main: used=24 free=103288
+[21:00:00] settings.c:93> settings: persist layout=1 font=4 sty=3 interval=30 order=1 shake=0
+[21:00:00] ui_time.c:732> ui_time: cs=3 bt=0 loc=en_US 200x228 unob=169 lay=1 font=4 sty=3 mode=1 band=110
+[21:00:01] pkjs> Galleria:193:28) [sync] HELLO proto=1 maxChunk=4096 open=2145ms slots=1016b83c,-,-,-,-,-,-,-,-,-,-,-
+[21:00:02] pkjs> Galleria:97 [sync] HELLO proto=1 maxChunk=4096 open=- slots=-,-,-,-,-,-,-,-,-,-,-,-
+[21:00:03] pkjs> ./src/pkjs/index.js:97:0 [sync] HELLO proto=1 maxChunk=4096 slots=-,-,-,-,-,-,-,-,-,-,-,-
+[21:00:04] pkjs> Galleria:193:28) [config] payload applicato in 1840 ms
+[21:00:05] settings.c:93> settings: defaults layout=0 font=0 interval=30 order=0 shake=1
+[21:00:06] ui_time.c:732> ui_time: cs=2 bt=1 loc=it_IT 200x228 unob=228 lay=0 font=0 mode=1 band=106
+"""
+
+
+def prova_formati_v19(p):
+    """`sty=` e ` open=` sono facoltativi: la build attuale e i log vecchi si leggono uguale."""
+    with tempfile.TemporaryDirectory() as d:
+        percorso = os.path.join(d, 'run_v19.log')
+        with open(percorso, 'w') as fh:
+            fh.write(LOG_V19)
+        codice, out, err = esegui([percorso, '--json', '-'])
+        p.uguale(codice, 0, 'uscita del log v1.9')
+        j = json.loads(out)
+        p.uguale(j['righe']['ignorate'], 0, 'nessuna riga della build attuale ignorata')
+        p.uguale(j['righe']['pkjs'], 4, 'quattro righe PKJS (tre prefissi diversi)')
+        p.uguale([s['sty'] for s in j['init']['settings']], [3, None],
+                 'sty= letto; senza il campo resta None')
+        p.uguale([(s['origine'], s['layout'], s['font'], s['interval'], s['order'], s['shake'])
+                  for s in j['init']['settings']],
+                 [('persist', 1, 4, 30, 1, 0), ('defaults', 0, 0, 30, 0, 1)],
+                 'gli altri campi di settings: non slittano per colpa di sty=')
+        p.uguale([u['sty'] for u in j['orologio']['ui_time']], [3, None], 'sty= nella riga ui_time')
+        p.uguale([(u['cs'], u['bt'], u['loc'], u['unob'], u['lay'], u['font'], u['mode'],
+                   u['band']) for u in j['orologio']['ui_time']],
+                 [(3, 0, 'en_US', 169, 1, 4, 1, 110), (2, 1, 'it_IT', 228, 0, 0, 1, 106)],
+                 'gli altri campi di ui_time: non slittano per colpa di sty=')
+        p.uguale(j['pkjs']['hello'], [{'ora': '21:00:01', 'open_ms': 2145},
+                                      {'ora': '21:00:02', 'open_ms': None},
+                                      {'ora': '21:00:03', 'open_ms': None}],
+                 'open=2145ms letto; open=- e il formato pre-v1.9 danno None')
+        p.uguale([e['tipo'] for e in j['pkjs']['eventi']],
+                 ['HELLO', 'HELLO', 'HELLO', 'config applicato'],
+                 'i tre HELLO e la riga della config page')
+        codice, testo, _ = esegui([percorso])
+        p.vero('open ms: 2145, -, -' in testo, 'gli open= dell HELLO nella sezione 11')
+        p.vero('sty' in testo, 'colonna sty nelle tabelle')
+
+
 # Log sintetico con DUE avvii (il secondo dopo un `App fault!`, senza `heap deinit`): righe
 # `batt:`, `heap tick`, `bt:` e una sync per avvio, con il `sync: open` dell'init in mezzo.
 # Scarica reale: -2 %/h in tutti e due gli avvii; heap piatto in tutti e due; sync di 2 s.
@@ -553,13 +657,16 @@ def prova_tutte_le_fixture(p):
     p.uguale(len(j['file']), len(nomi), 'un elemento per file nel JSON')
     p.uguale(j['righe']['totali'], sum(f['righe'] for f in j['file']), 'righe totali coerenti')
     p.uguale(j['versione'], 1, 'versione del formato JSON')
-    # su tutte le fixture insieme: solo i due log della build M portano righe `init:`/`deinit:`
+    # su tutte le fixture insieme: solo i tre log della build M portano righe `init:`/`deinit:`
+    # (i due dell'emulatore piu' l'estratto dell'orologio reale, che ne ha 1 e 2)
     a = j['avvio_uscita']
-    p.uguale(a['stat']['init']['tot']['n'], 2, 'due righe init: in tutta la cartella')
-    p.uguale(a['stat']['deinit']['tot']['n'], 1, 'una riga deinit: in tutta la cartella')
+    p.uguale(a['stat']['init']['tot']['n'], 3, 'tre righe init: in tutta la cartella')
+    p.uguale(a['stat']['deinit']['tot']['n'], 3, 'tre righe deinit: in tutta la cartella')
     p.uguale(len(a['migrazioni']), 1, 'una migrazione in tutta la cartella')
-    p.uguale(sorted({x['file'] for x in a['avvii']}), sorted([S8_INIT, S8_DEINIT]),
+    p.uguale(sorted({x['file'] for x in a['avvii']}), sorted([S8_INIT, S8_DEINIT, S8_TELEFONO]),
              'solo le fixture della build M nella sezione 13')
+    # e solo l'estratto dell'orologio reale ha righe PKJS col prefisso dell'app Pebble
+    p.vero(j['pkjs']['tag'].get('[sync]', 0) >= 17, 'le righe PKJS del log reale sono nel totale')
 
 
 def main():
@@ -569,6 +676,7 @@ def main():
     p = Prova()
     for prova in (prova_uscite, prova_sync, prova_riavvio_e_bt_off, prova_scossa_e_qv,
                   prova_timing, prova_s8_righe_nuove, prova_avvio_uscita,
+                  prova_pkjs_orologio_reale, prova_formati_v19,
                   prova_riavvio_in_mezzo,
                   prova_init_senza_heap_main, prova_argomenti_orari,
                   prova_filtri_e_rese, prova_tutte_le_fixture):

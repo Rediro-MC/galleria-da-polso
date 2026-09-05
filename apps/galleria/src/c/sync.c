@@ -10,7 +10,7 @@
  * app_message.c, letto il 29/08/2026), quindi la si può aprire anche senza telefono connesso. Il
  * chunk annunciato in HELLO viene rinegoziato a ogni JS_READY da app_message_inbox_size_maximum()
  * (dipende dalle capability del telefono connesso: 8.200 con l'app Core / emulatore). L'outbox è
- * esatto (regola 7, F4): dict_calc_buffer_size del HELLO (110 B), che è per costruzione il messaggio
+ * esatto (regola 7, F4): dict_calc_buffer_size del HELLO (119 B, v1.9), che è per costruzione il messaggio
  * più grande; gli esiti delle dict_write_* sono accumulati e un messaggio incompleto lascia un
  * WARNING (tripwire per l'emulatore) ma parte comunque (OUT_WRITING si chiude solo con send). */
 #include <pebble.h>
@@ -30,7 +30,7 @@
 static bool      s_inited;
 static uint32_t  s_inbox_size;       /* aperta in init: overhead + slack + chunk massimo */
 static uint32_t  s_overhead;         /* dict_calc_buffer_size(4, 4, 4, 4, 0) + slack */
-static uint32_t  s_outbox_size;      /* F4: dict_calc_buffer_size del HELLO (110 B), il messaggio più grande */
+static uint32_t  s_outbox_size;      /* F4: dict_calc_buffer_size del HELLO (119 B, v1.9), il messaggio più grande */
 static AppTimer *s_idle_timer;
 static uint8_t   s_idle_gen;         /* F2: generazione del timer di silenzio (contesto del callback) */
 static SyncOut   s_queue[SYNC_OUT_QUEUE];
@@ -369,8 +369,14 @@ static void prv_inbox_received(DictionaryIterator *it, void *ctx) {
     case SYNC_MSG_PHOTO_END: {               /* una riga per foto: s=slot c=code n=PHOTO_DATA, ms del commit, della foto, per chunk */
       const int32_t photo_ms = prv_elapsed_ms(s_photo_s0, s_photo_ms0);   /* PRIMA della riga gap: il suo APP_LOG non entra nel totale */
 #ifdef GALLERIA_DEBUG_TIMING
-      APP_LOG(APP_LOG_LEVEL_INFO, "sync: gap n=%u max %d avg %d", (unsigned)s_gap_n, (int)s_gap_max,
-              (int)(s_gap_n ? s_gap_sum / (int32_t)s_gap_n : 0));
+      if (s_gap_have) {                    /* una sola riga per foto: un PHOTO_END ritrasmesso non la ripete (F36) */
+        APP_LOG(APP_LOG_LEVEL_INFO, "sync: gap n=%u max %d avg %d", (unsigned)s_gap_n, (int)s_gap_max,
+                (int)(s_gap_n ? s_gap_sum / (int32_t)s_gap_n : 0));
+        s_gap_have = false;
+        s_gap_n = 0;
+        s_gap_max = 0;
+        s_gap_sum = 0;
+      }
 #endif
       APP_LOG(APP_LOG_LEVEL_INFO, "sync: end s=%u c=%u n=%u commit %d photo %d ch max %d avg %d heap %u",
               (unsigned)s_in.slot, (unsigned)out.code, (unsigned)s_photo_msgs, (int)dt,

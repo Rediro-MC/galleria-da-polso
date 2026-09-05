@@ -203,7 +203,8 @@ function parseHello(p) {
     maxChunk: gv(p, 'MAX_CHUNK') | 0,
     settingsCrc: (c === undefined || c === null) ? null : (c & 0xFFFF),   // S5b: CRC-16 delle impostazioni
     /* v1.9 (perf 04/09): ms impiegati dal firmware ad aprire il file persist. Un orologio vecchio non
-     * manda il campo -> null (la config page non mostra nessun avviso), 0 = non misurato. */
+     * manda il campo -> null (la config page non mostra nessun avviso); 0 = apertura sotto il millisecondo
+     * (l'orologio misura sempre). */
     openMs: (om === undefined || om === null) ? null : (om & 0xFFFF),
     slots: parseSlots(gv(p, 'SLOTS'))
   };
@@ -657,7 +658,7 @@ function onMessage(e) {
       try {
         s.plan = s.provider.plan(hello) || {};
       } catch (e) {
-        s.log('[sync] provider.plan ha lanciato: ' + e + ' — nessuna sync');
+        s.log('[sync] provider.plan ha lanciato: ' + e + ' - nessuna sync');
         return;
       }
       runPlan();

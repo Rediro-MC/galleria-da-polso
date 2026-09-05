@@ -18,6 +18,18 @@ static uint32_t  s_last_write_key = SHIM_NO_KEY;
 static bool      s_is_24h = true;
 static int       s_writes;
 static int       s_deletes;
+/* F10 (revisione v1.9): ricerche di chiave. Il firmware (settings_file.c) scandisce il file a ogni
+ * chiave diversa dall'ultima toccata e riprende dal record corrente sulla stessa chiave. */
+static uint32_t  s_lookup_last = SHIM_NO_KEY;
+static int       s_lookups;
+static int       s_lookups_missing;
+static int       s_persist_calls;         /* OGNI persist_* (anche sulla stessa chiave): vede un exists in più */
+/* F48/F13: orologio finto di time_ms (default: ora reale, ms = 0, passo 0). */
+static bool      s_clk_fake;
+static time_t    s_clk_s;
+static int32_t   s_clk_ms;                   /* 0..999 */
+static int32_t   s_clk_step;                 /* ms aggiunti DOPO ogni chiamata a time_ms */
+static int       s_clk_calls;
 static int       s_fail_after = -1;          /* < 0: nessuna iniezione */
 static status_t  s_fail_code = E_OUT_OF_STORAGE;
 static bool      s_log;
@@ -69,12 +81,28 @@ static ShimEntry *prv_alloc(uint32_t key) {
   return NULL;
 }
 
+/* Ricerca di chiave (F10): conta 1 se la chiave e' diversa dall'ultima toccata (scansione del
+ * file); a vuoto se in quel momento la chiave non esiste. Sulla stessa chiave il firmware riprende
+ * dal record trovato/scritto: nessuna scansione. */
+static void prv_lookup(uint32_t key) {
+  s_persist_calls++;
+  if (key == s_lookup_last) {
+    return;
+  }
+  s_lookup_last = key;
+  s_lookups++;
+  if (!prv_find(key)) {
+    s_lookups_missing++;
+  }
+}
+
 /* Iniezione: true se questa scrittura deve fallire. */
 static bool prv_write_fails(void) {
   return (s_fail_after >= 0 && s_writes >= s_fail_after);
 }
 
 static int prv_store(uint32_t key, const void *data, size_t size) {
+  prv_lookup(key);                           /* il firmware cerca il record vecchio anche se poi fallisce */
   if (prv_write_fails()) {
     return (int)s_fail_code;
   }
@@ -99,6 +127,7 @@ static int prv_store(uint32_t key, const void *data, size_t size) {
 /* ---- persist ---- */
 
 bool persist_exists(const uint32_t key) {
+  prv_lookup(key);
   return prv_find(key) != NULL;
 }
 
@@ -107,11 +136,13 @@ size_t persist_get_max_size(void) {
 }
 
 int persist_get_size(const uint32_t key) {
+  prv_lookup(key);
   const ShimEntry *e = prv_find(key);
   return e ? (int)e->len : E_DOES_NOT_EXIST;
 }
 
 int32_t persist_read_int(const uint32_t key) {
+  prv_lookup(key);
   const ShimEntry *e = prv_find(key);
   int32_t v = 0;
   if (!e) {
@@ -122,6 +153,7 @@ int32_t persist_read_int(const uint32_t key) {
 }
 
 int persist_read_data(const uint32_t key, void *buffer, const size_t buffer_size) {
+  prv_lookup(key);
   const ShimEntry *e = prv_find(key);
   if (!e) {
     return E_DOES_NOT_EXIST;
@@ -145,6 +177,7 @@ int persist_write_data(const uint32_t key, const void *data, const size_t size) 
 }
 
 status_t persist_delete(const uint32_t key) {
+  prv_lookup(key);
   ShimEntry *e = prv_find(key);
   if (!e) {
     return E_DOES_NOT_EXIST;
@@ -225,13 +258,30 @@ bool clock_is_24h_style(void) {
   return s_is_24h;
 }
 
-void time_ms(time_t *utc_time, uint16_t *out_ms) {
+/* Normalizza l'orologio finto dopo uno spostamento (anche negativo): ms in [0, 999]. */
+static void prv_clk_add(int32_t ms) {
+  int64_t total = (int64_t)s_clk_s * 1000 + s_clk_ms + ms;
+  if (total < 0) {
+    total = 0;
+  }
+  s_clk_s = (time_t)(total / 1000);
+  s_clk_ms = (int32_t)(total % 1000);
+}
+
+uint16_t time_ms(time_t *utc_time, uint16_t *out_ms) {
+  s_clk_calls++;
+  time_t s = s_clk_fake ? s_clk_s : time(NULL);
+  const uint16_t ms = s_clk_fake ? (uint16_t)s_clk_ms : 0;
   if (utc_time) {
-    *utc_time = time(NULL);
+    *utc_time = s;
   }
   if (out_ms) {
-    *out_ms = 0;
+    *out_ms = ms;
   }
+  if (s_clk_fake && s_clk_step != 0) {
+    prv_clk_add(s_clk_step);                 /* la PROSSIMA lettura vede il tempo avanzato */
+  }
+  return ms;
 }
 
 /* ---- log ---- */
@@ -268,6 +318,15 @@ void shim_persist_reset(void) {
   s_is_24h = true;
   s_writes = 0;
   s_deletes = 0;
+  s_lookup_last = SHIM_NO_KEY;
+  s_lookups = 0;
+  s_lookups_missing = 0;
+  s_persist_calls = 0;
+  s_clk_fake = false;
+  s_clk_s = 0;
+  s_clk_ms = 0;
+  s_clk_step = 0;
+  s_clk_calls = 0;
   s_fail_after = -1;
   s_fail_code = E_OUT_OF_STORAGE;
   s_timer.pending = false;
@@ -339,7 +398,38 @@ void shim_fail_writes_code(status_t code)  { s_fail_code = code; }
 int  shim_write_count(void)                { return s_writes; }
 void shim_reset_write_count(void)          { s_writes = 0; }
 int  shim_delete_count(void)               { return s_deletes; }
-bool shim_key_exists(uint32_t key)         { return prv_find(key) != NULL; }
+int  shim_lookup_count(void)               { return s_lookups; }
+int  shim_lookup_missing(void)             { return s_lookups_missing; }
+void shim_lookup_reset(void)               { s_lookups = 0; s_lookups_missing = 0; s_persist_calls = 0; }
+int  shim_persist_calls(void)              { return s_persist_calls; }
+bool shim_key_exists(uint32_t key)         { return prv_find(key) != NULL; }   /* ispezione: non conta */
+
+void shim_set_time_ms(time_t s, uint16_t ms) {
+  s_clk_fake = true;
+  s_clk_s = s;
+  s_clk_ms = 0;
+  prv_clk_add((int32_t)ms);                  /* ms >= 1000 traboccano nei secondi */
+}
+
+void shim_advance_time_ms(int32_t ms) {
+  if (!s_clk_fake) {
+    s_clk_fake = true;                       /* parte dal default (ora reale, 0 ms) e poi avanza */
+    s_clk_s = time(NULL);
+    s_clk_ms = 0;
+  }
+  prv_clk_add(ms);
+}
+
+void shim_set_time_step_ms(int32_t per_call) {
+  if (!s_clk_fake) {
+    s_clk_fake = true;
+    s_clk_s = time(NULL);
+    s_clk_ms = 0;
+  }
+  s_clk_step = per_call;
+}
+
+int shim_time_ms_calls(void) { return s_clk_calls; }
 
 int shim_key_len(uint32_t key) {
   const ShimEntry *e = prv_find(key);
@@ -678,6 +768,7 @@ static void prv_record_sent(void) {
         case MESSAGE_KEY_SLOT:      m->slot = (uint8_t)prv_tuple_uint(t);       m->fields |= SHIM_S_SLOT; break;
         case MESSAGE_KEY_OFFSET:    m->offset = prv_tuple_uint(t);              m->fields |= SHIM_S_OFFSET; break;
         case MESSAGE_KEY_REPLY_TO:  m->reply_to = (uint8_t)prv_tuple_uint(t);   m->fields |= SHIM_S_REPLY_TO; break;
+        case MESSAGE_KEY_OPEN_MS:   m->open_ms = (uint16_t)prv_tuple_uint(t);   m->fields |= SHIM_S_OPEN_MS; break;
         case MESSAGE_KEY_SLOTS:
           m->slots_len = t->length;
           memcpy(m->slots, t->value->data, (t->length < SHIM_AM_SLOTS_CAP) ? t->length : SHIM_AM_SLOTS_CAP);

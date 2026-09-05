@@ -127,6 +127,16 @@ static void fresh(uint32_t quota, uint16_t max_chunk) {
   env_reset();
 }
 
+/* v1.9 (F13/F49): forza storage_open_ms() = ms con l'orologio finto dello shim (le due letture di
+ * time_ms in storage_init distano `ms`), poi ferma l'orologio. Dopo fresh(). */
+static void force_open_ms(uint16_t ms) {
+  shim_set_time_ms(7, 100);
+  shim_set_time_step_ms((int32_t)ms);
+  (void)storage_init();
+  shim_set_time_step_ms(0);
+  CHECK_EQ(storage_open_ms(), ms);
+}
+
 static SyncIn mk(uint8_t msg) {
   SyncIn in;
   memset(&in, 0, sizeof(in));
@@ -390,6 +400,7 @@ static void test_api_basics(void) {
 /* JS_READY -> HELLO: proto, max_chunk, SLOTS coerenti con il manifest. */
 static void test_hello(void) {
   fresh(QUOTA_OK, MAX_CHUNK);
+  force_open_ms(2150);                       /* il numero di campo del 04/09 (file gonfio) */
   SyncIn js = mk(SYNC_MSG_JS_READY);
   CHECK_EQ(handle(&js), SYNC_ACT_SEND);
   CHECK_EQ(g_out.msg, SYNC_MSG_HELLO);
@@ -414,7 +425,8 @@ static void test_hello(void) {
     CHECK_EQ(g_out.settings_crc, crc16_ccitt((const uint8_t *)&def, sizeof(def) - 2));
     CHECK_EQ(g_out.settings_crc, crc16_ccitt((const uint8_t *)settings_get(), sizeof(GalSettings) - 2));
     CHECK(g_out.settings_crc != 0);
-    CHECK_EQ(g_out.open_ms, storage_open_ms());   /* v1.9: apertura del file persist nel HELLO */
+    CHECK_EQ(g_out.open_ms, 2150);           /* v1.9: apertura del file persist nel HELLO (u16, non 0 == 0) */
+    CHECK_EQ(g_out.open_ms, storage_open_ms());
   }
   for (uint8_t k = 0; k < GAL_MAX_SLOTS; k++) {  /* album vuoto: tutto a zero */
     CHECK_EQ(hello_state(g_out.slots, k), 0);
@@ -426,6 +438,7 @@ static void test_hello(void) {
   CHECK(sync_request(1) == SYNC_ACT_SEND);
   send_photo(4, 0xAABBCCDDu, g_photo, g_crc_a, MAX_CHUNK);
   CHECK_EQ(handle(&js), SYNC_ACT_SEND);
+  CHECK_EQ(g_out.open_ms, 2150);             /* stessa esecuzione: stesso valore a ogni HELLO */
   CHECK_EQ(hello_state(g_out.slots, 4), 1);
   CHECK_EQ(hello_crc(g_out.slots, 4), g_crc_a);
   CHECK_EQ(g_out.slots[4 * 5 + 1], (uint8_t)(g_crc_a & 0xFFu));           /* little-endian */
@@ -455,10 +468,12 @@ static void test_hello(void) {
 static void test_hello_disabled(void) {
   fresh(QUOTA_BAD, MAX_CHUNK);
   CHECK(!storage_album_enabled());
+  force_open_ms(3000);
   SyncIn js = mk(SYNC_MSG_JS_READY);
   CHECK_EQ(handle(&js), SYNC_ACT_SEND);
   CHECK_EQ(g_out.msg, SYNC_MSG_HELLO);
   CHECK_EQ(g_out.max_chunk, 0);              /* album disabilitato */
+  CHECK_EQ(g_out.open_ms, 3000);             /* F49: OPEN_MS anche con MAX_CHUNK 0 (l'unica informazione utile) */
   CHECK_EQ(g_out.slots_len, SYNC_SLOTS_BYTES);
   CHECK_EQ(sync_proto_max_chunk(), MAX_CHUNK); /* il chunk negoziato resta quello di sync.c */
 

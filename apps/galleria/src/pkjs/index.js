@@ -14,7 +14,7 @@ var album = null;
 var scenario = 'photo';               /* solo dev: guasti iniettati nel motore (state.hooks.scenario), one-shot */
 var scenarioFired = false;
 var chunkNo = 0;
-var devOpenMs = null;                 /* solo dev: HELLO.OPEN_MS finto (state.hooks.open_ms, --open-ms) */
+var devOpenMs = null;                 /* solo dev: HELLO.OPEN_MS finto (state.hooks.open_ms, --open-ms); null = valore vero */
 
 /* Ripresa automatica (S5b, F9): una sync finita con errori viene ritentata con un backoff lungo —
  * ogni tentativo è solo JS_READY → HELLO → diff, quindi costa nulla se non c'è niente da fare.
@@ -159,8 +159,16 @@ var hooks = {
 var provider = {
   plan: function (hello) {
     /* v1.9 (perf 04/09): in emulatore l'apertura del file persist è quasi istantanea, quindi l'avviso
-     * di avvio lento della config page non si vedrebbe mai: `--open-ms N` del dev server lo forza. */
-    if (DEV && devOpenMs !== null && hello) { hello.openMs = devOpenMs; }
+     * di avvio lento della config page non si vedrebbe mai: `--open-ms N` del dev server lo forza.
+     * La sostituzione è loggata QUI, dove avviene (F45): il log '[sync] HELLO … open=' di sync.js
+     * è scritto PRIMA di provider.plan e riporta — giustamente — il valore vero dell'orologio,
+     * quindi senza questa riga il run.log e la config page si contraddirebbero. (`DEV &&` e' ridondante:
+     * devOpenMs viene scritto solo da applyDevState, che gira solo in DEV; resta come cintura.) */
+    if (DEV && devOpenMs !== null && hello) {
+      log('[dev] HELLO.OPEN_MS forzato a ' + devOpenMs + ' ms (orologio: ' +
+          ((hello.openMs === null || hello.openMs === undefined) ? 'ignoto' : hello.openMs + ' ms') + ')');
+      hello.openMs = devOpenMs;
+    }
     var p = album.plan(hello);
     chunkNo = 0;
     if (DEV && scenario === 'crc' && !scenarioFired && p.photos.length) {
@@ -224,15 +232,25 @@ function applyPayload(payload, full) {
 /* Stato dal dev server: completo solo se lo dichiara (full: true, come /state.json e /save.json
  * oggi); un payload delta (S6) non va applicato come stato completo (F10). */
 function applyDevState(state) {
-  var om;
+  var om, next;
   if (state && state.hooks && typeof state.hooks.scenario === 'string') {
     scenario = state.hooks.scenario;
     if (scenario !== 'photo' && scenario !== 'none') { log('[dev] scenario di guasto "' + scenario + '"'); }
   }
-  om = state && state.hooks && state.hooks.open_ms;
-  if (typeof om === 'number' && isFinite(om) && om >= 0) {
-    devOpenMs = om & 0xFFFF;
-    log('[dev] HELLO.OPEN_MS forzato a ' + devOpenMs + ' ms (avviso di avvio lento)');
+  /* HELLO.OPEN_MS finto: ramo COMPLETO (F45). Ogni stato del dev server (/state.json, /save.json,
+   * relay) porta `hooks`, ma `open_ms` solo con --open-ms: uno stato con `hooks` e SENZA l'hook
+   * (dev server riavviato senza il flag per la controprova "l'avviso sparisce") deve AZZERARE il
+   * valore forzato, altrimenti l'HELLO resterebbe falsificato fino al riavvio del PKJS. Uno stato
+   * senza `hooks` del tutto (altra origine) non tocca l'hook, come per `scenario`. */
+  if (state && state.hooks) {
+    om = state.hooks.open_ms;
+    next = (typeof om === 'number' && isFinite(om) && om >= 0) ? (om & 0xFFFF) : null;
+    if (om !== undefined && om !== null && next === null) { log('[dev] hook open_ms non valido (' + om + '): ignorato'); }
+    if (next !== devOpenMs) {
+      log(next === null ? '[dev] hook open_ms rimosso: HELLO.OPEN_MS torna quello dell\'orologio'
+                        : '[dev] hook open_ms: HELLO.OPEN_MS forzato a ' + next + ' ms (avviso di avvio lento)');
+    }
+    devOpenMs = next;
   }
   return applyPayload(state, !!(state && state.full === true));
 }
@@ -259,7 +277,7 @@ function parseResponse(r) {
  * Android) il motore è già avviato → resync() (nuovo JS_READY → HELLO → diff). */
 function startOrResync() {
   if (!sync.start({ provider: provider, log: log, hooks: hooks })) {
-    log('[sync] motore già avviato: resync');
+    log('[sync] motore gia\' avviato: resync');   /* F-S8-2: solo ASCII nei log (l'app taglia i byte accentati) */
     sync.resync();
   }
 }

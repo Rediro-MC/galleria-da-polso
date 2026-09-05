@@ -20,6 +20,9 @@
  * persist rallenta ogni avvio). model_shake() non chiama piu' storage_write_rotstate, che
  * aggiorna solo la RAM e programma il debounce da 10 s; model_deinit() NON scrive piu' nulla in
  * persist (solo la disiscrizione dal tap service). Caso (j) test_shake_debounce.
+ * Revisione v1.9 (05/09, F26): caso (k) fuori focus SENZA hold — shake, impostazioni e album cambiati
+ * mentre una notifica copre la watchface non toccano bitmap ne' persist; al ritorno in primo piano
+ * UNA sola applicazione "rot(focus)"; un tick sullo stesso slot non fa ricerche persist (F10).
  *
  * Isolamento: model.c ha stato static senza reset (s_shake resta se il manifest non e' leggibile,
  * s_bad_mask e s_tap_subscribed non vengono azzerati da model_init): ogni caso scrive rotstate 0
@@ -625,6 +628,119 @@ static void test_shake_debounce(void) {
   shutdown();
 }
 
+/* (k) F26: fuori focus SENZA hold. I rami `!s_focus` di model_shake e `s_focus == false` di
+ * model_settings_changed/model_album_changed: nessuna lettura persist ne' bitmap finche' la watchface e'
+ * coperta (D10), poi una sola applicazione al ritorno in primo piano. */
+static void test_out_of_focus_no_hold(void) {
+  fresh(4);
+  boot(10, 0);
+  AccelTapHandler tap = shim_accel_tap_handler();
+  CHECK(tap != NULL);
+  CHECK_EQ(model_current_slot(), 0);
+
+  /* tick sullo stesso slot: nessuna ricerca persist e nessuna chiamata UI (F10) */
+  shim_lookup_reset();
+  model_tick(at(10, 1));
+  model_tick(at(10, 4));
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK_EQ(shim_ui_total_calls(), 0);
+
+  /* shake x2 fuori focus: contatore aggiornato in RAM, zero chiamate UI, zero persist, nessun log
+   * di rotazione; al ritorno UN caricamento dello slot dovuto (120 + 2) mod 4 = 2 */
+  int n = shim_log_count();
+  model_focus(false);
+  tap(ACCEL_AXIS_X, 1);
+  tap(ACCEL_AXIS_Y, -1);
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(shim_write_count(), 0);
+  CHECK_EQ(shim_lookup_count(), 0);
+  CHECK(!shim_timer_pending());
+  CHECK_EQ(shim_log_count(), n);
+  model_focus(true);
+  CHECK_EQ(shim_ui_persist_calls(), 1);
+  CHECK_EQ(shim_ui_last_slot(), expect_slot(lmin(10, 0), INTERVAL, 2));
+  CHECK_EQ(shim_ui_last_slot(), 2);
+  CHECK_EQ(shim_ui_photo_changed(), 1);
+  CHECK(log_is("rot(focus)"));
+  CHECK_EQ(model_current_slot(), 2);
+  CHECK_EQ(shim_write_count(), 0);
+
+  /* impostazioni fuori focus (intervallo 60): niente finche' coperta, applicate al ritorno:
+   * (600/60 + 2) mod 4 = 0. Le scritture di settings_apply/storage_flush sono di storage, non del
+   * modello: model_settings_changed e model_focus non ne aggiungono. */
+  shim_ui_reset_counters();
+  model_focus(false);
+  apply_settings(60, GAL_ORDER_SEQUENTIAL, 1);
+  int w = shim_write_count();
+  model_settings_changed();
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(shim_write_count(), w);
+  model_focus(true);
+  CHECK_EQ(shim_ui_persist_calls(), 1);
+  CHECK_EQ(shim_ui_last_slot(), expect_slot(lmin(10, 0), 60, 2));
+  CHECK_EQ(shim_ui_last_slot(), 0);
+  CHECK_EQ(shim_ui_photo_changed(), 1);
+  CHECK(log_is("rot(focus)"));
+  CHECK_EQ(shim_write_count(), w);
+
+  /* shake disattivato fuori focus: il tap service si disiscrive SUBITO (non e' rotazione), la scossa
+   * e' ignorata e al ritorno non c'e' nulla da caricare (stesso slot 0) */
+  shim_ui_reset_counters();
+  model_focus(false);
+  apply_settings(60, GAL_ORDER_SEQUENTIAL, 0);
+  model_settings_changed();
+  CHECK_EQ(shim_accel_tap_unsubscribes(), 1);
+  CHECK(shim_accel_tap_handler() == NULL);
+  model_shake();
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  model_focus(true);
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(model_current_slot(), 0);
+  /* riattivato (sempre fuori focus): iscritto di nuovo subito */
+  model_focus(false);
+  apply_settings(60, GAL_ORDER_SEQUENTIAL, 1);
+  model_settings_changed();
+  CHECK_EQ(shim_accel_tap_subscribes(), 2);
+  tap = shim_accel_tap_handler();
+  CHECK(tap != NULL);
+  model_focus(true);
+  CHECK_EQ(shim_ui_total_calls(), 0);
+
+  /* album cambiato fuori focus: lo slot mostrato (0) viene ricommittato (generation 2); nessuna
+   * ricarica finche' coperta (nemmeno al tick), una sola al ritorno con la generation nuova */
+  shim_ui_reset_counters();
+  model_focus(false);
+  commit_photo(0);
+  CHECK_EQ(storage_manifest()->slots[0].generation, 2);
+  w = shim_write_count();
+  shim_lookup_reset();
+  model_album_changed();
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(shim_write_count(), w);
+  model_tick(at(10, 30));                    /* coperta: nessun cambio (D10); (630/60 + 2) mod 4 = 0 */
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(shim_lookup_count(), 0);
+  model_focus(true);
+  CHECK_EQ(shim_ui_persist_calls(), 1);
+  CHECK_EQ(shim_ui_last_slot(), 0);
+  CHECK_EQ(shim_ui_last_generation(), 2);
+  CHECK_EQ(shim_ui_photo_changed(), 1);
+  CHECK_EQ(shim_ui_resource_calls(), 0);
+  CHECK(log_is("rot(focus)"));
+  CHECK_EQ(shim_write_count(), w);
+  CHECK_EQ(shim_lookup_count(), 0);          /* la ui finta non legge i chunk; model.c non tocca persist */
+
+  /* focus perso e ripreso senza cambi: nessun caricamento e nessuna riga di log */
+  shim_ui_reset_counters();
+  n = shim_log_count();
+  model_focus(false);
+  model_focus(true);
+  CHECK_EQ(shim_ui_total_calls(), 0);
+  CHECK_EQ(shim_log_count(), n);
+  CHECK(!shim_timer_pending());
+  shutdown();
+}
+
 /* ================================ main ================================ */
 
 static void run(const char *name, void (*fn)(void)) {
@@ -647,6 +763,7 @@ int main(void) {
   run("no_bitmap",                test_no_bitmap);
   run("bad_slot_album_changed",   test_bad_slot_and_album_changed);
   run("shake_debounce",           test_shake_debounce);
+  run("out_of_focus_no_hold",     test_out_of_focus_no_hold);
   printf("test_model: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

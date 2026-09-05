@@ -8,9 +8,11 @@
  * chiamata persist), una per ogni chiave cercata, una A VUOTO per ogni chiave assente. Quindi:
  * un solo record di metadati (manifest + impostazioni + shake, 234 B), nessuna chiave letta a
  * vuoto, s_schema_ok alzato già in init (la prima scrittura non ripaga la ricerca della chiave 0),
- * nessuna scrittura in deinit per lo shake (debounce, come le impostazioni; il flush di deinit
- * scrive solo se ci sono impostazioni pendenti). Chiavi 2 e 10 dello schema 1 lette una volta
- * sola per la migrazione e mai più (cancellarle costerebbe una scansione ciascuna). */
+ * nessuna scrittura in deinit (il flush scrive solo se ci sono impostazioni pendenti); lo shake
+ * NON si persiste affatto (D19: solo RAM in model.c; storage_write_rotstate resta per i test).
+ * Chiavi 2 e 10 dello schema 1 lette una volta sola per la migrazione e mai più (cancellarle
+ * costerebbe una scansione ciascuna). Revisione 05/09: con l'album disabilitato il record scritto
+ * conserva slot e ordine del file (s_backup), anche se in RAM sono azzerati. */
 #include <pebble.h>
 #include "storage.h"
 #include "crc.h"
@@ -24,7 +26,9 @@ static bool        s_settings_dirty;      /* impostazioni cambiate: timer, oppur
 static bool        s_shake_dirty;         /* shake cambiato: solo timer (mai in deinit: uscita veloce) */
 static AppTimer   *s_write_timer;         /* UN solo timer per entrambi (lo shim dei test ne ha uno) */
 static bool        s_schema_ok;           /* chiave 0 verificata/scritta in questa esecuzione */
-static GalManifest s_backup;              /* copia del manifest da ripristinare se la scrittura fallisce */
+static GalManifest s_backup;              /* copia del manifest da ripristinare se la scrittura fallisce; in init è
+                                             il buffer di lettura (anche del V1: 214 ≤ 234 B) e, con l'album
+                                             disabilitato, l'immagine di slot/ordine da conservare nel record */
 static uint16_t    s_open_ms;             /* ms della prima chiamata persist (apertura del file da parte del
                                              firmware): misurata SEMPRE, va nel HELLO (OPEN_MS) per l'avviso
                                              "Galleria lenta" della config page */
@@ -90,15 +94,31 @@ static bool prv_manifest_valid(const GalManifest *m) {
 /* Scrive il manifest corrente (senza controllare l'album: le impostazioni e lo shake si salvano
  * anche con l'album disabilitato). Il CRC delle impostazioni viene ricalcolato: è quello che
  * settings.c/sync.c espongono al telefono (HELLO.CRC), il manifest ha il suo. */
+static void prv_hide_slots(void) {
+  memset(s_manifest.slots, 0, sizeof(s_manifest.slots));
+  memset(s_manifest.order, GAL_SLOT_NONE, sizeof(s_manifest.order));
+}
+
 static StorageResult prv_write_manifest_any(void) {
   StorageResult r = prv_ensure_schema_key();
   if (r != STORAGE_OK) {
     return r;
   }
+  if (!s_album_enabled) {
+    /* Album disabilitato (quota < 1 MiB): in RAM slot e ordine sono azzerati (model.c non li prova),
+     * ma il record deve conservare quelli del file: sono l'unica descrizione delle foto, i cui chunk
+     * restano nel file (revisione 05/09, B1). s_backup = immagine letta/migrata in init, mai toccata
+     * finché l'album è disabilitato (commit/set_order/clear_slot escono con STORAGE_DISABLED). */
+    memcpy(s_manifest.slots, s_backup.slots, sizeof(s_manifest.slots));
+    memcpy(s_manifest.order, s_backup.order, sizeof(s_manifest.order));
+  }
   s_manifest.settings.schema = GAL_SETTINGS_SCHEMA;
   s_manifest.settings.crc16 = crc16_ccitt((const uint8_t *)&s_manifest.settings, sizeof(GalSettings) - 2);
   s_manifest.crc16 = crc16_ccitt((const uint8_t *)&s_manifest, sizeof(s_manifest) - 2);
   r = prv_write_blob(GAL_KEY_MANIFEST, &s_manifest, sizeof(s_manifest));
+  if (!s_album_enabled) {
+    prv_hide_slots();
+  }
   if (r == STORAGE_OK) {
     s_manifest_loaded = true;
     s_settings_dirty = false;              /* il record porta sempre anche impostazioni e shake */
@@ -128,7 +148,10 @@ static void prv_schedule_write(void);
 
 /* ---- migrazione schema 1 → 2 (una volta, al primo avvio dopo l'aggiornamento) ---- */
 
-static GalManifestV1 s_v1;                /* 214 B: mai sullo stack (regola 5) */
+/* Il manifest V1 (214 B) viene letto nei byte di s_backup (234 B, libero durante init): niente
+ * .bss in più per una lettura che avviene una volta sola (revisione 05/09, F28). */
+_Static_assert(sizeof(GalManifestV1) <= sizeof(GalManifest), "il V1 deve stare in s_backup");
+#define S_V1 ((GalManifestV1 *)&s_backup)
 
 static bool prv_v1_valid(const GalManifestV1 *m) {
   if (m->magic != GAL_MAGIC || m->schema != 1 || m->slot_count != GAL_MAX_SLOTS) {
@@ -143,14 +166,16 @@ static bool prv_v1_valid(const GalManifestV1 *m) {
  * l'avvio non paga la scrittura. */
 static void prv_migrate_v1(void) {
   prv_manifest_defaults(&s_manifest);
-  memcpy(s_manifest.order, s_v1.order, sizeof(s_manifest.order));
-  memcpy(s_manifest.slots, s_v1.slots, sizeof(s_manifest.slots));
+  memcpy(s_manifest.order, S_V1->order, sizeof(s_manifest.order));
+  memcpy(s_manifest.slots, S_V1->slots, sizeof(s_manifest.slots));
   static GalSettings s_old;
+  bool have_settings = false;
   if (prv_read_blob(GAL_KEY_SETTINGS, &s_old, sizeof(s_old))
       && s_old.schema == GAL_SETTINGS_SCHEMA
       && crc16_ccitt((const uint8_t *)&s_old, sizeof(s_old) - 2) == s_old.crc16
       && settings_validate(&s_old)) {
     s_manifest.settings = s_old;
+    have_settings = true;
   }
   GalRotState rs;
   if (prv_read_blob(GAL_KEY_ROTSTATE, &rs, sizeof(rs))
@@ -161,7 +186,7 @@ static void prv_migrate_v1(void) {
   s_settings_dirty = true;                 /* → scrittura del record nuovo fra 10 s (o al flush di deinit) */
   prv_schedule_write();
   APP_LOG(APP_LOG_LEVEL_INFO, "storage: manifest schema 1 -> 2 migrated (settings %d shake %u)",
-          (int)(s_manifest.settings.crc16 != 0), (unsigned)s_manifest.shake_offset);
+          (int)have_settings, (unsigned)s_manifest.shake_offset);
 }
 
 /* ---- timer di scrittura (impostazioni + shake) ---- */
@@ -227,7 +252,11 @@ bool storage_init(void) {
   s_album_enabled = (s_quota >= GAL_MIN_QUOTA);
 
   /* Prima chiamata persist = apertura del file da parte del firmware (bootup_check + compute_stats:
-   * 2 scansioni complete, ~0,8 s con 12 foto sul PT2). La chiave 0 è il primo record: 1 passo. */
+   * 2 scansioni complete, ~0,8 s con 12 foto sul PT2) PIÙ la ricerca della chiave 0, la cui posizione
+   * dipende dalla storia del file: dopo i chunk della prima foto su un file nuovo (~135° record),
+   * in coda dopo una migrazione 1 → 2 (riscritta = appesa: fino a una scansione in più). La misura
+   * s_open_ms va quindi letta come "2-3 scansioni" (revisione 05/09, F04): la config page la
+   * confronta con una soglia proporzionale al numero di foto. */
   time_t o_s = 0;
   uint16_t o_ms = 0;
   time_ms(&o_s, &o_ms);                    /* due chiamate per esecuzione: costo nullo (regola 11) */
@@ -235,7 +264,7 @@ bool storage_init(void) {
   if (persist_exists(GAL_KEY_SCHEMA)) {
     schema = persist_read_int(GAL_KEY_SCHEMA);
     if (schema > GAL_SCHEMA || schema < 0) {
-      APP_LOG(APP_LOG_LEVEL_WARNING, "storage: schema %d > %d: reset", (int)schema, GAL_SCHEMA);
+      APP_LOG(APP_LOG_LEVEL_WARNING, "storage: schema %d fuori intervallo (max %d): reset", (int)schema, GAL_SCHEMA);
       prv_reset_meta();
       schema = 0;
     } else if (schema == GAL_SCHEMA) {
@@ -267,11 +296,12 @@ bool storage_init(void) {
                 (unsigned)s_backup.magic, (unsigned)s_backup.schema);
       }
     } else if (size == (int)sizeof(GalManifestV1)) {
-      if (persist_read_data(GAL_KEY_MANIFEST, &s_v1, sizeof(s_v1)) == (int)sizeof(s_v1) && prv_v1_valid(&s_v1)) {
+      if (persist_read_data(GAL_KEY_MANIFEST, S_V1, sizeof(GalManifestV1)) == (int)sizeof(GalManifestV1)
+          && prv_v1_valid(S_V1)) {
         prv_migrate_v1();
       } else {
         APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest v1 invalid (magic %08x schema %u): ignored",
-                (unsigned)s_v1.magic, (unsigned)s_v1.schema);
+                (unsigned)S_V1->magic, (unsigned)S_V1->schema);
       }
     } else {
       APP_LOG(APP_LOG_LEVEL_WARNING, "storage: manifest size %d: ignored", size);
@@ -283,11 +313,11 @@ bool storage_init(void) {
   if (!settings_validate(&s_manifest.settings)) {
     settings_set_defaults(&s_manifest.settings);   /* record letto ma impostazioni fuori intervallo */
   }
+  s_backup = s_manifest;                   /* immagine di slot/ordine (letta, migrata o default) */
   if (!s_album_enabled) {
-    /* Quota < 1 MiB: il record serve solo per impostazioni e shake; gli slot non sono leggibili
-     * (storage_read_chunk rifiuta) e non devono comparire come validi (model.c li proverebbe tutti). */
-    memset(s_manifest.slots, 0, sizeof(s_manifest.slots));
-    memset(s_manifest.order, GAL_SLOT_NONE, sizeof(s_manifest.order));
+    /* Quota < 1 MiB: in RAM gli slot non devono comparire come validi (storage_read_chunk rifiuta e
+     * model.c li proverebbe tutti); nel record scritto restano quelli di s_backup (B1). */
+    prv_hide_slots();
   }
   APP_LOG(APP_LOG_LEVEL_INFO, "storage: quota=%u album=%d schema=%d manifest=%s valid=%u",
           (unsigned)s_quota, (int)s_album_enabled, (int)schema,
@@ -475,6 +505,10 @@ StorageResult storage_clear_slot(uint8_t slot) {
   }
   if (slot >= GAL_MAX_SLOTS) {
     return STORAGE_ERR;
+  }
+  if (s_manifest.slots[slot].state == GAL_SLOT_EMPTY) {
+    return STORAGE_OK;                     /* idempotente (revisione 05/09, F31): un ALBUM_DELETE ritrasmesso
+                                              non appende un record morto (come set_order con ordine identico) */
   }
   s_backup = s_manifest;
   s_manifest.slots[slot].state = GAL_SLOT_EMPTY;

@@ -120,8 +120,14 @@ steps.push(function (next) {
   });
 });
 steps.push(function (next) {
-  /* 2. webviewclosed con 2 foto + ordine + settings → sync completa */
+  /* 2. webviewclosed con 2 foto + ordine + settings → sync completa.
+   *    S8 (F46): i due log di tempistica della pagina sono un contratto con tools/galleria_logstats.py
+   *    (§11, RE_CFG_CHIUSA/RE_CFG_APPLICATO). Qui NON c'è stata una showConfiguration, quindi la riga
+   *    della chiusura non ha il suffisso "dopo N ms" (cfgOpenedAt = 0); il passo 10 prova il caso opposto. */
+  var l2 = logs.length;
   pebble.fire('webviewclosed', { response: encodeURIComponent(JSON.stringify(delta())) });
+  check(hasLog(/^\[config\] pagina chiusa: risposta di \d+ car\.$/, l2), 'step2: log della chiusura senza il suffisso dei ms (nessuna showConfiguration prima)');
+  check(hasLog(/^\[config\] payload applicato in \d+ ms$/, l2), 'step2: log del payload applicato (formato di logstats §11)');
   waitIdle(function (err) {
     check(!err, 'step2 idle');
     check(watch.slots[0].state === 1 && watch.slots[0].crc === crcA, 'slot 0 sull\'orologio');
@@ -207,7 +213,7 @@ steps.push(function (next) {
   waitFor(function () { return countLog(FINE, l8) >= 1; }, function (err) {
     var got = watch.received.slice(n8);
     check(!err, 'step8 sync conclusa');
-    check(hasLog('[sync] motore già avviato: resync', l8), 'step8: secondo ready → resync');
+    check(hasLog('[sync] motore gia\' avviato: resync', l8), 'step8: secondo ready → resync');
     check(countMsg(got, 1) === 2, 'step8: 2 JS_READY (originale + rinvio), got ' + countMsg(got, 1));
     check(hasLog('[sync] nessun HELLO entro 100 ms: rinvio JS_READY (1/2)', l8), 'step8: log del rinvio');
     check(watch.slots[3].state === 1 && watch.slots[3].crc === crcB, 'step8: foto arrivata dopo l\'HELLO perso');
@@ -267,12 +273,22 @@ steps.push(function (next) {
   check(!!st && st.order && st.order.join(',') === '3', 'step10: ordine (got ' + (st && st.order && st.order.join(',')) + ')');
   check(hasLog(/^\[config\] apro la pagina \(URL \d+ car\., stato \d+\)/, l10), 'step10: log di apertura');
   /* pagina chiusa senza modifiche: nessuna sync */
-  var n10 = watch.received.length;
+  var n10 = watch.received.length, lc = logs.length;
   pebble.fire('webviewclosed', { response: '' });
   check(hasLog('[config] pagina chiusa senza modifiche', l10), 'step10: chiusura senza modifiche');
+  /* F46: dopo una showConfiguration la riga porta il tempo passato nella pagina (logstats §11) */
+  check(hasLog(/^\[config\] pagina chiusa: risposta di 0 car\. dopo \d+ ms$/, lc), 'step10: log della chiusura con il tempo nella pagina');
   realSetTimeout(function () {
+    var lc2 = logs.length;
     check(watch.received.length === n10, 'step10: nessun messaggio dopo la chiusura vuota');
-    next();
+    /* cfgOpenedAt azzerato: una seconda chiusura senza riaprire la pagina non misura nulla */
+    pebble.fire('webviewclosed', { response: '' });
+    check(hasLog(/^\[config\] pagina chiusa: risposta di 0 car\.$/, lc2), 'step10: seconda chiusura senza il suffisso (cfgOpenedAt azzerato)');
+    check(!hasLog(/dopo \d+ ms$/, lc2), 'step10: nessun tempo nella seconda chiusura');
+    realSetTimeout(function () {
+      check(watch.received.length === n10, 'step10: nessun messaggio dopo la seconda chiusura vuota');
+      next();
+    }, 100);
   }, 150);
 });
 

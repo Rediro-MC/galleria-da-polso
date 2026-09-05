@@ -238,7 +238,7 @@ Album.prototype._migrateStored = function () {
     }
   }
   if (n) { this.log('[album] migrazione: campo stored sondato per ' + n + ' formati'); }
-  if (pend) { this.log('[album] migrazione: ' + pend + ' formati non sondabili, riprovo più avanti'); }
+  if (pend) { this.log('[album] migrazione: ' + pend + ' formati non sondabili, riprovo piu\' avanti'); }
   return n;
 };
 
@@ -412,9 +412,9 @@ Album.prototype.applyPayload = function (payload, opts) {
   }
 
   /* 1. foto: una voce per formato (al più 24 voci; gli errori si fermano a MAX_ERRORS) */
-  if (payload.photos !== undefined && !isArray(payload.photos)) { res.errors.push('photos non è un array'); fullUnsafe = true; }
+  if (payload.photos !== undefined && !isArray(payload.photos)) { res.errors.push('photos non e\' un array'); fullUnsafe = true; }
   if (isArray(payload.photos)) {
-    if (payload.photos.length > MAX_PHOTO_ENTRIES) { res.errors.push('photos: ' + payload.photos.length + ' voci, al più ' + MAX_PHOTO_ENTRIES); fullUnsafe = true; }
+    if (payload.photos.length > MAX_PHOTO_ENTRIES) { res.errors.push('photos: ' + payload.photos.length + ' voci, al piu\' ' + MAX_PHOTO_ENTRIES); fullUnsafe = true; }
     for (i = 0; i < payload.photos.length && i < MAX_PHOTO_ENTRIES; i++) {
       if (res.errors.length >= MAX_ERRORS) { res.errors.push('troppi errori: payload interrotto'); fullUnsafe = true; break; }
       e = payload.photos[i];
@@ -636,7 +636,7 @@ Album.prototype.plan = function (hello) {
   /* eliminazioni già fatte sull'orologio: via dalla lista; `probed` = campi `stored` appena decisi */
   if (deletedBefore !== d.deleted.length || probed) { this._save(); }
   this.log('[album] piano: ' + out.photos.length + ' foto, ' + out.deletes.length + ' eliminazioni, ordine ' +
-           (out.order ? 'sì' : 'no') + ', impostazioni ' + (out.settings ? 'sì' : (d.settingsSet ? 'no' : 'mai impostate')) +
+           (out.order ? 'si\'' : 'no') + ', impostazioni ' + (out.settings ? 'si\'' : (d.settingsSet ? 'no' : 'mai impostate')) +
            (foreign.length ? ', estranei [' + foreign.join(',') + ']' : ''));
   return out;
 };

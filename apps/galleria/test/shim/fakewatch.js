@@ -11,9 +11,45 @@
  *   w.wipe(); w.slots[k]; w.settings; w.order; w.dropStatus = 1; w.idle();
  *   w.openMs = 2150;                                 // HELLO.OPEN_MS (v1.9); w.noOpenMs = orologio vecchio
  *   w.progress                                        // [k, n] di "Foto k/n" (SYNC_REQUEST{OFFSET}: F3)
+ *
+ * `nameKeys` (S8, bug di campo F-S8-1 del 30/08/2026): l'app Core Devices (Android) NON consegna al
+ * PKJS le chiavi numeriche di pypkjs ma i NOMI ('MSG', 'PROTO', ...), e i byte array come array di
+ * int8 CON SEGNO (cast Kotlin: 200 -> -56). Con `new FakeWatch({ nameKeys: true })` (o GAL_NAMEKEYS=1
+ * nell'ambiente, che cambia il default di TUTTI i FakeWatch del processo) ogni payload consegnato al
+ * PKJS viene riscritto in quella forma; i dizionari IN USCITA dal PKJS restano numerici, come sul
+ * telefono vero. Un test che legge direttamente il ritorno di handle() deve usare FakeWatch.get(d,
+ * 'MSG') invece di d[keys.MSG], altrimenti in questa modalita' non trova nulla.
  */
 var keys = require('message_keys');
 var crc = require('../../src/pkjs/crc');
+
+/* Nome della chiave a partire dal suo numero (10000 + i): l'inverso di message_keys.js. */
+var NAME_OF = {};
+(function () {
+  var k;
+  for (k in keys) { if (Object.prototype.hasOwnProperty.call(keys, k)) { NAME_OF['' + keys[k]] = k; } }
+})();
+
+/* GAL_NAMEKEYS=1: default `nameKeys` per tutti i FakeWatch (l'intera suite gira come sull'app Core
+ * Devices). Assente/0 -> comportamento di sempre (chiavi numeriche, byte 0..255). */
+var NAMEKEYS_DEFAULT = (typeof process !== 'undefined' && process.env &&
+                        process.env.GAL_NAMEKEYS && process.env.GAL_NAMEKEYS !== '0') ? true : false;
+
+/* Riscrittura di un payload nella forma dell'app Core Devices: chiavi-NOME e byte array in int8 con
+ * segno (PKJSApp.toJSData; i valori scalari restano interi). Le chiavi che non hanno un nome (nessuna,
+ * oggi) restano come sono. */
+function toNameKeys(d) {
+  var out = {}, k, v;
+  for (k in d) {
+    if (!Object.prototype.hasOwnProperty.call(d, k)) { continue; }
+    v = d[k];
+    if (Array.isArray(v)) {
+      v = v.map(function (x) { return (((x | 0) & 0xFF) << 24) >> 24; });   /* 200 -> -56 (cast Kotlin) */
+    }
+    out[NAME_OF['' + k] || k] = v;
+  }
+  return out;
+}
 
 var MSG = { JS_READY: 1, HELLO: 2, SYNC_REQUEST: 3, SYNC_READY: 4, PHOTO_BEGIN: 5, PHOTO_DATA: 6,
             PHOTO_END: 7, STATUS: 8, SYNC_DONE: 9, SETTINGS: 10, ALBUM_ORDER: 11, ALBUM_DELETE: 12 };
@@ -36,6 +72,8 @@ function FakeWatch(opts) {
   this.openMs = (opts.openMs !== undefined) ? opts.openMs : 0;
   this.noOpenMs = !!opts.noOpenMs;
   this.log = opts.log || function () {};
+  /* F-S8-1: payload verso il PKJS con le chiavi-NOME e i byte con segno (app Core Devices). */
+  this.nameKeys = (opts.nameKeys !== undefined) ? !!opts.nameKeys : NAMEKEYS_DEFAULT;
   this.dropStatus = 0;          /* > 0: i prossimi N STATUS/SYNC_READY non vengono spediti (persi) */
   this.received = [];           /* log dei MSG ricevuti (numeri) */
   this.sent = [];               /* log dei MSG spediti */
@@ -121,6 +159,9 @@ FakeWatch.prototype.handle = function (d) {
     return true;
   });
   out.forEach(function (r) { self.sent.push(r[keys.MSG]); });
+  /* Ultimo passo: `received`/`sent`, il filtro dropStatus e i test che ispezionano i dizionari
+   * ragionano sempre in chiavi numeriche; solo cio' che ESCE verso il PKJS cambia forma. */
+  if (this.nameKeys) { out = out.map(toNameKeys); }
   return out;
 };
 
@@ -245,4 +286,12 @@ FakeWatch.prototype._handle = function (d, msg) {
 
 FakeWatch.MSG = MSG;
 FakeWatch.CODE = CODE;
+FakeWatch.NAMEKEYS_DEFAULT = NAMEKEYS_DEFAULT;
+FakeWatch.toNameKeys = toNameKeys;
+/* Legge un campo di un payload consegnato al PKJS in una forma qualunque (numerica o per nome):
+ * l'equivalente di gv() in src/pkjs/sync.js, per i test che ispezionano il ritorno di handle(). */
+FakeWatch.get = function (d, name) {
+  var v = d[keys[name]];
+  return (v === undefined) ? d[name] : v;
+};
 module.exports = FakeWatch;

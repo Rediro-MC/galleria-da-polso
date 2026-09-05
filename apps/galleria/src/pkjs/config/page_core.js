@@ -6,11 +6,15 @@
 }(this, function () {
   'use strict';
   var MAX_SLOTS = 12, MAX_THUMB_CHARS = 6000, MAX_NAME = 64, INTERVALS = [0, 5, 15, 30, 60, 180, 1440];
-  /* v1.9 (perf 04/09): sopra questa soglia l'apertura del file persist dell'orologio (HELLO.OPEN_MS)
-   * e' abbastanza lenta da farsi notare all'avvio della watchface -> la pagina mostra l'avviso #slow.
-   * Riferimenti misurati sul Pebble Time 2: ~90 ms con 4 foto e file sano, ~400-800 ms con 12 foto
-   * sane, ~2.150 ms con il file pieno di record morti. */
-  var SLOW_OPEN_MS = 1000;
+  /* v1.9 (perf 04/09, revisione F04): OPEN_MS non misura solo l'apertura del file persist ma
+   * anche la ricerca della chiave 0 (lo schema), e ogni ricerca e' una scansione lineare del
+   * file: il tempo "normale" cresce quindi con il numero di foto tenute sull'orologio. La soglia
+   * dell'avviso #slow e' percio' proporzionale alle foto valide dello snapshot HELLO:
+   *   soglia = 400 ms + 100 ms per foto  (0 foto -> 400, 4 -> 800, 12 -> 1.600).
+   * Riferimenti misurati sul Pebble Time 2: file nuovo con 4 foto open = 90 ms (nessun avviso),
+   * file gonfio di record morti con 4 foto open = 2.145 ms (avviso), 12 foto sane stimate
+   * 650-1.200 ms (nessun avviso). */
+  var SLOW_BASE_MS = 400, SLOW_PER_PHOTO_MS = 100;
   var FMT_LEN = { 1: 34200, 2: 3024 };
   /* [nome, min, max, default] = album.js / settings_validate(); S8-stile: font fino a 5 (4 e 5 = i due
    * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21) */
@@ -195,11 +199,19 @@
     var d = Math.round((isInt(ms) && ms > 0 ? ms : 0) / 100);
     return Math.floor(d / 10) + ',' + (d % 10);
   }
+  /* soglia dell'avviso per QUESTO orologio: 400 ms + 100 ms per ogni foto valida dello snapshot
+   * (slot con state 1). Snapshot assente o senza slot -> 400 ms. */
+  function slowThresholdMs(watch) {
+    var slots = (watch && isArray(watch.slots)) ? watch.slots : [], n = 0, k, s;
+    for (k = 0; k < slots.length && k < MAX_SLOTS; k++) { s = slots[k]; if (s && s.state === 1) { n++; } }
+    return SLOW_BASE_MS + SLOW_PER_PHOTO_MS * n;
+  }
   /* openMs dello snapshot -> secondi da mostrare, oppure null se non c'e' niente da segnalare
-   * (campo assente/null = orologio che non lo manda, 0 = non misurato, sotto soglia = normale). */
+   * (campo assente/null = orologio che non lo manda, 0 = non misurato, sotto o sulla soglia =
+   * normale per il numero di foto che l'orologio tiene). */
   function slowSeconds(watch) {
     var ms = watch && watch.openMs;
-    return (isInt(ms) && ms > SLOW_OPEN_MS) ? secondsText(ms) : null;
+    return (isInt(ms) && ms > slowThresholdMs(watch)) ? secondsText(ms) : null;
   }
   function payloadKb(payload) { return Math.ceil(JSON.stringify(payload).length / 1024); }
   function capMessage(kb, capKb, nAdded) {
@@ -214,6 +226,7 @@
     MAX_NAME: MAX_NAME, FMT_LEN: FMT_LEN, decodeState: decodeState, b64urlToBytes: b64urlToBytes, utf8Decode: utf8Decode,
     defaultSettings: defaultSettings, normalizeSettings: normalizeSettings, defaultState: defaultState, buildTiles: buildTiles,
     freeSlot: freeSlot, buildPayload: buildPayload, payloadKb: payloadKb, capMessage: capMessage, thumbFits: thumbFits,
-    truncateName: truncateName, capForUa: capForUa, SLOW_OPEN_MS: SLOW_OPEN_MS, secondsText: secondsText,
+    truncateName: truncateName, capForUa: capForUa, SLOW_BASE_MS: SLOW_BASE_MS,
+    SLOW_PER_PHOTO_MS: SLOW_PER_PHOTO_MS, slowThresholdMs: slowThresholdMs, secondsText: secondsText,
     slowSeconds: slowSeconds };
 }));

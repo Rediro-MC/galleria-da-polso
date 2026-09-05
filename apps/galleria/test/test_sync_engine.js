@@ -32,6 +32,10 @@
  *      bytes diretti di lunghezza sbagliata
  *  11  parseSlots / parseHello (settingsCrc assente o presente), PROTO diverso
  *  11b parseHello: OPEN_MS (v1.9) = 0, valore, oltre 16 bit, assente (orologio vecchio)
+ *  11c chiavi-NOME dell'app Core Devices (bug di campo F-S8-1, 30/08/2026): sync completa (SETTINGS,
+ *      ALBUM_ORDER, ALBUM_DELETE, 2 foto con chunk rinegoziato) con i payload IN INGRESSO consegnati
+ *      per NOME ('MSG', 'PROTO', ...) e i byte array in int8 con segno -> parseHello (OPEN_MS, CRC,
+ *      SLOTS con CRC >= 0x80000000), STATUS con CODE/SLOT/OFFSET/REPLY_TO, SYNC_READY{MAX_CHUNK}
  *  12  STATUS non pertinenti (OK{offset<LENGTH} in attesa dell'END, SEQ_ERR in attesa del BEGIN,
  *      OK in attesa del SYNC_READY, NO_SPACE durante i dati, MSG ignoti, SYNC_READY ripetuto)
  *  13  watchdog: orologio muto -> sync chiusa, running false, un HELLO successivo riparte
@@ -46,6 +50,9 @@
  * tracciato (checkNoTimers): a fine scenario il motore non deve lasciare timer vivi.
  *
  * Esecuzione: cd test && NODE_PATH=shim node test_sync_engine.js  (oppure make -C test jstest).
+ * GAL_NAMEKEYS=1 nell'ambiente fa girare TUTTA la suite nella forma dell'app Core Devices (chiavi-NOME
+ * e byte con segno in ingresso: shim/fakewatch.js): l'esito deve essere identico, perche' src/pkjs/
+ * sync.js legge le due forme con gv(). I dizionari IN USCITA dal PKJS restano numerici in entrambe.
  */
 
 var FakeWatch = require('fakewatch');
@@ -184,8 +191,8 @@ function order12(list) {
 
 /* ------------------------------------------------------------- ambiente di un singolo caso --- */
 
-/* opts: {format, maxChunk, albumEnabled, statusTimeoutMs, watchdogMs, backoffMs, statusResends,
- *        busyRetries, helloTimeoutMs, helloResends}. configure() e' cumulativo (variabili di modulo):
+/* opts: {format, maxChunk, albumEnabled, nameKeys, statusTimeoutMs, watchdogMs, backoffMs,
+ *        statusResends, busyRetries, helloTimeoutMs, helloResends}. configure() e' cumulativo (variabili di modulo):
  * OGNI parametro viene passato sempre, cosi' un caso non eredita i tempi di quello precedente. */
 function env(opts) {
   opts = opts || {};
@@ -203,7 +210,7 @@ function env(opts) {
   var lg = function (m) { en.logs.push(String(m)); };
   en.log = lg;
   en.watch = new FakeWatch({ format: opts.format || 1, maxChunk: opts.maxChunk,
-                             albumEnabled: opts.albumEnabled, log: lg });
+                             albumEnabled: opts.albumEnabled, nameKeys: opts.nameKeys, log: lg });
   en.pebble = new FakePebble(en.watch, { log: lg });
 
   /* Strumentazione: invii senza ACK/NACK. `settle` PRIMA del callback, perche' il callback di
@@ -331,6 +338,12 @@ function lastLogIndex(en, re) {
   for (i = en.logs.length - 1; i >= 0; i--) { if (re.test(en.logs[i])) { return i; } }
   return -1;
 }
+
+/* Campo di un payload CONSEGNATO AL PKJS, in qualunque forma: chiavi numeriche (pypkjs) o chiavi-NOME
+ * (app Core Devices, caso 11c e GAL_NAMEKEYS=1). E' l'equivalente di gv() in src/pkjs/sync.js: i test
+ * che ispezionano il ritorno di watch.handle() devono passare di qui per valere in tutte e due le
+ * modalita' (i dizionari in USCITA dal PKJS, in FakePebble.outbox, sono sempre numerici). */
+function inField(d, name) { return FakeWatch.get(d, name); }
 
 /* Dizionari spediti dal PKJS (copie in FakePebble.outbox, NACK compresi) con un dato MSG. */
 function outbox(en, msg) {
@@ -1084,7 +1097,7 @@ testcase('7f clamp OFFSET >= COUNT sull\'orologio finto (parita\' con sync_proto
     w.progress = [];
     out = w.handle(d);
     eq(out.length, 1, 'una risposta a SYNC_REQUEST(count ' + count + ', offset ' + offset + ')');
-    eq(out[0][keys.MSG], MSG.SYNC_READY, 'risposta SYNC_READY (count ' + count + ', offset ' + offset + ')');
+    eq(inField(out[0], 'MSG'), MSG.SYNC_READY, 'risposta SYNC_READY (count ' + count + ', offset ' + offset + ')');
     eq(w.state, 'SYNCING', 'orologio in SYNCING (count ' + count + ', offset ' + offset + ')');
     return progressSeq(en);
   }
@@ -1107,7 +1120,7 @@ testcase('7f clamp OFFSET >= COUNT sull\'orologio finto (parita\' con sync_proto
   b[keys.LENGTH] = ph.length; b[keys.CRC] = ph.crc; b[keys.OFFSET] = 0; b[keys.PHOTO_ID] = ph.photoId;
   out = w.handle(b);
   eq(out.length, 1, 'STATUS al PHOTO_BEGIN');
-  eq(out[0][keys.CODE], CODE.OK, 'PHOTO_BEGIN accettato');
+  eq(inField(out[0], 'CODE'), CODE.OK, 'PHOTO_BEGIN accettato');
   eq(progressSeq(en), '2/3 3/3', 'dopo il clamp il BEGIN mostra 3/3, mai 4/3');
   checkNoTimers();
   next();
@@ -1500,6 +1513,123 @@ testcase('11b parseHello: OPEN_MS (0, valore, oltre 16 bit, assente)', function 
         next();
       });
     });
+  });
+});
+
+/* ---- 11c. chiavi-NOME dell'app Core Devices (F-S8-1, 30/08/2026) --------------------------- */
+
+testcase('11c chiavi-NOME (app Core Devices): sync completa (SETTINGS/ORDER/DELETE + 2 foto) con byte int8', function (next) {
+  /* Bug di campo del 30/08/2026: sull'orologio VERO il PKJS gira dentro l'app Core Devices, che
+   * (PKJSApp.toJSData) consegna i payload in ingresso con le chiavi-NOME ('MSG', 'PROTO', ...) e i
+   * byte array come array di int8 CON SEGNO (cast Kotlin: 200 -> -56); pypkjs invece manda le chiavi
+   * numeriche e i byte 0..255. src/pkjs/sync.js legge le due forme con gv() e rimaschera i byte in
+   * u32le: qui l'INTERA sync gira nella forma dell'app Core Devices, non solo il parseHello.
+   * Vale in entrambi i sensi: se gv() sparisse da una chiave, il caso diventa rosso. */
+  var en = env({ nameKeys: true });
+
+  /* Controllo dell'opzione stessa: il default (nameKeys false, senza GAL_NAMEKEYS) non deve cambiare
+   * di una virgola, altrimenti tutti gli altri casi proverebbero la stessa cosa di questo. */
+  var wDef = new FakeWatch({ nameKeys: false }), dj = {}, o0;
+  wDef.slots[0].state = 1; wDef.slots[0].crc = 0xDEADBEEF;
+  dj[keys.MSG] = MSG.JS_READY;
+  o0 = wDef.handle(dj)[0];
+  eq(o0[keys.MSG], MSG.HELLO, 'nameKeys false: HELLO con le chiavi numeriche (come pypkjs)');
+  eq(o0.MSG, undefined, 'nameKeys false: nessuna chiave-nome');
+  eq(o0[keys.SLOTS][1], 0xEF, 'nameKeys false: byte 0..255 (0xEF, non -17)');
+  eq(new FakeWatch({}).nameKeys, FakeWatch.NAMEKEYS_DEFAULT, 'il default di fakewatch segue GAL_NAMEKEYS');
+
+  /* Payload consegnati al PKJS (dopo la conversione di fakewatch): li controllo uno per uno. */
+  var inbound = [], origHandle = en.watch.handle;
+  en.watch.handle = function (d) {
+    var out = origHandle.call(this, d);
+    out.forEach(function (r) { inbound.push(r); });
+    return out;
+  };
+
+  en.watch.openMs = 2150;                                              /* file persist gonfio (v1.9) */
+  en.watch.slots[3].state = 1; en.watch.slots[3].crc = 0xDEADBEEF;     /* >= 0x80000000: 4 byte int8 negativi */
+  en.watch.slots[9].state = 1; en.watch.slots[9].crc = 0x000000FF;     /* 0xFF -> -1 in int8 */
+  var crc0 = en.watch.settingsCrc();     /* CRC PRIMA della sync: il MSG.SETTINGS lo cambia */
+  var p0 = mkPhoto(0, 0x11C1, { seed: 41 });
+  var p1 = mkPhoto(7, 0x11C2, { seed: 42 });
+  var pr = mkProvider(function (hello) {
+    eq(hello.maxChunk, 4096, 'HELLO annuncia 4096');
+    en.watch.maxChunk = 2048;      /* rinegoziato dal SYNC_READY: prova che MAX_CHUNK e' letto per nome */
+    return { settings: SETTINGS20, order: order12([0, 7]), deletes: [3], photos: [p0, p1] };
+  });
+  startSync(en, pr);
+  waitIdle(function (err) {
+    /* Accessi difensivi come summary(): un'asserzione rossa non deve far crollare la suite con un
+     * TypeError (con gv() rotta il piano non parte nemmeno e pr.hellos resta vuoto). */
+    var h = pr.hellos[0] || { slots: [] }, hp = inbound[0] || {}, sum = summary(pr, 0);
+    function sb(i) { return hp.SLOTS ? hp.SLOTS[i] : undefined; }        /* byte i-esimo di SLOTS */
+    function hs(i) { return (h.slots && h.slots[i]) || {}; }             /* slot i-esimo di parseHello */
+    check(!err, 'sync terminata');
+
+    /* a) i payload sono DAVVERO nella forma dell'app Core Devices */
+    eq(inbound.length, 9, '9 payload verso il PKJS (HELLO, 3 STATUS, SYNC_READY, BEGIN/END x2)');
+    eq(inbound.filter(function (d) { return d[keys.MSG] !== undefined; }).length, 0,
+       'nessun payload con le chiavi numeriche');
+    eq(inbound.filter(function (d) { return d.MSG === undefined; }).length, 0, 'ogni payload ha la chiave "MSG"');
+    eq(hp.MSG, MSG.HELLO, 'primo payload: HELLO');
+    eq(hp.OPEN_MS, 2150, 'OPEN_MS nel payload (per nome)');
+    eq(sb(15), 1, 'SLOTS: stato dello slot 3');
+    eq(sb(16), -17, 'SLOTS: byte 0 del CRC 0xDEADBEEF come int8 (-17)');
+    eq(sb(17), -66, 'SLOTS: byte 1 (-66)');
+    eq(sb(18), -83, 'SLOTS: byte 2 (-83)');
+    eq(sb(19), -34, 'SLOTS: byte 3 (-34)');
+    eq(sb(46), -1, 'SLOTS: 0xFF come int8 (-1)');
+
+    /* b) parseHello: byte con segno rimascherati (u32le), CRC/OPEN_MS letti per nome */
+    eq(h.proto, 1, 'hello.proto');
+    eq(h.format, 1, 'hello.format');
+    eq(h.maxChunk, 4096, 'hello.maxChunk');
+    eq(h.openMs, 2150, 'hello.openMs (OPEN_MS per nome)');
+    eq(h.settingsCrc, crc0, 'hello.settingsCrc (CRC per nome, quello di prima della sync)');
+    check(h.settingsCrc !== en.watch.settingsCrc(), 'le impostazioni sono cambiate durante la sync');
+    eq(h.slots.length, 12, '12 slot');
+    eq(hs(3).state, 1, 'slot 3 valido');
+    eq(hs(3).crc, 0xDEADBEEF, 'CRC >= 0x80000000 ricomposto senza segno dai byte int8');
+    eq(hs(9).crc, 0x000000FF, 'CRC 0x000000FF (byte -1) ricomposto senza segno');
+    eq(hs(0).state, 0, 'slot 0 vuoto');
+    eq(hs(0).crc, 0, 'CRC dello slot vuoto');
+    check(hasLog(en, /HELLO proto=1 maxChunk=4096 open=2150ms/), 'log del HELLO');
+
+    /* c) SYNC_READY{MAX_CHUNK} per nome: senza gv() il chunk resterebbe 4096 e l'orologio finto
+     *    (maxChunk 2048) risponderebbe SEQ_ERR a ogni chunk. */
+    check(hasLog(en, /SYNC_READY chunk=2048/), 'MAX_CHUNK del SYNC_READY letto per nome');
+    eq(count(en.watch.received, MSG.PHOTO_DATA), 34, '34 PHOTO_DATA (17 per foto, chunk 2048)');
+    eq(count(en.watch.received, MSG.PHOTO_BEGIN), 2, 'nessuna ripartenza (2 soli PHOTO_BEGIN)');
+
+    /* d) STATUS: CODE, SLOT, OFFSET e REPLY_TO letti per nome */
+    check(hasLog(en, /STATUS OK slot=255 offset=0 re=10/), 'STATUS di SETTINGS (SLOT 0xFF, REPLY_TO 10)');
+    check(hasLog(en, /STATUS OK slot=255 offset=0 re=11/), 'STATUS di ALBUM_ORDER (REPLY_TO 11)');
+    check(hasLog(en, /STATUS OK slot=3 offset=0 re=12/), 'STATUS di ALBUM_DELETE (SLOT 3, REPLY_TO 12)');
+    check(hasLog(en, /STATUS OK slot=0 offset=0 re=5/), 'STATUS del PHOTO_BEGIN (REPLY_TO 5)');
+    check(hasLog(en, /STATUS OK slot=0 offset=34200 re=7/), 'STATUS del PHOTO_END (OFFSET = LENGTH, REPLY_TO 7)');
+    check(hasLog(en, /STATUS OK slot=7 offset=34200 re=7/), 'STATUS del PHOTO_END della 2a foto');
+    check(!hasLog(en, /STATUS non pertinente/), 'nessuno STATUS scambiato per non pertinente');
+    check(!hasLog(en, /nessuno STATUS entro/), 'nessuna attesa scaduta');
+
+    /* e) esito: la sync e' andata a buon fine come in modalita' numerica */
+    eq(en.watch.received.join(','),
+       [MSG.JS_READY, MSG.SETTINGS, MSG.ALBUM_ORDER, MSG.ALBUM_DELETE, MSG.SYNC_REQUEST]
+         .concat(photoSeq(17)).concat(photoSeq(17)).concat([MSG.SYNC_DONE]).join(','),
+       'sequenza dei messaggi ricevuti');
+    bytesEq(en.watch.buffers[0], p0._expected, 'byte della foto nello slot 0');
+    bytesEq(en.watch.buffers[7], p1._expected, 'byte della foto nello slot 7');
+    eq(en.watch.slots[0].crc, crc.crc32(p0._expected), 'CRC dello slot 0');
+    eq(en.watch.slots[7].photoId, 0x11C2, 'photo_id dello slot 7');
+    eq(en.watch.slots[3].state, 0, 'slot 3 eliminato dall\'ALBUM_DELETE');
+    eq(en.watch.order.join(','), '0,7', 'ordine sull\'orologio');
+    eq(en.watch.settings.slice(0, 3).join(','), '1,1,2', 'impostazioni memorizzate (schema, layout, font)');
+    eq(show(sum), show({ photosOk: 2, photosFailed: 0, settings: 'OK', order: 'OK',
+                         deletes: ['3:OK'], photoCodes: [] }), 'summary');
+    eq(show(pr.results), show([{ slot: 0, ok: true, code: 'OK' }, { slot: 7, ok: true, code: 'OK' }]),
+       'onPhotoResult per tutte e due le foto');
+    checkInFlight(en, 1);
+    checkNoTimers();
+    next();
   });
 });
 

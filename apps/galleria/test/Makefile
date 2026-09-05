@@ -21,9 +21,12 @@ PYTHON  ?= python3
 NODE    ?= node
 PHOTO_PREP = ../../../tools/photo_prep.py
 
-TESTS = test_timefmt test_crc test_photo_codec test_luma test_rotation test_storage test_sync_proto test_model
+TESTS = test_timefmt test_crc test_photo_codec test_luma test_rotation test_storage test_storage_adv test_sync_proto test_model
 # S7: test_sync (sync.c compilato INALTERATO su host con lo shim AppMessage/dict) entra in `all` solo se il file esiste.
 TESTS += $(if $(wildcard test_sync.c),test_sync,)
+# Revisione v1.9 (05/09, F36): test_sync compilato anche come build M (-DGALLERIA_DEBUG_TIMING=1): la riga
+# "sync: gap" una sola volta per foto (mai per un PHOTO_END ritrasmesso) e le letture di time_ms della build M.
+TESTS += $(if $(wildcard test_sync.c),test_sync_timing,)
 
 all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck logstats cards
 
@@ -42,13 +45,18 @@ $(OUT)/test_crc: test_crc.c $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
 $(OUT)/test_photo_codec: test_photo_codec.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/photo_codec.h $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ test_photo_codec.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c
 
-$(OUT)/test_rotation: test_rotation.c $(SRC_DIR)/rotation.c $(SRC_DIR)/rotation.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/photo_codec.c | $(OUT)
+$(OUT)/test_rotation: test_rotation.c $(SRC_DIR)/rotation.c $(SRC_DIR)/rotation.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/settings.h $(SRC_DIR)/photo_codec.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ test_rotation.c $(SRC_DIR)/rotation.c $(SRC_DIR)/photo_codec.c
 
 # storage.c usa <pebble.h>: viene compilato INALTERATO con lo shim host in shim/ (-Ishim davanti
 # a -I$(SRC_DIR), che è già dentro CFLAGS).
 $(OUT)/test_storage: test_storage.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
 	$(CC) -Ishim $(CFLAGS) -o $@ test_storage.c shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c
+
+# Revisione v1.9 (05/09): test adversariali aggiuntivi di storage.c (migrazione a metà, album disabilitato,
+# ritentativi del timer, open_ms, chiavi legacy): stessa ricetta di test_storage.
+$(OUT)/test_storage_adv: test_storage_adv.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
+	$(CC) -Ishim $(CFLAGS) -o $@ test_storage_adv.c shim/pebble_shim.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/crc.c
 
 # sync_proto.c e' puro ma trascina storage.c/settings.c (<pebble.h>): stesso trattamento con -Ishim.
 $(OUT)/test_sync_proto: test_sync_proto.c shim/pebble.h shim/pebble_shim.c $(SRC_DIR)/sync_proto.c $(SRC_DIR)/sync_proto.h $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/photo_codec.h $(SRC_DIR)/gal_types.h $(SRC_DIR)/crc.c $(SRC_DIR)/crc.h | $(OUT)
@@ -66,8 +74,12 @@ $(OUT)/test_luma: test_luma.c $(SRC_DIR)/luma.c $(SRC_DIR)/luma.h | $(OUT)
 # MESSAGE_KEY_*), model.c + rotation.c reali (F1: hold della rotazione durante la sync) e i finti ui_*
 # di shim/ui_fake.c (estesi con le ui_time_* usate da sync.c). Pinna F1, F2 (timer di silenzio), F4 (outbox
 # esatta + tripwire), coda outbox, decodifica per lunghezza di tupla, negoziazione del chunk.
-$(OUT)/test_sync: test_sync.c shim/pebble.h shim/pebble_shim.c shim/ui_fake.c shim/ui_fake.h $(SRC_DIR)/sync.c $(SRC_DIR)/sync.h $(SRC_DIR)/sync_proto.c $(SRC_DIR)/sync_proto.h $(SRC_DIR)/model.c $(SRC_DIR)/model.h $(SRC_DIR)/rotation.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c $(SRC_DIR)/gal_types.h $(SRC_DIR)/ui_photo.h $(SRC_DIR)/ui_time.h | $(OUT)
+$(OUT)/test_sync: test_sync.c shim/pebble.h shim/pebble_shim.c shim/ui_fake.c shim/ui_fake.h $(SRC_DIR)/sync.c $(SRC_DIR)/sync.h $(SRC_DIR)/sync_proto.c $(SRC_DIR)/sync_proto.h $(SRC_DIR)/model.c $(SRC_DIR)/model.h $(SRC_DIR)/rotation.c $(SRC_DIR)/rotation.h $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c $(SRC_DIR)/gal_types.h $(SRC_DIR)/ui_photo.h $(SRC_DIR)/ui_time.h | $(OUT)
 	$(CC) -Ishim $(CFLAGS) -o $@ test_sync.c shim/pebble_shim.c shim/ui_fake.c $(SRC_DIR)/sync.c $(SRC_DIR)/sync_proto.c $(SRC_DIR)/model.c $(SRC_DIR)/rotation.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c
+
+# Build M di test_sync (F36): stesso file e stesse dipendenze, in piu' -DGALLERIA_DEBUG_TIMING=1 (caso gap_once).
+$(OUT)/test_sync_timing: test_sync.c shim/pebble.h shim/pebble_shim.c shim/ui_fake.c shim/ui_fake.h $(SRC_DIR)/sync.c $(SRC_DIR)/sync.h $(SRC_DIR)/sync_proto.c $(SRC_DIR)/sync_proto.h $(SRC_DIR)/model.c $(SRC_DIR)/model.h $(SRC_DIR)/rotation.c $(SRC_DIR)/rotation.h $(SRC_DIR)/storage.c $(SRC_DIR)/storage.h $(SRC_DIR)/settings.c $(SRC_DIR)/settings.h $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c $(SRC_DIR)/gal_types.h $(SRC_DIR)/gal_log.h $(SRC_DIR)/ui_photo.h $(SRC_DIR)/ui_time.h | $(OUT)
+	$(CC) -Ishim $(CFLAGS) -DGALLERIA_DEBUG_TIMING=1 -o $@ test_sync.c shim/pebble_shim.c shim/ui_fake.c $(SRC_DIR)/sync.c $(SRC_DIR)/sync_proto.c $(SRC_DIR)/model.c $(SRC_DIR)/rotation.c $(SRC_DIR)/storage.c $(SRC_DIR)/settings.c $(SRC_DIR)/timefmt.c $(SRC_DIR)/photo_codec.c $(SRC_DIR)/crc.c
 
 
 # Autotest del tool Python (pack6/pack1/CRC32 contro i vettori noti; nessuna foto necessaria).

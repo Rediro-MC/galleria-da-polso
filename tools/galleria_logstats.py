@@ -41,6 +41,10 @@ Note di lettura:
     (`[sync] chunk … ack`) si perdono, quindi le misure per chunk vanno lette nelle righe
     `sync: end` dell'orologio (§2.1 della specifica);
   * `[PHONESIM] [WARNING]` (pypkjs in emulatore) è rumore: contato a parte, mai anomalia;
+  * il prefisso delle righe PKJS cambia con l'ambiente (`./src/pkjs/index.js:97:0 ` in
+    emulatore, `Galleria:193:28) ` sull'orologio reale): viene tolto prima di leggere il tag;
+  * campi arrivati dopo (facoltativi, così i log vecchi restano leggibili): `sty=` in
+    `settings:`/`ui_time:` (S8-stile) e ` open=…ms`/` open=-` in `[sync] HELLO` (v1.9);
   * `digits: font=… size=… WxH fill=…` è la riga informativa (LOGV) di `ui_digits.c`: le altre
     righe `digits:` sono ERROR e finiscono nelle anomalie;
   * la sezione 13 legge le due righe della build M (`GALLERIA_DEBUG_TIMING`) `init: open=… tot=… ms`
@@ -70,9 +74,13 @@ RE_ANSI = re.compile(r'\x1b\[[0-9;]*m')
 RE_OROLOGIO = re.compile(r'^\[(\d\d:\d\d:\d\d)\] ([^\s:]{1,16}):(\d+)> (.*)$')
 # Riga del telefono/PKJS: [HH:MM:SS] pkjs> messaggio
 RE_PKJS = re.compile(r'^\[(\d\d:\d\d:\d\d)\] pkjs> (.*)$')
-# Prefisso facoltativo del messaggio PKJS: `./src/pkjs/index.js:97:0 ` (pypkjs) o `Galleria:97 `
-# (app reale). Tolto solo se davanti a un tag [album]/[sync]/[config]/[dev]/[PHONESIM].
-RE_PKJS_PREFISSO = re.compile(r'^(\S+):(\d+)(?::(\d+))?\s+(?=\[)')
+# Prefisso facoltativo del messaggio PKJS: `./src/pkjs/index.js:97:0 ` (pypkjs) oppure
+# `Galleria:193:28) ` — l'app Pebble reale scrive `nomeLungo:riga:colonna)`, con la PARENTESI
+# CHIUSA finale (verificato sui log di campo run_s8_02..10 del 30/08 e del 04/09); esiste anche
+# la forma `Galleria:97 ` senza colonna. La parentesi e' facoltativa e il nome non e' goloso,
+# cosi' `./src/pkjs/index.js:97:0` non si mangia il numero di riga.
+# Tolto solo se davanti a un tag [album]/[sync]/[config]/[dev]/[PHONESIM].
+RE_PKJS_PREFISSO = re.compile(r'^(\S+?):(\d+)(?::(\d+))?\)?\s+(?=\[)')
 RE_ORA = re.compile(r'^\[(\d\d:\d\d:\d\d)\]')
 RE_ORA_VALIDA = re.compile(r'^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$')   # anche HH<=23, MM/SS<=59
 
@@ -82,7 +90,10 @@ RE_WATCH = _rx(r'^watch: fw (\d+)\.(\d+)\.(\d+) model=(\d+)')
 RE_BATT = _rx(r'^batt: (\d+)% chg=(-?\d+) plug=(-?\d+) up (\d+) min')
 RE_BT = _rx(r'^bt: connected=(-?\d+)')
 RE_STORAGE = _rx(r'^storage: quota=(\d+) album=(-?\d+) schema=(-?\d+) manifest=(\S+) valid=(\d+)')
-RE_SETTINGS = _rx(r'^settings: (\S+) layout=(\d+) font=(\d+) interval=(\d+) order=(\d+) shake=(\d+)')
+# `sty=` (stile delle cifre) e' arrivato con S8-stile: facoltativo, cosi' i log precedenti
+# restano leggibili (settings.c: "settings: %s layout=%u font=%u sty=%u interval=%u order=%u shake=%u").
+RE_SETTINGS = _rx(r'^settings: (\S+) layout=(\d+) font=(\d+)(?: sty=(\d+))?'
+                  r' interval=(\d+) order=(\d+) shake=(\d+)')
 RE_INIT = _rx(r'^init: open=(-?\d+) man=(-?\d+) sto=(-?\d+) set=(-?\d+) mod=(-?\d+)'
               r' win=(-?\d+) syn=(-?\d+) tot=(-?\d+) ms')
 RE_DEINIT = _rx(r'^deinit: mod=(-?\d+) fl=(-?\d+) win=(-?\d+) tot=(-?\d+) ms')
@@ -101,8 +112,10 @@ RE_ROT = _rx(r'^rot\(([^)]*)\): t=(\d+) int=(\d+) ord=(\d+) shk=(\d+) slot=(\d+)
              r' demo=(\d+) valid=(\d+) bad=([0-9a-fA-F]+)')
 RE_LUMA = _rx(r'^luma\(([^)]*)\): m=(\d+) b=(-?\d+)\+(-?\d+) h=(-?\d+) ph=(-?\d+) w=(-?\d+)'
               r' bad=(\d+)\((\d+)/(\d+)\) mean=(\d+) fg=([0-9a-fA-F]+) halo=(-?\d+)')
+# ui_time.c: "ui_time: cs=%d bt=%d loc=%s %dx%d unob=%d lay=%u font=%u sty=%u mode=%u band=%d";
+# `sty=` (S8-stile) e' facoltativo come in RE_SETTINGS.
 RE_UITIME = _rx(r'^ui_time: cs=(-?\d+) bt=(-?\d+) loc=(\S+) (\d+)x(\d+) unob=(-?\d+)'
-                r' lay=(\d+) font=(\d+) mode=(\d+) band=(-?\d+)')
+                r' lay=(\d+) font=(\d+)(?: sty=(\d+))? mode=(\d+) band=(-?\d+)')
 RE_PHOTO_INFO = _rx(r'^photo: (?:bitmap \d|resource \d+ loaded=)')
 RE_PHOTO_READ = _rx(r'^photo: slot \d+ chunk \d+ read')
 RE_DIGITS_INFO = _rx(r'^digits: font=\d+ size=\d+ \d+x\d+ fill=')
@@ -115,7 +128,12 @@ RE_JS_TAG = re.compile(r'^\[([A-Za-z]+)\]')
 RE_JS_PRONTO = _rx(r'^\[album\] pronto \(([^)]*)\): (.*)$')
 RE_JS_PIANO = _rx(r'^\[album\] piano: (\d+) foto, (\d+) eliminazioni, (.*)$')
 RE_JS_READY = _rx(r'^\[sync\] JS_READY')
-RE_JS_HELLO = _rx(r'^\[sync\] HELLO proto=(\d+) maxChunk=(\d+) slots=(\S*)')
+# sync.js v1.9: fra `maxChunk=` e `slots=` c'e' ` open=<n>ms` (l'apertura del persist misurata
+# dall'orologio, HELLO.OPEN_MS) oppure ` open=-` con un orologio precedente alla v1.9. Il campo
+# e' facoltativo: i log v1.8 e piu' vecchi restano riconosciuti. Il gruppo `open` prende solo i
+# ms; `open=-` (e l'assenza del campo) danno None.
+RE_JS_HELLO = _rx(r'^\[sync\] HELLO proto=(\d+) maxChunk=(\d+)'
+                  r'(?: open=(?:(?P<open>\d+)ms|-))? slots=(\S*)')
 RE_JS_SYNC_READY = _rx(r'^\[sync\] SYNC_READY chunk=(\d+)')
 RE_JS_FOTO_N = _rx(r'^\[sync\] foto (\d+)/(\d+): slot (\d+)')
 RE_JS_FOTO_OK = _rx(r'^\[sync\] foto slot (\d+) OK: (\d+) B in (\d+) messaggi, (\d+) ms')
@@ -449,9 +467,12 @@ class Raccolta(object):
             return True
         m = RE_SETTINGS.match(msg)
         if m:
+            # `sty` (stile delle cifre, S8-stile) e' None nei log precedenti a quella sessione.
             self.settings.append({'ora': ora, 'origine': m.group(1), 'layout': int(m.group(2)),
-                                  'font': int(m.group(3)), 'interval': int(m.group(4)),
-                                  'order': int(m.group(5)), 'shake': int(m.group(6))})
+                                  'font': int(m.group(3)),
+                                  'sty': int(m.group(4)) if m.group(4) is not None else None,
+                                  'interval': int(m.group(5)),
+                                  'order': int(m.group(6)), 'shake': int(m.group(7))})
             return True
         return False
 
@@ -545,8 +566,10 @@ class Raccolta(object):
             self.ui_time.append({'ora': ora, 'cs': int(m.group(1)), 'bt': int(m.group(2)),
                                  'loc': m.group(3), 'w': int(m.group(4)), 'h': int(m.group(5)),
                                  'unob': int(m.group(6)), 'lay': int(m.group(7)),
-                                 'font': int(m.group(8)), 'mode': int(m.group(9)),
-                                 'band': int(m.group(10))})
+                                 'font': int(m.group(8)),
+                                 'sty': int(m.group(9)) if m.group(9) is not None else None,
+                                 'mode': int(m.group(10)),
+                                 'band': int(m.group(11))})
             return True
         if RE_DIGITS_INFO.match(msg):
             return True
@@ -608,8 +631,17 @@ class Raccolta(object):
                             ('config applicato', RE_CFG_APPLICATO)):
             m = regex.match(msg)
             if m:
-                self.pkjs_eventi.append({'ora': ora, 'tipo': tipo, 'testo': msg,
-                                         'dati': [g for g in m.groups() if g is not None]})
+                # `dati` senza i gruppi nominati (p.es. `open` dell'HELLO v1.9): cosi' la posizione
+                # degli altri campi non dipende dalla versione dell'orologio (revisione 05/09).
+                nominati = set(m.re.groupindex.values())
+                voce = {'ora': ora, 'tipo': tipo, 'testo': msg,
+                        'dati': [g for i, g in enumerate(m.groups(), 1) if g is not None and i not in nominati]}
+                if tipo == 'HELLO':
+                    # v1.9: ms dell'apertura del persist misurati dall'orologio (None con
+                    # `open=-`, cioe' un orologio pre-v1.9, e nei log senza il campo).
+                    grezzo = m.groupdict().get('open')
+                    voce['open_ms'] = int(grezzo) if grezzo is not None else None
+                self.pkjs_eventi.append(voce)
                 return True
         m = RE_JS_RETRY.search(msg)
         if m:
@@ -760,6 +792,13 @@ class Raccolta(object):
             voce['bad'] = r['bad']
             voce['ultima_ora'] = r['ora']
         return fuori
+
+    def hello_open(self):
+        """Un elemento per riga `[sync] HELLO` del telefono, con il campo `open=` della v1.9:
+        i ms che il firmware ha messo ad aprire il file persist (misurati dall'orologio e
+        mandati nell'HELLO). `None` = `open=-` (orologio pre-v1.9) o log senza quel campo."""
+        return [{'ora': e['ora'], 'open_ms': e.get('open_ms')}
+                for e in self.pkjs_eventi if e['tipo'] == 'HELLO']
 
     def luma_per_fg(self):
         fuori = {}
@@ -926,9 +965,10 @@ def _sez2_orologio(d, r):
             r.elenco('attenzione: firmware/modello diversi nei file: %s' % (diversi,))
     else:
         r.riga('nessuna riga `watch: fw` (build precedente a S8 o log troncato)')
-    r.tabella(['ora', 'cs', 'bt', 'loc', 'schermo', 'unob', 'lay', 'font', 'mode', 'band'],
+    # `sty` (stile delle cifre) manca nei log precedenti a S8-stile: colonna vuota, non 0.
+    r.tabella(['ora', 'cs', 'bt', 'loc', 'schermo', 'unob', 'lay', 'font', 'sty', 'mode', 'band'],
               [[u['ora'], u['cs'], u['bt'], u['loc'], '%dx%d' % (u['w'], u['h']), u['unob'],
-                u['lay'], u['font'], u['mode'], u['band']] for u in d.ui_time],
+                u['lay'], u['font'], u['sty'], u['mode'], u['band']] for u in d.ui_time],
               max_righe=MAX_RIGHE_TABELLA)
 
 
@@ -962,9 +1002,9 @@ def _sez4_init(d, r):
     r.tabella(['ora', 'quota', 'album', 'schema', 'manifest', 'valid'],
               [[s['ora'], s['quota'], s['album'], s['schema'], s['manifest'], s['valid']]
                for s in d.storage])
-    r.tabella(['ora', 'origine', 'layout', 'font', 'interval', 'order', 'shake'],
-              [[s['ora'], s['origine'], s['layout'], s['font'], s['interval'], s['order'],
-                s['shake']] for s in d.settings])
+    r.tabella(['ora', 'origine', 'layout', 'font', 'sty', 'interval', 'order', 'shake'],
+              [[s['ora'], s['origine'], s['layout'], s['font'], s['sty'], s['interval'],
+                s['order'], s['shake']] for s in d.settings])
     r.tabella(['ora', 'inbox/outbox', 'esito', 'chunk', 'heap u/f', 'costo'],
               [[s['ora'], '%d/%d' % (s['inbox'], s['outbox']), s['esito'], s['chunk'],
                 '%d/%d' % (s['heap_used'], s['heap_free']), s['costo']] for s in d.sync_open])
@@ -1096,6 +1136,11 @@ def _sez11_pkjs(d, r):
     r.tabella(['ora', 'evento', 'testo'],
               [[e['ora'], e['tipo'], e['testo'][:90]] for e in d.pkjs_eventi],
               max_righe=MAX_RIGHE_TABELLA)
+    hello = d.hello_open()
+    if hello:
+        r.riga('HELLO: %d (open ms: %s ; `-` = orologio pre-v1.9 o log senza il campo)'
+               % (len(hello), ', '.join('-' if h['open_ms'] is None else str(h['open_ms'])
+                                        for h in hello)))
     if d.pkjs_chunk:
         r.riga('chunk ack: %s (raffiche perse dall\'app Android: canale da 2 con DROP_OLDEST)'
                % fmt_stat(statistiche(d.pkjs_chunk)))
@@ -1227,6 +1272,7 @@ def riepilogo_json(d):
         'pkjs': {
             'tag': d.pkjs_tag,
             'eventi': d.pkjs_eventi,
+            'hello': d.hello_open(),
             'chunk_ack': statistiche(d.pkjs_chunk),
             'phonesim': d.n_phonesim,
         },
@@ -1386,6 +1432,26 @@ riga estranea senza timestamp
 [08:05:10] main.c:23> batt: 86% chg=1 plug=1 up 2 min
 [08:05:20] main.c:14> heap deinit: used=24 free=106040
 [08:05:20] main.c:177> deinit: mod=1 fl=0 win=0 tot=2 ms
+"""
+
+
+# Campione della build ATTUALE (v1.9 + S8-stile), tenuto separato da CAMPIONE — che resta la
+# prova dei formati precedenti, ancora presenti nelle fixture: qui ci sono il prefisso PKJS
+# dell'app reale (`Galleria:193:28) `), l'HELLO con ` open=…ms` e con ` open=-` (orologio
+# pre-v1.9) e le righe `settings:`/`ui_time:` con `sty=`.
+CAMPIONE_V19 = """[21:00:00] main.c:15> heap main: used=24 free=103288
+[21:00:00] storage.c:283> storage: quota=1048576 album=1 schema=2 manifest=persist valid=4
+[21:00:00] settings.c:93> settings: persist layout=1 font=4 sty=2 interval=30 order=0 shake=1
+[21:00:00] ui_time.c:732> ui_time: cs=2 bt=1 loc=it_IT 200x228 unob=228 lay=1 font=4 sty=2 mode=1 band=110
+[21:00:01] pkjs> Galleria:193:28) [sync] JS_READY
+[21:00:01] pkjs> Galleria:193:28) [sync] HELLO proto=1 maxChunk=4096 open=2145ms slots=1016b83c,-,-,-,-,-,-,-,-,-,-,-
+[21:00:02] pkjs> Galleria:193:28) [album] piano: 0 foto, 0 eliminazioni, ordine no, impostazioni no
+[21:00:03] pkjs> Galleria:193:28) [sync] fine: {"photosOk":0,"photosFailed":0,"settings":null}
+[21:00:10] pkjs> Galleria:193:28) [config] pagina chiusa: risposta di 51200 car. dopo 29500 ms
+[21:01:00] pkjs> Galleria:97 [sync] HELLO proto=1 maxChunk=4096 open=- slots=-,-,-,-,-,-,-,-,-,-,-,-
+[21:02:00] pkjs> ./src/pkjs/index.js:97:0 [sync] HELLO proto=1 maxChunk=4096 slots=-,-,-,-,-,-,-,-,-,-,-,-
+[21:03:00] settings.c:93> settings: defaults layout=0 font=0 interval=30 order=0 shake=1
+[21:03:00] ui_time.c:732> ui_time: cs=2 bt=1 loc=it_IT 200x228 unob=228 lay=0 font=0 mode=1 band=106
 """
 
 
@@ -1587,6 +1653,32 @@ def selftest():
     c(esiti, riepilogo_json(d6)['avvio_uscita']['avvii'][0]['init']['resto'] == -23,
       'resto negativo conservato')
     c(esiti, 'resto negativo su 1' in riepilogo_testo(d6), 'avviso del resto negativo')
+    # --- build attuale: prefisso PKJS dell'app reale, HELLO con open=, righe con sty= ---
+    d7 = Raccolta()
+    d7.aggiungi_file('v19.log', CAMPIONE_V19)
+    j7 = riepilogo_json(d7)
+    r7 = j7['righe']
+    c(esiti, r7['ignorate'] == 0, 'campione v1.9: nessuna riga di formato ignoto')
+    c(esiti, r7['pkjs'] == 7, 'sette righe PKJS (prefisso Galleria:193:28), Galleria:97 e pypkjs)')
+    c(esiti, j7['pkjs']['tag'] == {'[sync]': 5, '[album]': 1, '[config]': 1},
+      'tag PKJS letti anche col prefisso dell app reale')
+    c(esiti, [e['tipo'] for e in j7['pkjs']['eventi']]
+      == ['JS_READY', 'HELLO', 'piano', 'fine', 'config chiusa', 'HELLO', 'HELLO'],
+      'eventi PKJS del campione v1.9')
+    c(esiti, j7['pkjs']['hello'] == [{'ora': '21:00:01', 'open_ms': 2145},
+                                     {'ora': '21:01:00', 'open_ms': None},
+                                     {'ora': '21:02:00', 'open_ms': None}],
+      'HELLO: open=2145ms letto, open=- e il formato pre-v1.9 danno None')
+    c(esiti, [s['sty'] for s in j7['init']['settings']] == [2, None],
+      'settings: sty=2 letto, riga senza sty= -> None')
+    c(esiti, [(s['layout'], s['font'], s['interval'], s['shake']) for s in j7['init']['settings']]
+      == [(1, 4, 30, 1), (0, 0, 30, 1)], 'gli altri campi di settings: non slittano con sty=')
+    c(esiti, [u['sty'] for u in j7['orologio']['ui_time']] == [2, None],
+      'ui_time: sty=2 letto, riga senza sty= -> None')
+    c(esiti, [(u['lay'], u['font'], u['mode'], u['band']) for u in j7['orologio']['ui_time']]
+      == [(1, 4, 1, 110), (0, 0, 1, 106)], 'gli altri campi di ui_time: non slittano con sty=')
+    t7 = riepilogo_testo(d7)
+    c(esiti, 'open ms: 2145, -, -' in t7, 'gli open= dell HELLO nella sezione 11')
     # resa testuale e markdown
     testo = riepilogo_testo(d)
     md = riepilogo_testo(d, md=True)

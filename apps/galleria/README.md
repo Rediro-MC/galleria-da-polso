@@ -103,7 +103,13 @@ ogni volta che apre l'app.
 4. **reinstalla** Galleria.
 
 **Le tue foto sono al sicuro nel telefono**: dopo la reinstallazione tornano da sole sull'orologio in
-circa un minuto, insieme alle impostazioni.
+pochi minuti (circa **mezzo minuto per foto**: con l'album pieno da 12 foto sono cinque-sei minuti),
+insieme alle impostazioni.
+
+La pagina delle impostazioni te lo dice da sola: l'orologio le manda quanti millisecondi ha impiegato
+ad aprire il suo file, e l'avviso compare solo sopra una soglia che **cresce con il numero di foto**
+che hai sull'orologio (0,4 s con l'album vuoto, 1,6 s con 12 foto):
+con tante foto un avvio un po' più lungo è normale, non è memoria sporca.
 
 Con questa versione capita **molto più di rado**: l'app non scrive più nulla né a ogni scossa né a
 ogni collegamento col telefono. Numeri misurati su un Pebble Time 2: avvio **~0,3 s** con un file
