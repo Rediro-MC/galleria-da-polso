@@ -10,6 +10,22 @@
 
 ---
 
+## 0. Aggiornare il listing SENZA la dashboard (verificato il 05/09/2026 sera)
+
+La dashboard (Next.js) usa la stessa API del tool con un **cookie di sessione** ricavato dal token del `pebble login`
+(`POST /api/auth/firebase/session` con `{"idToken": …}`; il token lo dà `pebble_tool.account.get_account(auth_provider='firebase').get_access_token()`
+nel Python del pebble-tool). Con quel cookie l'app accetta **`PATCH /api/dashboard/apps/<id>`** come **form multipart**:
+il campo `title` è obbligatorio in ogni PATCH (altrimenti 400 «Title is required»), i campi non inviati restano com'erano
+(verificato: visibilità, sorgente, categoria e release intatte). Così il 05/09 alle 23:27 sono state aggiornate dal banco
+la **descrizione** (789 caratteri, `--form-string "description=$(cat store/description.txt)"`) e le **icone**
+(`-F "iconSmall=@store/icon_80.png;type=image/png" -F "iconLarge=@store/icon_144.png;type=image/png"`: il `pebble publish`
+di una watchface le lascia vuote), entrambe verificate poi su `GET /api/v1/apps/id/<id>` (l'API pubblica riflette il cambio
+in pochi secondi).
+
+Note: un `PATCH` con `Content-Type: application/json` dà 500 («Content-Type was not one of multipart/form-data…»);
+`GET /api/dashboard/apps/<id>` con il solo `Bearer` dà 401 (serve il cookie); `OPTIONS` sull'app elenca
+`GET, HEAD, OPTIONS, PATCH, DELETE`. Il cookie e il token sono credenziali: file temporanei fuori dal repo, da cancellare dopo l'uso.
+
 ## 1. Sintesi in cinque righe
 
 1. `pebble publish` **ricostruisce da solo** il progetto, carica `build/galleria.pbw` e — se l'UUID non e' gia' noto

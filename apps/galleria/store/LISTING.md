@@ -301,7 +301,7 @@ Da sapere prima di premere invio (tutto da `PUBLISH.md`):
 
 ## 7. Decisioni U1–U9 (prese il 05/09/2026, sera) e punti ancora aperti
 
-> **Esito: pubblicata il 05/09/2026 alle 20:41 (0.1.0); release 0.2.0 multilingua la sera stessa** — app `cdf80cc3bf6745b1a310e4c8`, https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8 (dettagli in `PUBLISH.md`, in testa). Da qui in poi la CLI aggiorna solo versione, note e `.pbw` (§6, variante «nuova release»); nome, descrizione, icone e sorgente si cambiano in dashboard.
+> **Esito: pubblicata il 05/09/2026 alle 20:41 (0.1.0); release 0.2.0 multilingua la sera stessa; descrizione corta (§2) e icone 80/144 caricate via API alle 23:27 (`PUBLISH.md` §0)** — app `cdf80cc3bf6745b1a310e4c8`, https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8 (dettagli in `PUBLISH.md`, in testa). Da qui in poi la CLI aggiorna solo versione, note e `.pbw` (§6, variante «nuova release»); nome, descrizione, icone e sorgente si cambiano in dashboard.
 
 
 | # | Decisione | Risposta dell'utente | Applicata in |
