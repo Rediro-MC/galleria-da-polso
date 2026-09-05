@@ -83,6 +83,12 @@
     sv = +style.value;
     /* stili trasparenti: l'anello c'e' sempre, "Contorno" non ha effetto (valore conservato) */
     el('s_outline').disabled = (sv === 1 || sv === 2);
+    /* S9 P5: consiglio sui font, solo se lo stile NON e' pieno. sv e' gia' normalizzato da
+     * applyNo3d, quindi su flint lo stile 3 (= pieno) non mostra l'aiuto e il 2 (= 1) si'. */
+    show(el('s_style_hint'), sv !== 0);
+    /* S9 R13: su flint l'anello e' 1 px (D26) e sul dithering si legge male: avviso in piu',
+     * solo con lo stile trasparente (sv 1: su flint il 2 e' gia' sceso a 1). */
+    show(el('styleFlintHelp'), !!G.state && G.state.platform === 'flint' && sv === 1);
     key = PREV_KEYS[+font.value];
     if (pv && key && typeof pv[key] === 'string') { img.src = pv[key]; show(img, true); } else { show(img, false); }
   }

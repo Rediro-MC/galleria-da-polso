@@ -2,11 +2,11 @@
 
 > **English.** *Galleria* is a watchface for the Pebble Time 2 (`emery`, 200×228, 64 colours) and Pebble 2 Duo (`flint`, 144×168 B/W) that rotates **your own photos**, cropped on the phone, behind a big crisp clock whose colour adapts to the picture. Written in C (watch) + PebbleKit JS (phone), with a config page that crops/dithers the photos in the browser and streams them to the watch over AppMessage. This repository is the whole workspace: the app (`apps/galleria`), the tooling, the research notes and the session-by-session development plan. Everything below is in Italian.
 
-Questo repository è l'**area di lavoro completa** dei progetti Pebble: la watchface **Galleria** (`apps/galleria`, in sviluppo, sessioni S0–S7 concluse), due app di prova usate per misurare la piattaforma (`apps/hello-emery`, `apps/heapprobe`), gli strumenti (`tools/`), la ricerca e i documenti di design (`docs/`) e il piano di sviluppo. È pensato per essere **clonato su qualsiasi computer** e ripreso da lì con Claude Code.
+Questo repository è l'**area di lavoro completa** dei progetti Pebble: la watchface **Galleria** (`apps/galleria`, in sviluppo, sessioni S0–S7, S8-perf/S8-stile e la preparazione di S9 concluse; prima release pubblica **0.1.0 beta** in preparazione), due app di prova usate per misurare la piattaforma (`apps/hello-emery`, `apps/heapprobe`), gli strumenti (`tools/`), la ricerca e i documenti di design (`docs/`) e il piano di sviluppo. È pensato per essere **clonato su qualsiasi computer** e ripreso da lì con Claude Code.
 
 | emery (Pebble Time 2) | flint (Pebble 2 Duo) |
 |---|---|
-| ![Galleria su emery](docs/design/galleria/s7_emery_a_anton_dark.png) | ![Galleria su flint](docs/design/galleria/s7_flint_a_anton.png) |
+| ![Galleria su emery](docs/design/galleria/s9_emery_a_anton_scura.png) | ![Galleria su flint](docs/design/galleria/s9_flint_a_anton_chiara.png) |
 
 ## Ripartire su un computer nuovo
 
@@ -51,5 +51,6 @@ docs/                 CONTINUA-QUI.md, design/, ricerca/, fase0/
 
 ## Stato e licenze
 
-- Stato: **S7 completata** (30/08/2026). Prossima sessione **S8**: prova sull'orologio reale (iPhone e Android), decisione definitiva sull'SDK (D5), misure di batteria. Poi S9: pubblicazione negli store Core e Rebble come *Galleria for Pebble*.
-- Licenza del codice: **da decidere** (TBD). Font delle cifre: SIL OFL 1.1 (`apps/galleria/resources/fonts/`). Foto demo: CC-BY-SA-4.0, solo per i test (`apps/galleria/resources/photos/README.md`), da sostituire prima della pubblicazione.
+- Stato: **S9-prep** (05/09/2026): foto demo **CC0** al posto dei wallpaper di test, listing dello store e comando di pubblicazione pronti (`apps/galleria/store/LISTING.md`, `apps/galleria/store/PUBLISH.md`), **decisioni U1–U9 prese** la sera del 05/09. Prima release **0.1.0 (beta)** in preparazione per gli store Core e Rebble come *Galleria for Pebble* (tag git `v0.1.0-beta`); restano il gate finale e `pebble login`.
+- Licenza del codice: **MIT** — testo in [`LICENSE`](LICENSE) («Copyright (c) 2026 Rediro»); autore **Rediro**. Font delle cifre: SIL OFL 1.1 (`apps/galleria/resources/fonts/`). Foto demo: **CC0 1.0** da Wikimedia Commons, senza obbligo di attribuzione (`apps/galleria/resources/photos/README.md`).
+- Materiale di terzi ridistribuito nel repository (codice Pebble MIT, palette Apache-2.0, font OFL, foto CC0, screenshot storici CC-BY-SA-4.0): [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

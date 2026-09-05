@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 """Genera gli asset per lo store di Galleria (S7 §2.12).
 
-Sorgenti (screenshot del gate S7, gia' presenti nel repo):
-  docs/design/galleria/s7_emery_a_anton_dark.png  200x228  (Pebble Time 2, layout A, Anton, demo 1 aurora)
-  docs/design/galleria/s7_flint_a_anton.png   144x168  (Pebble 2 Duo,  layout A, font Anton)
+Sorgenti (screenshot del gate S9-prep del 05/09/2026, gia' presenti nel repo; fino a S8 erano gli s7_* con le demo CC-BY-SA):
+  docs/design/galleria/s9_emery_a_anton_scura.png   200x228  (Pebble Time 2, layout A, Anton, demo 1 aurora sul fiordo, testo bianco)
+  docs/design/galleria/s9_flint_a_anton_chiara.png   144x168  (Pebble 2 Duo,  layout A, Anton, demo 2 Bryce Canyon, testo nero)
 
 Prodotti in apps/galleria/store/:
   icon_144.png / icon_80.png / icon_48.png  ritaglio quadrato 200x200 dello screenshot
@@ -30,8 +30,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir, os.pardir))
 SRC_DIR = os.path.join(ROOT, "docs", "design", "galleria")
-SRC_EMERY = os.path.join(SRC_DIR, "s7_emery_a_anton_dark.png")   # gate S7 (10:11, demo 1 aurora: testo bianco leggibile a 48 px)
-SRC_FLINT = os.path.join(SRC_DIR, "s7_flint_a_anton.png")
+SRC_EMERY = os.path.join(SRC_DIR, "s9_emery_a_anton_scura.png")   # gate S9-prep (17:15, demo 1 aurora CC0: testo bianco leggibile a 48 px)
+SRC_FLINT = os.path.join(SRC_DIR, "s9_flint_a_anton_chiara.png")  # gate S9-prep (demo 2 Bryce Canyon CC0: la scena si legge meglio in B/N)
 
 EMERY_SIZE = (200, 228)
 FLINT_SIZE = (144, 168)

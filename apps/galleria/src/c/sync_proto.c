@@ -186,7 +186,14 @@ static SyncAction prv_photo_begin(const SyncIn *in, SyncOut *out) {
     if (slot != s_counted_slot || in->photo_id != s_counted_id) {
       s_counted_slot = slot;
       s_counted_id = in->photo_id;
-      prv_progress((uint8_t)(s_index < 255 ? s_index + 1 : 255), s_count);
+      /* R01 (S9): k esplicito dal telefono nella chiave COUNT (foto in corso, 1-based, comprese quelle
+       * saltate senza un BEGIN accettato: load fallito, BAD_FORMAT/NO_SPACE), clampato a n; senza
+       * COUNT (PKJS <= v1.9) o COUNT 0 resta il contatore locale k + 1. */
+      uint8_t k = (uint8_t)(s_index < 255 ? s_index + 1 : 255);
+      if ((in->fields & SYNC_F_COUNT) && in->count > 0) {
+        k = (s_count && in->count > s_count) ? s_count : in->count;
+      }
+      prv_progress(k, s_count);
     }
   }
   /* OK.OFFSET = da dove il telefono deve (ri)partire: s_pend.next (0 se non è una ripresa). */

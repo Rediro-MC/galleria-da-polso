@@ -1049,6 +1049,26 @@ static void test_progress(void) {
   photo_begin(2, 0x13u, FMT_RAW6, PHOTO_LEN, g_crc_a);
   ack_all();
   CHECK_EQ(shim_ui_progress_index(), 2);     /* al piu' n/n */
+
+  /* R01 (S9): COUNT nel PHOTO_BEGIN = k esplicito (prv_decode lo legge come per SYNC_REQUEST) */
+  in_msg(SYNC_MSG_SYNC_DONE);
+  CHECK(deliver());
+  in_msg(SYNC_MSG_SYNC_REQUEST);
+  CHECK(shim_in_int32(MESSAGE_KEY_COUNT, 3));
+  CHECK(deliver());
+  ack_all();
+  CHECK_EQ(shim_ui_progress_index(), 0);
+  in_msg(SYNC_MSG_PHOTO_BEGIN);
+  CHECK(shim_in_int32(MESSAGE_KEY_SLOT, 4));
+  CHECK(shim_in_int32(MESSAGE_KEY_PHOTO_ID, 0x14));
+  CHECK(shim_in_int32(MESSAGE_KEY_FORMAT, FMT_RAW6));
+  CHECK(shim_in_int32(MESSAGE_KEY_LENGTH, (int32_t)PHOTO_LEN));
+  CHECK(shim_in_int32(MESSAGE_KEY_CRC, (int32_t)g_crc_a));
+  CHECK(shim_in_int32(MESSAGE_KEY_COUNT, 3));           /* foto 1 e 2 saltate dal telefono */
+  CHECK(deliver());
+  ack_all();
+  CHECK_EQ(shim_ui_progress_index(), 3);     /* "Foto 3/3" subito, non 1/3 */
+  CHECK_EQ(shim_ui_progress_count(), 3);
 }
 
 /* --- F1: rotazione congelata durante la sostituzione dello slot mostrato --- */

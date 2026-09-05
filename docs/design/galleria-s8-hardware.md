@@ -126,11 +126,11 @@ Una tabella per obiettivo (O1–O11) + ambiente + decisioni. Vuota all'inizio; �
 
 ### 2.7 Runbook Android — `docs/design/galleria-s8-runbook-android.md` (compito H)
 
-Struttura: prerequisiti (una volta) → collegamento (3 vie, con prova `pebble ping`) → passi numerati, ciascuno con **"Marco fa"** (telefono/orologio), **"Claude lancia"** (comando esatto, file di log), **"Ci aspettiamo"** (righe di log/screenshot) e **"Se va storto"**. I passi seguono §3. Nessun numero da ricordare: rimanda a §2.6.
+Struttura: prerequisiti (una volta) → collegamento (3 vie, con prova `pebble ping`) → passi numerati, ciascuno con **"l'utente fa"** (telefono/orologio), **"Claude lancia"** (comando esatto, file di log), **"Ci aspettiamo"** (righe di log/screenshot) e **"Se va storto"**. I passi seguono §3. Nessun numero da ricordare: rimanda a §2.6.
 
 ## 3. Sequenza sul campo — Android + Pebble Time 2 (gate Q, con l'utente)
 
-Prerequisiti: app Pebble aggiornata (≥ 1.10.0; annotare la versione); PT2 aggiornato all'ultimo firmware proposto dall'app; host Windows e telefono sulla stessa Wi‑Fi; `tools/setup-adb.sh` eseguito (per la via `--adb`); `build_s8/` con le tre build; card generate (`gen_test_cards.py --check`) e copiate sul telefono (`adb push … /sdcard/Pictures/GalleriaCards/` oppure trasferimento a mano); 20 foto vere scelte da Marco.
+Prerequisiti: app Pebble aggiornata (≥ 1.10.0; annotare la versione); PT2 aggiornato all'ultimo firmware proposto dall'app; host Windows e telefono sulla stessa Wi‑Fi; `tools/setup-adb.sh` eseguito (per la via `--adb`); `build_s8/` con le tre build; card generate (`gen_test_cards.py --check`) e copiate sul telefono (`adb push … /sdcard/Pictures/GalleriaCards/` oppure trasferimento a mano); 20 foto vere scelte da l'utente.
 
 | Passo | Cosa si fa | Log/screenshot attesi | Obiettivo |
 |---|---|---|---|

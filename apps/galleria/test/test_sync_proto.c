@@ -679,6 +679,61 @@ static void test_sync_request(void) {
   CHECK_EQ(g_progress_count, 0);
 }
 
+/* R01 (S9): PHOTO_BEGIN con COUNT = k esplicito: "Foto k/n" non resta indietro per le foto che il
+ * telefono salta senza un BEGIN accettato (load fallito, BAD_FORMAT/NO_SPACE) e arriva a n/n;
+ * senza COUNT (PKJS <= v1.9) resta il contatore locale; clamp a n; COUNT 0 = assente. */
+static void test_begin_count_k(void) {
+  fresh(QUOTA_OK, MAX_CHUNK);
+  CHECK_EQ(sync_request(3), SYNC_ACT_SEND);
+  /* la foto 1 e' stata saltata dal telefono (load fallito): il BEGIN della foto 2 porta COUNT 2 */
+  SyncIn b2 = begin_in(1, 0x31u, FMT_RAW6, PHOTO_LEN, g_crc_a);
+  b2.fields |= SYNC_F_COUNT;
+  b2.count = 2;
+  CHECK_EQ(handle(&b2), SYNC_ACT_SEND);
+  CHECK_EQ(g_out.code, SYNC_CODE_OK);
+  CHECK_EQ(g_progress_calls, 1);
+  CHECK_EQ(g_progress_index, 2);             /* "Foto 2/3", non 1/3 */
+  CHECK_EQ(g_progress_count, 3);
+  CHECK_EQ(handle(&b2), SYNC_ACT_SEND);      /* ritrasmissione (STATUS perso): ferma */
+  CHECK_EQ(g_out.code, SYNC_CODE_OK);
+  CHECK_EQ(g_progress_calls, 1);
+  SyncIn b3 = begin_in(2, 0x32u, FMT_RAW6, PHOTO_LEN, g_crc_a);   /* foto 3: "Foto 3/3" (prima: 2/3) */
+  b3.fields |= SYNC_F_COUNT;
+  b3.count = 3;
+  CHECK_EQ(handle(&b3), SYNC_ACT_SEND);
+  CHECK_EQ(g_progress_calls, 2);
+  CHECK_EQ(g_progress_index, 3);
+  CHECK_EQ(g_progress_count, 3);
+  SyncIn b4 = begin_in(3, 0x33u, FMT_RAW6, PHOTO_LEN, g_crc_a);   /* COUNT oltre n: clamp, mai 9/3 */
+  b4.fields |= SYNC_F_COUNT;
+  b4.count = 9;
+  CHECK_EQ(handle(&b4), SYNC_ACT_SEND);
+  CHECK_EQ(g_out.code, SYNC_CODE_OK);
+  CHECK_EQ(g_progress_index, 3);
+  CHECK_EQ(g_progress_count, 3);
+  /* senza COUNT (PKJS <= v1.9) e con COUNT 0: contatore locale k + 1 */
+  fresh(QUOTA_OK, MAX_CHUNK);
+  CHECK_EQ(sync_request(3), SYNC_ACT_SEND);
+  SyncIn o1 = begin_in(1, 0x41u, FMT_RAW6, PHOTO_LEN, g_crc_a);
+  CHECK_EQ(handle(&o1), SYNC_ACT_SEND);
+  CHECK_EQ(g_progress_index, 1);
+  SyncIn o2 = begin_in(2, 0x42u, FMT_RAW6, PHOTO_LEN, g_crc_a);
+  o2.fields |= SYNC_F_COUNT;
+  o2.count = 0;
+  CHECK_EQ(handle(&o2), SYNC_ACT_SEND);
+  CHECK_EQ(g_progress_index, 2);
+  /* SYNC_REQUEST senza COUNT (n = 0): nessun clamp, k = COUNT del BEGIN */
+  fresh(QUOTA_OK, MAX_CHUNK);
+  SyncIn r = mk(SYNC_MSG_SYNC_REQUEST);
+  CHECK_EQ(handle(&r), SYNC_ACT_SEND);
+  SyncIn o3 = begin_in(0, 0x43u, FMT_RAW6, PHOTO_LEN, g_crc_a);
+  o3.fields |= SYNC_F_COUNT;
+  o3.count = 5;
+  CHECK_EQ(handle(&o3), SYNC_ACT_SEND);
+  CHECK_EQ(g_progress_index, 5);
+  CHECK_EQ(g_progress_count, 0);
+}
+
 /* PHOTO_BEGIN: stato, campi mancanti, valori invalidi. */
 static void test_begin_validation(void) {
   /* fuori da SYNCING -> BUSY (con lo slot ricevuto, GAL_SLOT_NONE se assente) */
@@ -1987,6 +2042,7 @@ int main(void) {
   run("hello",               test_hello);
   run("hello_disabled",      test_hello_disabled);
   run("sync_request",        test_sync_request);
+  run("begin_count_k",       test_begin_count_k);
   run("begin_validation",    test_begin_validation);
   run("begin_quota",         test_begin_quota);
   run("begin_resume",        test_begin_resume);

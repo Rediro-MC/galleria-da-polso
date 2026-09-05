@@ -1,0 +1,5 @@
+Galleria 0.1.0 (beta) - first public release.
+- Your photos, full screen: up to 12 on the watch, automatic rotation, shake to skip.
+- Big bitmap clock: six fonts, four digit styles, automatic white or black text, two layouts.
+- Photos and settings are kept on the watch; the phone is only needed to load them, with a photo counter on the screen while they arrive.
+- Beta: tested on a Pebble Time 2 (PebbleOS 4.36.2) with the Android Pebble app; the Pebble 2 Duo build is checked in the emulator only, and iOS is untested.

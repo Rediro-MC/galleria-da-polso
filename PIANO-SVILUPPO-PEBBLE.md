@@ -1,7 +1,7 @@
 # Piano di sviluppo — piccole app per Pebble Time 2 (e Pebble 2 Duo)
 
 > **Stato:** v1.2 — redatto il 24 agosto 2026 a valle di una ricerca multi-agente (8 report, 3 verificatori adversariali, 3 approfondimenti); **Fase 0 (setup) completata** lo stesso giorno — vedi §18 e `docs/CONTINUA-QUI.md`.
-> **Per chi:** l'utente (Marco) e Claude. Va letto a inizio di ogni sessione di lavoro sul progetto.
+> **Per chi:** l'utente e Claude. Va letto a inizio di ogni sessione di lavoro sul progetto.
 > **Obiettivi dichiarati:** (1) app **performanti**, (2) che **sfruttano al meglio il display del Pebble Time 2**, (3) che **funzionano bene senza connessione continua al telefono**, (4) che **consumano poca memoria**.
 > **Ambiente:** Ubuntu 26.04 x86_64, **senza sudo**, Python 3.14 di sistema (senza pip/ensurepip), Node 22, gcc 15, niente Docker/QEMU/arm-gcc di sistema. 8 core, 5,3 GB RAM, 99 GB liberi su `/home`.
 >
@@ -34,7 +34,7 @@
 | 9 | **Touch solo nelle watchapp** (mai nelle watchface, non supportato), con fallback ai pulsanti; `app_touch_navigation_enable(true)` per menu/liste. | §7.8 |
 | 10 | **Setup in user space con `uv`** (Python 3.13 gestito da uv) + `pebble sdk install latest`; librerie QEMU estratte dai `.deb` in `~/.local` (procedura verificata localmente). Piano B: CloudPebble / `pebble install --cloudpebble` sull'orologio reale. | §5 |
 | 11 | **Un repo monoprogetto** `ProgettiClaude/Pebble/` con `apps/<nome>/` per ogni app, `docs/`, `tools/`, CI GitHub Actions che produce i `.pbw`. | §6 |
-| 12 | **Pubblicare su entrambi gli store** (Core via `pebble publish --is-published`, Rebble via dev-portal), nome app `"<Nome> for Pebble"`, UUID minuscolo e immutabile, versione `major.minor.0`. | §13 |
+| 12 | **Pubblicare su entrambi gli store** (Core via `pebble publish` (5.0.40: `--is-published` inerte, release subito visibile), Rebble via dev-portal), nome app `"<Nome> for Pebble"`, UUID minuscolo e immutabile, versione `major.minor.0`. | §13 |
 
 ---
 
@@ -512,7 +512,7 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 
 ## 13. Pubblicazione ✅
 
-- **Core** (primario, default sui nuovi orologi): `pebble login` (GitHub) → `pebble publish --is-published --release-notes "…"` (senza `--is-published` la release resta bozza). Genera GIF/screenshot via emulatore per tutte le piattaforme (richiede QEMU + ffmpeg); alternativa `--non-interactive --no-gif-all-platforms --screenshots emery_1.png flint_1.png` (nome file con prefisso piattaforma). L'account developer viene creato automaticamente. Dashboard: `developer.repebble.com/dashboard`.
+- **Core** (primario, default sui nuovi orologi): `pebble login` (GitHub) → `pebble publish --release-notes "…"` (⚠️ verificato nel sorgente del tool 5.0.40 il 05/09/2026: `--is-published` è **ignorato** — la release nasce subito visibile, `publish.py` manda sempre `isPublished: true` — e la visibilità va gestita sul portale developer). Genera GIF/screenshot via emulatore per tutte le piattaforme (richiede QEMU + ffmpeg); alternativa `--non-interactive --no-gif-all-platforms --screenshots emery_1.png flint_1.png` (nome file con prefisso piattaforma). L'account developer viene creato automaticamente. Dashboard: `developer.repebble.com/dashboard`.
 - **Rebble** (secondario): upload manuale del `.pbw` su `dev-portal.rebble.io` (account: solo il nome da pubblicare). Possibile collegare un thread del forum per annunci automatici. Visibilità Public/Unlisted.
 - Nessuna review; takedown a posteriori per violazioni delle Program Policies (no auto-update fuori store, no pubblicità nelle notifiche, no gambling…). Nessuna app a pagamento (KiezelPay ❓ non confermato sui nuovi orologi). Store non localizzato: descrizione multilingua in un unico testo. Marcare l'app open source per il filtro store.
 - Licenze: PebbleOS Apache-2.0, pebble-tool MIT, SDK con EULA proprietaria (testo ancora intestato a Pebble Technology Corp. ⚠️); l'app resta nostra.

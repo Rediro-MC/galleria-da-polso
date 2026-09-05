@@ -1,5 +1,7 @@
 # Galleria — S7: QA, memoria/perf, asset store — specifica operativa (v1.0, 30/08/2026)
 
+> **Brief di S7, congelato (nota del 05/09/2026, S9-prep):** le foto demo CC-BY-SA citate sotto sono state sostituite con due foto **CC0** e la bozza della descrizione dello store è passata in `apps/galleria/store/LISTING.md`; i compiti di questo documento sono tutti chiusi (S7 ✅ 30/08/2026).
+
 > Documento di lavoro della sessione S7 (`apps/galleria/PIANO.md` §4 S7, §7, §8). Vale insieme a `CLAUDE.md` (root e app), `docs/design/galleria.md` (design v1.7) e `PIANO-SVILUPPO-PEBBLE.md` §12 (matrice QA). Ogni agente legge **questo file per intero** prima di toccare codice. Regole ferree: nessun `git commit`; nessuna modifica ai file `*.md` di `docs/` e a `PIANO.md`/`CONTINUA-QUI.md` (le note per i documenti tornano nel campo `doc_notes` del report); nessun file fuori da quelli assegnati; nessun backtick nelle stringhe dei prompt di workflow.
 
 ## 0. Obiettivi misurabili di S7

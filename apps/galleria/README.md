@@ -4,11 +4,13 @@ Watchface per **Pebble Time 2** (`emery`, 200×228, 64 colori) e **Pebble 2 Duo*
 che mostra a schermo intero, **a rotazione**, le foto che scegli e ritagli **dal telefono**, con l'ora
 grande e nitida sopra e il **colore del testo scelto da solo** (bianco o nero, in base alla foto).
 
-| emery (Pebble Time 2) | flint (Pebble 2 Duo) |
+|  |  |
 |---|---|
-| ![Galleria su emery](../../docs/design/galleria/s6_watch_emery_dark_portrait.png) | ![Galleria su flint](../../docs/design/galleria/s6_watch_flint.png) |
+| ![Galleria su emery, layout A](../../docs/design/galleria/s9_emery_a_anton_scura.png)<br>**emery** — layout A, Anton, demo scura → testo bianco | ![Galleria su flint, layout A](../../docs/design/galleria/s9_flint_a_anton_chiara.png)<br>**flint** — layout A, Anton, demo chiara → testo nero |
+| ![Galleria su emery con la foto chiara](../../docs/design/galleria/s9_emery_a_anton_chiara.png)<br>**emery** — layout A, Anton, demo chiara → testo nero | ![Galleria su emery, layout B trasparente 3D](../../docs/design/galleria/s9_emery_b_francois_trasparente3d_scura.png)<br>**emery** — layout B, Francois One, stile trasparente 3D |
 
-Screenshot dal gate di S6 (30/08/2026); tutti gli altri sono in `../../docs/design/galleria/`.
+Screenshot dal gate **S9-prep** (05/09/2026), con le due foto demo CC0 e l'album vuoto; tutti gli altri
+sono in `../../docs/design/galleria/`.
 
 ## Requisiti
 
@@ -48,23 +50,31 @@ configurazione, una colonna sola, dove:
    una foto è *da inviare*, *nuova* o *solo sull'orologio*.
 4. Sotto ci sono tutte le **impostazioni**: layout A o B, font, **stile delle cifre**, 12/24 h, zero
    iniziale, colore del testo, contorno, intervallo di rotazione, ordine, «scuoti per la prossima»,
-   voci della riga info.
+   voci della riga info. Scegliendo uno stile diverso da *pieno* la pagina consiglia i font che
+   rendono meglio (Francois One e Staatliches) e, con un **Pebble 2 Duo** collegato, avvisa che lì il
+   contorno delle cifre è di 1 px: sulle foto molto dettagliate conviene lo stile pieno.
 5. **Salva** manda tutto all'orologio. Un contatore mostra quanti KB stai per inviare: oltre il tetto
    del telefono il pulsante si disabilita e ti dice quante foto togliere.
 
-Il trasferimento è a chunk: durante la sync la riga info scrive «Foto k/n». Puoi uscire dalla pagina,
+Il trasferimento è a chunk: durante la sync la riga info scrive «Foto k/n». Il numero della foto in
+corso lo manda il telefono, quindi il contatore arriva a n/n anche quando qualche foto viene saltata
+(05/09/2026; unica eccezione: se a essere saltata è proprio l'ultima). Puoi uscire dalla pagina,
 riprende da solo.
 
-In cima alla pagina compare un **avviso** se l'orologio ha impiegato più di un secondo ad avviarsi
+In cima alla pagina compare un **avviso** se l'orologio ha impiegato più del previsto ad avviarsi (0,4 s con l'album vuoto, più 0,1 s per foto: 1,6 s con 12 foto)
 (l'orologio dichiara il tempo di apertura della sua memoria dentro il messaggio di saluto), e in
 fondo c'è **sempre** la sezione ripiegabile **«Galleria si avvia lentamente?»** con la spiegazione e
 la procedura: sono le stesse due cose che trovi qui sotto.
 
 ### Sull'orologio
 
-- **Layout A** (default): cifre da 68 px su circa un terzo dello schermo, più una riga con passi,
-  batteria e data (icona Bluetooth barrata al posto dei passi se il telefono non è connesso).
-- **Layout B**: solo l'ora, HH sopra MM, cifre da 96 px a tutto schermo.
+- **Layout A** (default): cifre alte **fino a 66 px** sul Pebble Time 2 (**42 px** sul Pebble 2 Duo) su circa
+  un terzo dello schermo, più una riga con passi, batteria e data (icona Bluetooth barrata al posto
+  dei passi se il telefono non è connesso).
+- **Layout B**: solo l'ora, HH sopra MM, cifre alte **fino a 94 px** sul Pebble Time 2 (**62 px** sul Pebble 2
+  Duo) a tutto schermo. (Sono le righe disponibili al riempimento in `src/c/digit_metrics.h`, riempite
+  per intero da Anton; Barlow Condensed e Francois One si fermano a 61 px in A; contorno e ombra
+  sporgono di qualche pixel in più.) Durante una sincronizzazione anche il layout B mostra «Foto k/n», piccolo in basso a sinistra (dal 05/09/2026, R10): sparisce da solo a trasferimento finito.
 - **Font**: Anton (default), Bebas Neue, Barlow Condensed Bold, Francois One, Staatliches e — solo
   nel layout A — il LECO 60 di sistema.
 - **Stile delle cifre**: *pieno* (come sempre), *trasparente* (dentro le cifre si vede la foto, con
@@ -84,7 +94,7 @@ la procedura: sono le stesse due cose che trovi qui sotto.
   bianco o nero, con contorno automatico quando la foto è troppo mossa di luminanza. Si può anche
   forzare (bianco, nero, giallo pastello, blu Oxford).
 - Aggiornamento al **minuto**, mai i secondi, nessuna animazione, nessun timer continuo.
-- Con l'album vuoto partono le **2 foto demo** incluse nell'app.
+- Con l'album vuoto partono le **2 foto demo** incluse nell'app (foto CC0, vedi «Licenze»).
 
 ### Galleria si avvia lentamente?
 
@@ -131,8 +141,6 @@ sano contro **~2,7 s** con un file gonfio; dopo la reinstallazione l'avvio è to
   «Sull'orologio»).
 - Niente PNG sull'orologio in v1; il layout B non ha la riga info.
 - I passi della riga info si aggiornano al **tick del minuto** (mai i secondi): un cambiamento appare entro un minuto.
-- Le foto demo attuali sono wallpaper CC-BY-SA-4.0: **solo per i test**, vanno sostituite prima di
-  pubblicare (`resources/photos/README.md`).
 
 ## Struttura del progetto
 
@@ -209,7 +217,7 @@ python3 ../../tools/galleria_logstats.py run_s8_*.log --md   # 13 sezioni (tools
 python3 ../../tools/gen_test_cards.py --check                # 18 card in ~/galleria-gate/cards (§17)
 ```
 
-Procedura passo passo, con cosa fa Marco e cosa aspettarsi a ogni passo:
+Procedura passo passo, con cosa fa l'utente e cosa aspettarsi a ogni passo:
 `../../docs/design/galleria-s8-runbook-android.md`.
 
 Hook di debug (`GALLERIA_DEFINES="..." pebble build`), rigenerazione delle cifre e comandi completi:
@@ -221,34 +229,35 @@ che invecchiano.
 
 ## Licenze
 
-- **Codice dell'app**: **TBD** — da decidere con l'autore prima della pubblicazione (S9).
+- **Codice dell'app**: **MIT** — decisione **U1** presa dall'autore il **05/09/2026**. Il testo integrale è in
+  **`LICENSE`** nella radice del repository («Copyright (c) 2026 **Rediro**»); il repository
+  (`https://github.com/Rediro-MC/galleria-da-polso`) è pubblico (decisione **U4**).
+- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **0.1.0**, prima release
+  pubblica in **beta** (decisione **U7**; tag git `v0.1.0-beta`).
 - **Font delle cifre**: Anton, Bebas Neue, Barlow Condensed Bold, Francois One e Staatliches, tutti
   **SIL Open Font License 1.1** (testo integrale e provenienza in `resources/fonts/`). I TTF non
   entrano nel `.pbw`: dell'app fanno parte solo le immagini delle cifre. Credito facoltativo per lo
   store: «Cifre: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1)».
-- **Foto demo**: wallpaper di Ubuntu, **CC-BY-SA-4.0** (dettagli e autori in
-  `resources/photos/README.md`). Sono lì **solo per i test locali** e vanno sostituite con foto
-  proprie o CC0 prima di pubblicare.
+- **Foto demo**: due foto **CC0 1.0** di Wikimedia Commons, quindi senza obbligo di attribuzione —
+  «Northern Lights at Lauklines Norway» di Sebastian Kowalski (scura → testo bianco) e «Bryce Canyon
+  After Snow (Unsplash)» di Emanuel Hahn (chiara → testo nero). Provenienza, comandi di preparazione
+  e CRC in `resources/photos/README.md`.
 - SDK e strumenti Pebble: PebbleOS Apache-2.0, pebble-tool MIT, SDK con EULA proprietaria
   (`../../PIANO-SVILUPPO-PEBBLE.md` §13).
+- **Materiale di terzi** ridistribuito nel repository (codice Pebble MIT, palette Apache-2.0, font OFL,
+  foto demo CC0, screenshot storici CC-BY-SA-4.0): `../../THIRD-PARTY-NOTICES.md`.
 
-## Bozza della descrizione per lo store (S9)
+## Pubblicazione nello store (S9)
 
-> **Galleria for Pebble**
->
-> Your own photos, full screen, behind a big clean clock. Pick pictures on your phone, crop them in
-> the settings page, and Galleria stores them on the watch: they rotate on their own — every 5
-> minutes to once a day — and a shake jumps to the next one. The time is drawn with crisp bitmap
-> digits in your choice of font, in a one-third layout with steps, battery and date, or full screen;
-> the text turns white or black by itself depending on the photo behind it. It updates once a minute,
-> never shows seconds and never animates, and it keeps working with the phone away — photos and
-> settings live on the watch.
->
-> Up to 12 photos. Requires Pebble Time 2 or Pebble 2 Duo with firmware 4.32 or newer (built with
-> SDK 4.33.1). To load photos, open the Pebble app, tap Galleria, open its settings, then "Aggiungi
-> foto", crop, and Save — the watch shows "Foto k/n" while they transfer.
->
-> Digits: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1).
+Il testo definitivo del listing non sta più qui: nome, descrizione, release notes, crediti e note per
+lo store sono in **`store/LISTING.md`** (la descrizione pronta da incollare anche in
+`store/description.txt`, le note di rilascio in `store/release_notes_0.1.0.txt`), e la riga
+`pebble publish` con prerequisiti, limiti della CLI e passi Rebble è in **`store/PUBLISH.md`**.
 
-*(Da rivedere in S9 insieme al firmware minimo definitivo — decisione D5 — e alle foto demo
-sostitutive; lo store non è localizzato, quindi la descrizione resta in un testo unico.)*
+Le decisioni **U1–U9** sono state prese il **05/09/2026**: U1 licenza **MIT** (`LICENSE` in radice),
+U2 autore **Rediro**, U3 le due foto demo **CC0** restano, U4 repository **pubblico** →
+`--source "https://github.com/Rediro-MC/galleria-da-polso"`, U5 **SDK 4.33.1 confermato** (firmware
+≥ 4.32, D5 chiusa), U6 visibilità della prima release **gestita sul portale developer** (dalla CLI
+non si ottiene una release riservata), U7 versione **0.1.0 (beta)** con tag git `v0.1.0-beta`,
+U8 **indicatore di sync anche nel layout B** (R10, nella build della 0.1.0), U9 issue su PebbleOS
+**rimandata**. Restano solo il gate finale, `pebble login` e il comando di `store/LISTING.md` §6.

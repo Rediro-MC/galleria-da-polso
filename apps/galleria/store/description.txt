@@ -1,0 +1,15 @@
+Your own photos, full screen, behind a big readable clock.
+
+Pick, crop and save the pictures on your phone, in the settings page: the watch holds up to 12 and moves to the next on its own, every 5 minutes to once a day, in order or shuffled; a shake skips ahead until the watchface restarts.
+
+The time is drawn in bitmap digits: six fonts, four styles (solid, transparent, two with a 3D shadow), white or black text chosen by the watch from the photo. Two layouts: the time on a third of the screen with steps, battery and date, or on the whole screen alone; 12- or 24-hour, with or without the leading zero. It refreshes once a minute, no seconds and no animations, and works with the phone away: photos and settings live on the watch, two demo photos included.
+
+Runs on Pebble Time 2 (colour) and Pebble 2 Duo (black and white), PebbleOS 4.32 or newer; the transparent and 3D styles are meant for the Pebble Time 2 (on the Pebble 2 Duo the 3D ones look like the flat ones). Loading photos has been tested with the Android Pebble app; iOS is untested, and the settings page is in Italian.
+
+Slow to start after many photo swaps? Remove Galleria in the Pebble app (Remove, not Update) and install it again: your photos stay on the phone and come back.
+
+Italiano: le tue foto con l'ora grande sopra.
+
+Digits: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (SIL OFL 1.1). Demo photos: CC0 (Wikimedia Commons).
+
+Beta 0.1.0. Open source (MIT): github.com/Rediro-MC/galleria-da-polso

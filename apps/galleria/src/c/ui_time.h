@@ -45,8 +45,10 @@ void ui_time_unobstructed_changed(void);
 void ui_time_layout_changed(void);
 
 /* S5a: avanzamento della sync nella riga info ("Foto index/count" al posto di passi/icona BT;
- * "Foto index" se count è 0). index 0 = sync finita: torna la riga normale. Solo layout A
- * (in B la riga info non esiste); ridisegna la sola fascia. Valida anche prima di ui_time_init. */
+ * "Foto index" se count è 0). index 0 = sync finita: torna la riga normale. Layout A: nella riga info.
+ * Layout B (R10, deroga a D13 per la sola durata della sync): "Foto k/n" in Gothic 14 Bold in basso a sinistra
+ * della fascia MM, 2 righe sotto il "PM"; niente in Quick View (riga singola); index 0 → la fascia ridisegnata
+ * lo cancella. Ridisegna la sola fascia. Valida anche prima di ui_time_init. */
 void ui_time_set_sync_progress(uint8_t index, uint8_t count);
 
 /* Altezza della fascia dinamica (per S2: sub-bitmap della foto). Valida SOLO dopo ui_time_init()

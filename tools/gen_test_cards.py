@@ -472,7 +472,7 @@ def run_photo_prep(png, band_h, workdir, python=None):
 
     --bw-dither none NON è un'aggiunta arbitraria alla §2.5 (che scrive solo --dither none): nella
     config page il dithering è UNA sola voce (page.js: `dither: el('dither').value`), e per un
-    orologio flint quella voce va a encodeFlint (fs | atkinson | none). Chiedere a Marco
+    orologio flint quella voce va a encodeFlint (fs | atkinson | none). Chiedere all'utente
     "dithering Nessuno" vuol dire quindi bw-dither none, ed è esattamente ciò che il comando
     riproduce. Con `fs` le percentuali di f1..f5 vengono le stesse (verificato), ma il raw1 NO: il
     Floyd-Steinberg diffonde l'errore dei pixel grigi creati dal ridimensionamento 195 -> 144 sui

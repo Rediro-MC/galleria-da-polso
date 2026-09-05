@@ -491,6 +491,7 @@ function sendBegin() {
   d[keys.LENGTH] = p.length | 0;
   d[keys.CRC] = p.crc | 0;
   d[keys.OFFSET] = c.offset | 0;
+  d[keys.COUNT] = (s.photoIndex + 1) | 0;   // R01: k di "Foto k/n" (le foto saltate senza BEGIN accettato contano)
   s.log('[sync] PHOTO_BEGIN slot ' + p.slot + ' offset ' + c.offset);
   sendForStatus(d, function (st) {
     switch (st.code) {

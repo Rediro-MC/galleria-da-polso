@@ -817,9 +817,9 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
              'dither', 'sunlight', 'sunlightRow', 'previewMode', 'previewModeRow', 'preview', 'etime',
              'addOk', 'addCancel', 'settings', 'settingsNote', 's_layout', 's_font', 'fontPreview',
              's_clock_mode', 's_leading_zero', 's_interval_min', 's_order', 's_shake_next',
-             's_text_color', 's_outline', 's_digit_style', 's_info_row', 's_info_row_b0', 's_info_row_b1',
-             's_info_row_b2', 's_info_row_b3', 'slow', 'slowLead', 'slowFix', 'help', 'helpBtn',
-             'helpBody', 'helpWhy', 'helpFix', 'footer', 'save', 'cancel', 'msg'], i;
+             's_text_color', 's_outline', 's_digit_style', 's_style_hint', 'styleFlintHelp', 's_info_row',
+             's_info_row_b0', 's_info_row_b1', 's_info_row_b2', 's_info_row_b3', 'slow', 'slowLead', 'slowFix',
+             'help', 'helpBtn', 'helpBody', 'helpWhy', 'helpFix', 'footer', 'save', 'cancel', 'msg'], i;
   for (i = 0; i < ids.length; i++) { check(get(ids[i]) !== null, 'markup: esiste #' + ids[i]); }
   eq(get('crop').tagName, 'CANVAS', 'markup: #crop e\' un canvas');
   eq(get('preview').tagName, 'CANVAS', 'markup: #preview e\' un canvas');
@@ -845,6 +845,15 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
         'markup: Stile cifre prima di Formato ora');
   contains(PAGE_HTML, '<label for="s_digit_style" class="rlab">Stile cifre</label>',
            'markup: etichetta "Stile cifre" con for e classe rlab');
+  /* S9 P5: l'aiuto sui font per lo stile trasparente, subito sotto la select e nascosto all'avvio */
+  eq(get('s_style_hint').style.display, 'none', 'markup: aiuto dello stile nascosto all\'inizio');
+  eq(get('s_style_hint').className, 'help', 'markup: l\'aiuto dello stile ha la classe help');
+  /* S9 R13: l'avviso per flint sta nello stesso punto ed e' nascosto all'avvio come l'aiuto di P5 */
+  eq(get('styleFlintHelp').style.display, 'none', 'markup: avviso flint nascosto all\'inizio');
+  check(PAGE_HTML.indexOf('id="s_style_hint"') > PAGE_HTML.indexOf('id="s_digit_style"'),
+        'markup: l\'aiuto sta sotto la select Stile cifre');
+  check(PAGE_HTML.indexOf('id="s_style_hint"') < PAGE_HTML.indexOf('id="s_clock_mode"'),
+        'markup: l\'aiuto sta prima di Formato ora');
   eq(get('dither').children.length, 0, 'markup: #dither vuota (dipende dal formato)');
   eq(get('previewMode').options().length, 2, 'markup: #previewMode con 2 opzioni');
   eqJson(get('previewMode').options().map(function (o) { return o._value; }), ['sun', 'nominal'],
@@ -2813,6 +2822,12 @@ section('4f. v1.9 avviso di avvio lento (#slow) e sezione Aiuto (#help)', functi
 section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   var h = loadPage({ state: mkState({ settingsSet: true, settings: { layout: 0, font: 0, outline: 2 } }),
                      search: DEV_SEARCH }), G = h.G;
+  /* S9 P5: riga di aiuto sotto «Stile cifre», visibile solo con lo stile diverso da pieno */
+  var STYLE_HINT = 'Per lo stile trasparente rendono meglio Francois One e Staatliches ' +
+                   '(Anton in layout A tende a chiudersi).';
+  /* S9 R13: avviso in piu' solo su flint con lo stile trasparente (anello 1 px, D26) */
+  var FLINT_HELP = 'Su Pebble 2 Duo il contorno delle cifre è di 1 px: sulle foto molto ' +
+                   'dettagliate l\'ora si legge male. Con quelle conviene lo stile pieno.';
   /* --- opzioni ed etichette --- */
   eqJson(h.el('s_digit_style').options().map(function (o) { return o.textContent; }),
          ['pieno', 'trasparente (solo contorno)', 'trasparente 3D (contorno + ombra)', 'pieno 3D (con ombra)'],
@@ -2828,6 +2843,8 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(h.el('s_digit_style').value, '0', 'partenza: stile pieno');
   eq(h.el('s_outline').disabled, false, 'stile pieno: "Contorno" attivo');
   eq(h.el('s_outline').value, '2', 'partenza: contorno "mai"');
+  eq(h.txt('s_style_hint'), STYLE_HINT, 'aiuto dello stile: testo esatto (P5)');
+  eq(h.disp('s_style_hint'), 'none', 'stile pieno: aiuto nascosto');
 
   /* --- stili trasparenti: "Contorno" disabilitato, valore CONSERVATO --- */
   h.select('s_digit_style', '1');
@@ -2836,17 +2853,25 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(G.buildPayload().settings.outline, 2, 'payload: "Contorno" conservato anche da disabilitato');
   eq(G.buildPayload().settings.digit_style, 1, 'payload: digit_style 1');
   eq(fire(h.el('s_outline'), 'change'), false, '"Contorno" disabilitato non manda change');
+  eq(h.disp('s_style_hint'), '', 'stile trasparente: aiuto visibile');
   h.select('s_digit_style', '2');
   eq(h.el('s_outline').disabled, true, 'stile trasparente 3D: "Contorno" disabilitato');
   eq(G.buildPayload().settings.digit_style, 2, 'payload: digit_style 2');
+  eq(h.disp('s_style_hint'), '', 'stile trasparente 3D: aiuto visibile');
+  eq(h.txt('s_style_hint'), STYLE_HINT, 'aiuto dello stile: il testo non cambia col valore');
   h.select('s_digit_style', '3');
   eq(h.el('s_outline').disabled, false, 'stile pieno 3D: "Contorno" torna attivo');
   eq(G.buildPayload().settings.digit_style, 3, 'payload: digit_style 3');
+  eq(h.disp('s_style_hint'), '', 'stile pieno 3D: aiuto visibile (stile diverso da pieno)');
+  h.select('s_digit_style', '0');
+  eq(h.disp('s_style_hint'), 'none', 'ritorno a pieno: aiuto di nuovo nascosto');
+  h.select('s_digit_style', '2');
 
   /* --- LECO: nessuno sprite, quindi nessuno stile (D21) --- */
   h.select('s_font', '3');
   eq(h.el('s_digit_style').disabled, true, 'LECO: stile cifre disabilitato');
   eq(h.el('s_digit_style').value, '0', 'LECO: stile cifre riportato a pieno');
+  eq(h.disp('s_style_hint'), 'none', 'LECO: stile 0, aiuto nascosto');
   eq(h.el('s_outline').disabled, false, 'LECO: "Contorno" attivo (lo stile vale 0)');
   eq(h.disp('fontPreview'), 'none', 'LECO: nessuna anteprima');
   eq(G.buildPayload().settings.digit_style, 0, 'payload: con LECO lo stile e\' 0');
@@ -2854,11 +2879,21 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   h.select('s_font', '0');
   eq(h.el('s_digit_style').disabled, false, 'via da LECO: stile cifre riattivato');
   eq(h.el('s_digit_style').value, '0', 'via da LECO: lo stile resta pieno');
+  eq(h.disp('s_style_hint'), 'none', 'via da LECO: stile 0, aiuto ancora nascosto');
   /* anche il layout Tutto schermo, che scaccia LECO, lascia lo stile utilizzabile */
   h.select('s_digit_style', '2');
   h.select('s_layout', '1');
   eq(h.el('s_digit_style').disabled, false, 'layout Tutto schermo: stile cifre attivo');
   eq(h.el('s_digit_style').value, '2', 'layout Tutto schermo: lo stile scelto resta');
+  eq(h.disp('s_style_hint'), '', 'layout Tutto schermo: l\'aiuto segue lo stile 2');
+  /* il layout che scaccia LECO passa comunque da applyRules: font 0, stile 0, aiuto via */
+  h.select('s_layout', '0');
+  h.select('s_font', '3');
+  h.select('s_layout', '1');
+  eq(h.el('s_font').value, '0', 'layout Tutto schermo: LECO sostituito dal font 0');
+  eq(h.el('s_digit_style').value, '0', 'layout che scaccia LECO: lo stile resta 0');
+  eq(h.disp('s_style_hint'), 'none', 'layout che scaccia LECO: aiuto nascosto');
+  h.select('s_digit_style', '2');                 /* stato ripristinato per il blocco dei font */
 
   /* --- font nuovi: valore nel payload e anteprima dalle chiavi vere di previews.js --- */
   /* le chiavi sono quelle di gen_font_previews.py / gen_digits.py, non un indice (S8-stile §2);
@@ -2889,13 +2924,21 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(h2.el('s_digit_style').value, '2', 'stato con digit_style 2: campo scritto');
   eq(h2.el('s_outline').disabled, true, 'stato con stile trasparente: "Contorno" gia\' disabilitato all\'avvio');
   eq(h2.el('s_outline').value, '1', 'stato con stile trasparente: valore di "Contorno" conservato');
+  eq(h2.disp('s_style_hint'), '', 'stato con stile 2: aiuto visibile gia\' all\'apertura');
+  eq(h2.txt('s_style_hint'), STYLE_HINT, 'stato con stile 2: testo dell\'aiuto');
   eqJson([h2.G.buildPayload().settings.font, h2.G.buildPayload().settings.digit_style,
           h2.G.buildPayload().settings.outline], [5, 2, 1], 'payload: font 5, stile 2, contorno 1');
+  /* anche lo stile 1 (trasparente semplice) apre con l'aiuto gia' a video */
+  var h1 = loadPage({ state: mkState({ settingsSet: true, settings: { font: 4, digit_style: 1 } }),
+                      search: DEV_SEARCH });
+  eq(h1.el('s_digit_style').value, '1', 'stato con digit_style 1: campo scritto');
+  eq(h1.disp('s_style_hint'), '', 'stato con stile 1: aiuto visibile gia\' all\'apertura');
   /* uno stato con LECO e uno stile: normalizeSettings lo azzera prima ancora della UI */
   var h3 = loadPage({ state: mkState({ settingsSet: true, settings: { font: 3, digit_style: 3 } }),
                       search: DEV_SEARCH });
   eq(h3.el('s_digit_style').value, '0', 'stato LECO + stile: il campo parte da 0');
   eq(h3.el('s_digit_style').disabled, true, 'stato LECO: campo disabilitato all\'avvio');
+  eq(h3.disp('s_style_hint'), 'none', 'stato LECO: aiuto nascosto all\'apertura');
   eq(h3.G.buildPayload().settings.digit_style, 0, 'stato LECO: payload con stile 0');
 
   /* --- D26: su Pebble 2 Duo (flint) non c'e' l'ombra 3D --- */
@@ -2912,6 +2955,7 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(he.el('s_digit_style_3d1').textContent, 'trasparente 3D (contorno + ombra)',
      'emery: etichetta senza avvertenza');
   eq(he.G.buildPayload().settings.digit_style, 2, 'emery: payload con stile 2');
+  eq(he.disp('s_style_hint'), '', 'emery: stile 2, aiuto visibile');
   he.select('s_digit_style', '3');
   eq(he.el('s_digit_style').value, '3', 'emery: anche lo stile pieno 3D resta scegliibile');
 
@@ -2935,26 +2979,61 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   /* la regola degli stili trasparenti (D21) vale sul valore normalizzato */
   eq(hf.el('s_outline').disabled, true, 'flint: stile 1 -> "Contorno" disabilitato');
   eq(hf.el('s_outline').value, '1', 'flint: valore di "Contorno" conservato');
+  /* D26: l'aiuto segue il valore NORMALIZZATO, come "Contorno": 2 -> 1 resta uno stile
+   * trasparente (aiuto visibile), 3 -> 0 e' pieno (aiuto nascosto) */
+  eq(hf.disp('s_style_hint'), '', 'flint: stile 2 normalizzato a 1, aiuto visibile');
+  eq(hf.txt('s_style_hint'), STYLE_HINT, 'flint: stesso testo dell\'aiuto');
+
+  /* apertura di uno stato flint con lo stile 3: la normalizzazione scatta gia' nei campi */
+  var hf3 = loadPage({ state: mkState({ platform: 'flint', fmt: 2, settingsSet: true,
+                                        settings: { font: 0, digit_style: 3 } }),
+                       search: DEV_SEARCH });
+  eq(hf3.el('s_digit_style').value, '0', 'flint: stile 3 normalizzato a 0 all\'apertura');
+  eq(hf3.G.buildPayload().settings.digit_style, 0, 'flint: payload con stile 0 all\'apertura');
+  eq(hf3.disp('s_style_hint'), 'none', 'flint: stile 3 -> 0 all\'apertura, aiuto nascosto');
 
   /* change su flint: 3 -> 0 (pieno senza ombra), 2 -> 1 */
   hf.select('s_digit_style', '3');
   eq(hf.el('s_digit_style').value, '0', 'flint: al change lo stile 3 diventa 0 (pieno)');
   eq(hf.G.buildPayload().settings.digit_style, 0, 'flint: payload con stile 0 dopo il change');
   eq(hf.el('s_outline').disabled, false, 'flint: con lo stile pieno "Contorno" torna attivo');
+  eq(hf.disp('s_style_hint'), 'none', 'flint: stile 3 normalizzato a 0 (pieno), aiuto nascosto');
   hf.select('s_digit_style', '2');
   eq(hf.el('s_digit_style').value, '1', 'flint: al change anche lo stile 2 diventa 1');
   eq(hf.G.buildPayload().settings.digit_style, 1, 'flint: payload 1 dopo il change');
+  eq(hf.disp('s_style_hint'), '', 'flint: stile 2 -> 1 al change, aiuto visibile');
   hf.select('s_digit_style', '1');
   eq(hf.el('s_digit_style').value, '1', 'flint: lo stile trasparente si sceglie normalmente');
+  eq(hf.disp('s_style_hint'), '', 'flint: stile 1, aiuto visibile');
+
+  /* R13 (05/09): su flint l'anello e' 1 px (D26) -> avviso sotto la select, solo con lo stile
+   * trasparente. Il paragrafo sta subito dopo l'aiuto sui font di P5 (stesso punto del markup). */
+  check(PAGE_HTML.indexOf('id="styleFlintHelp"') > PAGE_HTML.indexOf('id="s_style_hint"') &&
+        PAGE_HTML.indexOf('id="styleFlintHelp"') < PAGE_HTML.indexOf('id="s_clock_mode"'),
+        'markup: l\'avviso flint sta fra l\'aiuto dei font e Formato ora');
+  eq(hf.disp('styleFlintHelp'), '', 'flint + trasparente: avviso sul contorno da 1 px visibile');
+  eq(hf.txt('styleFlintHelp'), FLINT_HELP, 'flint: testo esatto dell\'avviso (R13)');
+  contains(hf.el('styleFlintHelp').textContent, '1 px', 'flint: l\'avviso dice quanto e\' spesso il contorno');
+  eq(he.disp('styleFlintHelp'), 'none', 'emery: nessun avviso sul contorno');
+  /* il caso che conta per il controllo di piattaforma: emery CON lo stile trasparente (sv 1).
+   * Senza questa riga un codice che guardasse solo lo stile passerebbe i test. */
+  he.select('s_digit_style', '1');
+  eq(he.disp('styleFlintHelp'), 'none', 'emery + stile trasparente: nessun avviso sul contorno');
+  hf.select('s_digit_style', '0');
+  eq(hf.disp('styleFlintHelp'), 'none', 'flint + pieno: avviso nascosto');
+  hf.select('s_digit_style', '1');
+  eq(hf.disp('styleFlintHelp'), '', 'flint: tornando al trasparente l\'avviso ricompare');
 
   /* su flint le altre regole non cambiano: LECO azzera lo stile, l'anteprima segue il font */
   hf.select('s_font', '3');
   eq(hf.el('s_digit_style').disabled, true, 'flint + LECO: stile cifre disabilitato (D21)');
   eq(hf.el('s_digit_style').value, '0', 'flint + LECO: stile 0');
+  eq(hf.disp('s_style_hint'), 'none', 'flint + LECO: aiuto nascosto');
   eq(hf.disp('fontPreview'), 'none', 'flint + LECO: nessuna anteprima');
   hf.select('s_font', '5');
   eq(hf.el('s_digit_style').disabled, false, 'flint: via da LECO lo stile torna scegliibile');
   eq(hf.el('s_digit_style').value, '0', 'flint: lo stile resta pieno');
+  eq(hf.disp('s_style_hint'), 'none', 'flint: via da LECO con lo stile 0, aiuto ancora nascosto');
   eq(hf.el('fontPreview').src, hf.sb.GalPreviews.staatliches, 'flint: anteprima Staatliches');
   hf.select('s_layout', '1');
   eq(hf.el('s_font_leco').disabled, true, 'flint: layout Tutto schermo disabilita LECO (regola invariata)');
@@ -2971,6 +3050,10 @@ section('4g. S8-stile: stile cifre (digit_style) e font 0..5', function () {
   eq(hu.el('s_digit_style_3d2').textContent, 'pieno 3D (con ombra)',
      'piattaforma sconosciuta: etichetta invariata');
   eq(hu.G.buildPayload().settings.digit_style, 2, 'piattaforma sconosciuta: payload con stile 2');
+  eq(hu.disp('s_style_hint'), '', 'piattaforma sconosciuta: stile 2, aiuto visibile');
+  eq(hu.disp('styleFlintHelp'), 'none', 'piattaforma sconosciuta: nessun avviso sul contorno');
+  hu.select('s_digit_style', '1');
+  eq(hu.disp('styleFlintHelp'), 'none', 'piattaforma sconosciuta + stile trasparente: nessun avviso');
 });
 
 /* ==================================== varianti: sorgenti e artefatto inlinato =========== */

@@ -31,7 +31,8 @@ enum SyncMsg {
   SYNC_MSG_SYNC_REQUEST = 3,    /* → : COUNT foto da inviare (+ OFFSET opz. = foto già concluse: "Foto k/n"
                                    riprende da lì dopo un BUSY, F3; assente = PKJS vecchio → 0) */
   SYNC_MSG_SYNC_READY   = 4,    /* ← : MAX_CHUNK (stato SYNCING) */
-  SYNC_MSG_PHOTO_BEGIN  = 5,    /* → : SLOT, PHOTO_ID, FORMAT, LENGTH, CRC, OFFSET */
+  SYNC_MSG_PHOTO_BEGIN  = 5,    /* → : SLOT, PHOTO_ID, FORMAT, LENGTH, CRC, OFFSET (+ COUNT opz. = k di
+                                   "Foto k/n", R01/S9: le foto saltate dal telefono contano) */
   SYNC_MSG_PHOTO_DATA   = 6,    /* → : SLOT, OFFSET, DATA */
   SYNC_MSG_PHOTO_END    = 7,    /* → : SLOT (+ PHOTO_ID: rende idempotente una ritrasmissione dopo il commit) */
   SYNC_MSG_STATUS       = 8,    /* ← : CODE, SLOT, OFFSET, REPLY_TO (S5b: il MSG a cui risponde) */

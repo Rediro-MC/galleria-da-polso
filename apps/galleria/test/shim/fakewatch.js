@@ -201,7 +201,10 @@ FakeWatch.prototype._handle = function (d, msg) {
         this.pending = p = { slot: slot, fmt: fmt, length: len, crc: c, photoId: id, next: 0, buf: [] };
         if (!(this.countedSlot === slot && this.countedId === id)) {
           this.countedSlot = slot; this.countedId = id;
-          this._progress(Math.min(this.index + 1, 255), this.count);
+          /* R01: k esplicito in COUNT (clampato a n), altrimenti il contatore locale (parita' con sync_proto.c) */
+          k = u8(d[keys.COUNT]);
+          k = (k === undefined || k === 0) ? Math.min(this.index + 1, 255) : ((this.count && k > this.count) ? this.count : k);
+          this._progress(k, this.count);
         }
       }
       return this._status(CODE.OK, slot, p.next);

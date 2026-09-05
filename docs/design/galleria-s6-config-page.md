@@ -242,5 +242,74 @@ Contratto: `docs/design/galleria-s8-stile.md` §5 (D21 stile delle cifre, D22 en
   Nomi e chiavi sono quelli **definitivi** della spec S8-stile §2 (4 = **Francois One** → `francois`, 5 = **Staatliches** → `staatliches`, le stesse chiavi di `gen_font_previews.py` e `gen_digits.py`): `previews.js` ora le contiene davvero, e una chiave che mancasse lascerebbe comunque l'immagine nascosta senza errori.
 - **Select e `<option>` disabilitate**: nessuna regola CSS nuova. La cascata di `#41` riguarda i pulsanti (`FAM_BTN` in `test_page.js` §4e resta a **6 famiglie**: né una `<select>` né una `<option>` sono pulsanti, quindi non serve una voce in più); una `<select>` disabilitata prende il grigio del browser sopra il fondo bianco della regola `select`, e una `<option disabled>` il grigio del menu a tendina di sistema.
 - **Anteprime (`tools/gen_font_previews.py` v3)**: `FONTS` ha ora **cinque** voci — `('francois', 'FrancoisOne-Regular.ttf')` e `('staatliches', 'Staatliches-Regular.ttf')` in coda alle tre esistenti — e `previews.js` espone le cinque chiavi `GalPreviews.anton|bebas|barlow|francois|staatliches` (il font 3, LECO, è di sistema e non ha anteprima: in `PREV_KEYS` è la voce vuota). Le chiavi sono le stesse di `FONTS` in `tools/gen_digits.py`: **un font nuovo = una riga in ciascuna delle due tabelle**. `previews.js` passa da 1.722 a **2.500 B** (i due PNG in più pesano 237 e 219 B, 316 e 292 caratteri di base64) e l'altezza dell'inchiostro **resta 28 px** (il tetto di 4.096 B non viene sfiorato, quindi la riduzione automatica dell'altezza non scatta: le anteprime restano confrontabili a occhio e vanno mostrate 1:1). `--selftest` 41 controlli verdi, `--check` verde.
-- **Test** (`test/test_page.js`, entrambi i giri sorgenti/inlinato): §1c normalizzazione (font 4/5/6/negativo, `digit_style` 0..3, stringa, non intero, LECO ⇒ 0, LECO+layout 1 che invece conserva lo stile), §1f/§2j payload a **11** impostazioni, §2a markup (esiste `#s_digit_style`, è una select vuota, sta fra Font e Formato ora, etichetta con `for`+`rlab`), §2b 6 opzioni font e 4 di stile, §2i payload completo, §3i 14 etichette-guida, **§4g** le quattro regole della UI, i 6 nomi dei font per esteso, le **anteprime vere** di `previews.js` (le 5 chiavi sono PNG data-URL: `francois` e `staatliches` non sono più iniettate a mano; `f4`/`f5` restano inutilizzate e Barlow resta sul suo indice), lo stato ricevuto dall'orologio riletto nei campi e la **regola D26** (id stabili sulle due opzioni 3D; stato flint con `digit_style` 2 ⇒ select a 1, opzioni spente, etichette con l'avvertenza, payload 1; `change` verso 3 ⇒ 0 e verso 2 ⇒ 1, con `#s_outline` che segue il valore normalizzato; stato emery con 2 ⇒ resta 2 ed etichette pulite; piattaforma sconosciuta come emery; su flint LECO, layout e anteprime si comportano come prima). Sensibilità verificata con 8 mutanti (regola LECO in `page_core`, disabilitazione di `#s_outline`, `PREV_KEYS` corte, `PREV_KEYS` con le chiavi vecchie `f4`/`f5`, etichette «Font 4»/«Font 5», forzatura a 0, `font 0..3`, riga HTML tolta) e, per D26, con altri **5** sulla nuova regola: chiamata ad `applyNo3d` tolta (12 fail), `disabled` non messo sulle `<option>` (4), regola applicata a ogni piattaforma invece che al solo flint (19), id tolti alle due opzioni 3D (2), normalizzazione `3 ⇒ 1` invece di `3 ⇒ 0` (3). Ognuno fa fallire almeno un'asserzione. Conteggio: **1.224 ok sui sorgenti e 1.245 sull'inlinato**, 0 fail.
-- Budget dopo la modifica: HTML inlinato **62.893 B** (61,4 KB; era 61.732 B con le sole regole di stile e 60.989 B nella v1.9), modulo `config_page.js` **64.899 B**; **05/09 (revisione v1.9: soglia proporzionale alle foto e testo del rimedio): HTML 63.424 B, modulo 65.437 B; la sera, con il contatore «ora N su 12» (D28): HTML 63.735 B, modulo 65.761 B** (margine 1.801 B sotto il tetto). Il tetto che `build_config_page.py` fa rispettare è sull'**HTML** (65.536 B → **2.643 B di margine**); il modulo è più grande per l'escaping JSON (637 B dal tetto, che però non è il suo). Dei +1.161 B rispetto alla misura precedente, ~780 sono le due anteprime PNG di `previews.js` e il resto la regola D26 in `page.js` (tabella `NO_3D`, `applyNo3d`, gli id e i commenti). **Obiettivo soft di 60 KB superato** (`SOFT_BYTES = 61.440 B`): ogni generazione stampa l'avviso «sopra l'obiettivo di 60 KB», che non blocca. Il margine va misurato a ogni aggiunta: le prime leve, se servisse spazio, sono le quattro etichette di `OPTS.digit_style` (~270 B, ma è il contratto della spec S8-stile §5) e i commenti lunghi delle sorgenti (l'inliner toglie solo le righe che iniziano con `//`, non i blocchi `/* */`).
+- **Test** (`test/test_page.js`, entrambi i giri sorgenti/inlinato): §1c normalizzazione (font 4/5/6/negativo, `digit_style` 0..3, stringa, non intero, LECO ⇒ 0, LECO+layout 1 che invece conserva lo stile), §1f/§2j payload a **11** impostazioni, §2a markup (esiste `#s_digit_style`, è una select vuota, sta fra Font e Formato ora, etichetta con `for`+`rlab`), §2b 6 opzioni font e 4 di stile, §2i payload completo, §3i 14 etichette-guida, **§4g** le quattro regole della UI, i 6 nomi dei font per esteso, le **anteprime vere** di `previews.js` (le 5 chiavi sono PNG data-URL: `francois` e `staatliches` non sono più iniettate a mano; `f4`/`f5` restano inutilizzate e Barlow resta sul suo indice), lo stato ricevuto dall'orologio riletto nei campi e la **regola D26** (id stabili sulle due opzioni 3D; stato flint con `digit_style` 2 ⇒ select a 1, opzioni spente, etichette con l'avvertenza, payload 1; `change` verso 3 ⇒ 0 e verso 2 ⇒ 1, con `#s_outline` che segue il valore normalizzato; stato emery con 2 ⇒ resta 2 ed etichette pulite; piattaforma sconosciuta come emery; su flint LECO, layout e anteprime si comportano come prima). Sensibilità verificata con 8 mutanti (regola LECO in `page_core`, disabilitazione di `#s_outline`, `PREV_KEYS` corte, `PREV_KEYS` con le chiavi vecchie `f4`/`f5`, etichette «Font 4»/«Font 5», forzatura a 0, `font 0..3`, riga HTML tolta) e, per D26, con altri **5** sulla nuova regola: chiamata ad `applyNo3d` tolta (12 fail), `disabled` non messo sulle `<option>` (4), regola applicata a ogni piattaforma invece che al solo flint (19), id tolti alle due opzioni 3D (2), normalizzazione `3 ⇒ 1` invece di `3 ⇒ 0` (3). Ognuno fa fallire almeno un'asserzione. Conteggio a fine S8-stile: **1.224 ok sui sorgenti e 1.245 sull'inlinato**, 0 fail (valore corrente dopo l'aiuto sui font di S9-prep: **1.327 / 1.348**).
+- Budget dopo la modifica: HTML inlinato **62.893 B** (61,4 KB; era 61.732 B con le sole regole di stile e 60.989 B nella v1.9), modulo `config_page.js` **64.899 B**; **05/09 (revisione v1.9: soglia proporzionale alle foto e testo del rimedio): HTML 63.424 B, modulo 65.437 B; la sera, con il contatore «ora N su 12» (D28): HTML 63.735 B, modulo 65.761 B** (margine 1.801 B sotto il tetto); **S9-prep (05/09 sera), con l'aiuto sui font per lo stile trasparente: HTML 63.938 B, modulo 65.972 B** (margine **1.598 B**; superata da R13, vedi «Revisione S9-prep» sotto: 64.222/66.268 B, margine 1.314 B). Il tetto che `build_config_page.py` fa rispettare è sull'**HTML** (65.536 B → **2.643 B di margine**); il modulo è più grande per l'escaping JSON (637 B dal tetto, che però non è il suo). Dei +1.161 B rispetto alla misura precedente, ~780 sono le due anteprime PNG di `previews.js` e il resto la regola D26 in `page.js` (tabella `NO_3D`, `applyNo3d`, gli id e i commenti). **Obiettivo soft di 60 KB superato** (`SOFT_BYTES = 61.440 B`): ogni generazione stampa l'avviso «sopra l'obiettivo di 60 KB», che non blocca. Il margine va misurato a ogni aggiunta: le prime leve, se servisse spazio, sono le quattro etichette di `OPTS.digit_style` (~270 B, ma è il contratto della spec S8-stile §5) e i commenti lunghi delle sorgenti (l'inliner toglie solo le righe che iniziano con `//`, non i blocchi `/* */`).
+
+## Revisione S9-prep (05/09/2026) — aiuto sui font (P5) e avviso flint sullo stile trasparente (R13)
+
+- **Quinta regola di `applyRules()`** in `page.js` (le prime quattro sono nella revisione S8-stile qui sopra): sotto la select «Stile cifre» il paragrafo `#s_style_hint`
+  (classe `help` già esistente in `page.css`, `style="display:none"` nel markup come `#settingsNote`/`#editor`/`#slow`,
+  commutato da `show(e, on)`: la pagina non usa l'attributo `hidden`) porta il testo fisso, in italiano e ASCII:
+  «Per lo stile trasparente rendono meglio Francois One e Staatliches (Anton in layout A tende a chiudersi).»
+  Compare **solo con lo stile ≠ 0 (pieno)**, sia all'apertura (`writeSettings` ⇒ `applyRules`) sia a ogni `change`
+  delle select (`settingsChanged` ⇒ `applyRules`); non c'è altro punto che scriva `#s_digit_style`.
+- **Ordine rispetto a D26**: la riga sta **dopo** `applyNo3d(style)`, quindi legge il valore **già normalizzato** —
+  come fa `#s_outline`. Su flint lo stile 2 (⇒ 1) mostra l'aiuto e lo stile 3 (⇒ 0 = pieno) **no**: un consiglio sullo
+  stile trasparente accanto a una select che dice «pieno» sarebbe fuorviante. Con il font LECO (stile forzato a 0)
+  l'aiuto è nascosto; su `emery` e su piattaforma sconosciuta gli stili 1, 2 e 3 lo mostrano tutti.
+- **Test** (`test_page.js`, entrambi i giri): §2a l'id `#s_style_hint` nella lista degli id, la classe `help`,
+  `display:none` nel markup e la posizione fra `#s_digit_style` e `#s_clock_mode`; §4g testo esatto e visibilità per
+  gli stili 0/1/2/3 su emery (0 e ritorno a 0 nascosto), apertura con stato salvato a stile 1 e a stile 2, LECO
+  nascosto (al `change` e all'apertura), uscita da LECO con stile 0 ancora nascosto, layout «Tutto schermo» che segue
+  lo stile e layout che scaccia LECO, flint 2 ⇒ 1 visibile e 3 ⇒ 0 nascosto (sia all'apertura sia al `change`),
+  flint + LECO nascosto, piattaforma sconosciuta come emery. Conteggio **1.327 / 1.348**, 0 fail.
+- **Sensibilità**: 4 mutanti su copia in scratchpad, tutti rossi — `show()` tolta (11 fail), visibilità forzata a
+  `true` (10), regola spostata **prima** di `applyNo3d` con `+style.value` (2: i due casi flint dello stile 3,
+  all'apertura e al `change`), condizione `sv === 1 || sv === 2` invece di `sv !== 0` (1: «pieno 3D»).
+- **Budget**: +203 B sull'HTML inlinato (63.735 ⇒ **63.938 B**, modulo **65.972 B**), margine **1.598 B** sotto il
+  tetto di 65.536 B (`build_config_page.py --check`). L'avviso «sopra l'obiettivo di 60 KB» è preesistente e non
+  blocca. Prima di aggiungere altro testo alla pagina rimisurare con
+  `--check` (l'avviso R13 qui sotto e' stato misurato cosi'): le leve di recupero sono quelle elencate nella revisione S8-stile qui sopra.
+
+### R13 — avviso su Pebble 2 Duo con lo stile trasparente (05/09/2026)
+
+- **Sesta regola di `applyRules()`**: il paragrafo `#styleFlintHelp` (`<p class="help" style="display:none">`) sta
+  in `page.html` **subito dopo `#s_style_hint`**, cioè i due aiuti restano nell'ordine P5 → R13 sotto la select
+  «Stile cifre» e prima di «Formato ora». Testo fisso, in italiano: «Su Pebble 2 Duo il contorno delle cifre è di
+  1 px: sulle foto molto dettagliate l'ora si legge male. Con quelle conviene lo stile pieno.» (l'accento sta
+  nell'HTML come negli altri `<p class="help">`; `page.js` resta senza accenti e senza backtick, come vuole
+  l'inliner — la regola ASCII di F-S8-2 riguarda i log del PKJS, non i testi della pagina).
+- **Condizione**: `show(el('styleFlintHelp'), !!G.state && G.state.platform === 'flint' && sv === 1)`, riga scritta
+  **accanto a quella di P5** e quindi **dopo `applyNo3d(style)`**: `sv` è già normalizzato da D26 (2 ⇒ 1, 3 ⇒ 0),
+  perciò su flint tutti i casi trasparenti ricadono su `sv === 1` e lo stile 3 (⇒ 0 = pieno) non mostra nulla. Su
+  `emery`, su piattaforma sconosciuta e senza stato l'avviso non compare mai; con il font LECO (stile forzato a 0)
+  è nascosto. Nessun effetto sul payload (`buildPayload` non cambia), nessun byte di statico, protocollo intatto.
+- **Perché**: su flint l'anello è di 1 px **per costruzione** — `src/c/digit_metrics.h`, blocco `#else /* flint */`,
+  Anton taglia A `248, 44, 28, 42, 1, 0, 49` (ring 1, shadow 0) contro emery `404, 72, 40, 66, 2, 2, 74` (ring 2,
+  ombra 2) — e D20 esclude R = 2 su flint (sforerebbe i 144 px in 12 h). Il testo descrive **solo** lo spessore del
+  contorno e consiglia lo stile pieno: nessuna affermazione provata sul Pebble 2 Duo reale (O11 non fatto).
+- **Test** (`test_page.js`, entrambi i giri sorgenti/inlinato): §2a l'id `#styleFlintHelp` nella lista degli id e
+  `display:none` nel markup (come per `#s_style_hint`); §4g, blocco D26: posizione nel markup fra `#s_style_hint` e
+  `#s_clock_mode`; stato flint con `digit_style` 2 (⇒ 1) ⇒ avviso visibile con il **testo esatto** (costante
+  `FLINT_HELP`) e con «1 px» dentro; `change` a «pieno» ⇒ nascosto e ritorno al trasparente ⇒ di nuovo visibile;
+  emery con lo stile 3 **e con lo stile 1** ⇒ nascosto; piattaforma sconosciuta con lo stile 2 **e con lo stile 1**
+  ⇒ nascosto. I due casi «stile trasparente ma piattaforma non flint» sono quelli che provano la metà `platform ===
+  'flint'` della condizione: senza di essi un codice che guardasse il solo `sv === 1` passerebbe i test (lacuna
+  trovata dallo scettico e chiusa il 05/09). **12 asserzioni nuove per giro**: conteggio **1.339 / 1.360**, 0 fail
+  (era 1.327 / 1.348 prima di R13). `make -C test pagecheck` e `make -C test jstest` verdi.
+- **Sensibilità**: 5 mutanti su copia in scratchpad, tutti rossi. Misurati sul codice attuale: controllo di
+  piattaforma tolto (`show(el('styleFlintHelp'), sv === 1)`) ⇒ **2 fail per giro** (emery e piattaforma sconosciuta
+  con lo stile trasparente); `style="display:none"` tolto dal paragrafo ⇒ **1 fail per giro** (§2a); paragrafo tolto
+  da `page.html` ⇒ **4 fail per giro** (id mancante e posizione, più le eccezioni «DOM finto» che interrompono §2a e
+  §4g). Misurati prima delle due asserzioni nuove: `show()` di R13 tolta da `page.js` ⇒ 2 fail per giro; testo «1 px»
+  ⇒ «2 px» ⇒ 3 fail per giro.
+- **Budget**: +284 B sull'HTML inlinato (63.938 ⇒ **64.222 B**, modulo `config_page.js` **66.268 B**), margine
+  **1.314 B** sotto il tetto di 65.536 B (`make -C test pagecheck`, che rigenera `src/pkjs/config_page.js` con
+  `tools/build_config_page.py`: mai a mano).
+- **Limite noto (ereditato da D26)**: con l'orologio scollegato `watchPlatform()` (`src/pkjs/index.js`) ritorna
+  `'unknown'` — il formato ha un ripiego sullo snapshot dell'ultimo HELLO, la piattaforma no — quindi su un vero
+  Pebble 2 Duo scollegato non compaiono né la normalizzazione D26 delle opzioni 3D né questo avviso. Non è una
+  regressione di R13: è la regola già in vigore per D26. Chiusura possibile in v1.1, **per entrambe insieme**: una
+  `isFlint()` = `platform === 'flint' || (platform === 'unknown' && fmt === 2)` con i test corrispondenti.
+- **Se dopo O11 non bastasse**: in v1.1 una terza voce in `NO_3D` (`page.js`) spegne anche l'opzione «trasparente»
+  su flint, senza toccare l'orologio.

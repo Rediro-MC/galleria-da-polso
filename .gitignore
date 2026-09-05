@@ -27,3 +27,13 @@ apps/*/run_*.log
 
 # S8: build salvate per l'orologio reale (pbw + elf), rigenerabili
 apps/galleria/build_s8/
+
+# Credenziali e stati locali (mai versionare)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+firebase_oauth_storage.json
+qemu_spi_flash.bin
+*.pbw

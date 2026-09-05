@@ -78,6 +78,7 @@ static char  s_thousands_sep = '.';
 
 /* Posizioni calcolate al tick (GSize memorizzate: regola 12). */
 static GRect s_rc_time, s_rc_ampm, s_rc_left, s_rc_batt, s_rc_date;
+static GRect s_rc_sync_b;        /* R10 (S9): "Foto k/n" in basso a sinistra della fascia MM nel layout B */
 static bool  s_show_bt_icon, s_show_left, s_show_batt, s_show_date, s_show_sync;
 /* Sprite: riga 1 (unica in A / HH in B) e riga 2 (MM in B). */
 static GlyphPos s_row1[MAX_GLYPHS], s_row2[MAX_GLYPHS];
@@ -374,6 +375,16 @@ static void prv_shift_row(GlyphPos *row, uint8_t n, int16_t dx) {
   }
 }
 
+/* R10 (S9): durante la sync il layout B mostra "Foto k/n" in basso a SINISTRA della fascia MM, con il font di
+ * AM/PM; misurato fuori da update_proc (regola 12). Sta 2 righe piu' in basso del "PM" (§3.2): il contatore cade
+ * SOTTO la prima cifra dei minuti e con il margine del PM le sue lettere toccherebbero l'ombra 3D (righe 217-218 su
+ * emery); senza discendenti ("Foto 0-9/") l'ultima riga di inchiostro resta dentro lo schermo. D13 resta: fuori
+ * sync solo cifre. */
+static void prv_layout_sync_b(void) {
+  const GSize sz = prv_measure(s_sync_buf, s_lay.ampm_font, s_lay.info_h);
+  s_rc_sync_b = GRect(MARGIN_X, s_lay.full.size.h - sz.h, sz.w + 2, sz.h + 2);
+}
+
 /* Posiziona ora + AM/PM centrati orizzontalmente (blocco unico) secondo la modalità. */
 static void prv_layout_time(void) {
   const int16_t w = s_lay.full.size.w;
@@ -414,6 +425,9 @@ static void prv_layout_time(void) {
     s_row2_y = prv_strip_y(DIGITS_SIZE_B, s_lay.b_mm_fill_y);
     /* 12 h: "PM" in basso a destra (§3.2), base a 2 px dal bordo */
     s_rc_ampm = GRect(w - MARGIN_X - as.w, s_lay.full.size.h - 2 - as.h, as.w + 2, as.h + 2);
+    if (s_sync_index) {                /* R10: cambio layout / fine Quick View a sync in corso */
+      prv_layout_sync_b();
+    }
     return;
   }
 
@@ -666,6 +680,9 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
     case MODE_B_SPRITE:
       prv_draw_row(ctx, DIGITS_SIZE_B, s_row1, s_row1_n, s_row1_y);
       prv_draw_row(ctx, DIGITS_SIZE_B, s_row2, s_row2_n, s_row2_y);
+      if (s_sync_index) {              /* R10: contatore della sync dentro la fascia dinamica (y >= band_y) */
+        prv_draw_text(ctx, s_sync_buf, s_lay.ampm_font, s_rc_sync_b, false);
+      }
       break;
     default:   /* MODE_A_SPRITE, MODE_B_QV */
       prv_draw_row(ctx, DIGITS_SIZE_A, s_row1, s_row1_n, (int16_t)(s_row1_y + dy));
@@ -970,8 +987,16 @@ void ui_time_set_sync_progress(uint8_t index, uint8_t count) {
       snprintf(s_sync_buf, sizeof(s_sync_buf), "Foto %u", (unsigned)index);
     }
   }
-  if (s_layer && prv_mode_is_a()) {     /* in B la riga info non c'è: nessun ridisegno */
+  if (!s_layer) {
+    return;
+  }
+  if (prv_mode_is_a()) {
     prv_layout_info();
+    layer_mark_dirty(s_layer);
+  } else if (s_lay.mode == MODE_B_SPRITE) {   /* R10: contatore nella fascia MM; index 0 → la fascia lo cancella */
+    if (index) {
+      prv_layout_sync_b();
+    }
     layer_mark_dirty(s_layer);
   }
 }

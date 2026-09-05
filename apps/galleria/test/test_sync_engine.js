@@ -1122,6 +1122,16 @@ testcase('7f clamp OFFSET >= COUNT sull\'orologio finto (parita\' con sync_proto
   eq(out.length, 1, 'STATUS al PHOTO_BEGIN');
   eq(inField(out[0], 'CODE'), CODE.OK, 'PHOTO_BEGIN accettato');
   eq(progressSeq(en), '2/3 3/3', 'dopo il clamp il BEGIN mostra 3/3, mai 4/3');
+  /* R01 (S9-prep): k esplicito nella chiave COUNT del PHOTO_BEGIN; se k > n il finto clampa a n come
+   * sync_proto.c (test_sync_proto.c begin_count_k: "mai 9/3"). Foto nuova (slot/id diversi) => conteggiata. */
+  var ph2 = mkPhoto(5, 0x7F02, { seed: 92 });
+  var b2 = {};
+  b2[keys.MSG] = MSG.PHOTO_BEGIN; b2[keys.SLOT] = ph2.slot; b2[keys.FORMAT] = ph2.format;
+  b2[keys.LENGTH] = ph2.length; b2[keys.CRC] = ph2.crc; b2[keys.OFFSET] = 0; b2[keys.PHOTO_ID] = ph2.photoId;
+  b2[keys.COUNT] = 9;
+  out = w.handle(b2);
+  eq(inField(out[0], 'CODE'), CODE.OK, 'PHOTO_BEGIN con COUNT accettato');
+  eq(progressSeq(en), '2/3 3/3 3/3', 'COUNT 9 > n: il finto clampa a 3/3 (parita\' con sync_proto.c), mai 9/3');
   checkNoTimers();
   next();
 });
@@ -1343,6 +1353,25 @@ testcase('10a load(cb(err)) -> foto fallita, la successiva OK', function (next) 
     eq(show(pr.summaries[0].photoCodes), show(['0:load: niente rete']), 'summary.photoCodes (F9)');
     bytesEq(en.watch.buffers[1], p1._expected, 'byte della seconda foto');
     eq(p1.bytes, null, 'byte liberati dopo l\'esito (load presente)');
+    checkInFlight(en, 1);
+    next();
+  });
+});
+
+testcase('10a2 R01: foto saltate senza BEGIN accettato -> "Foto k/n" non resta indietro (COUNT = k nel PHOTO_BEGIN)', function (next) {
+  var en = env({});
+  var p0 = mkPhoto(0, 0xC101, { loadErr: 'niente rete' });   /* saltata: nessun BEGIN */
+  var p1 = mkPhoto(1, 0xC102, { seed: 29 });
+  var p2 = mkPhoto(2, 0xC103, { fmt: 2 });                    /* BAD_FORMAT sul BEGIN: saltata */
+  var p3 = mkPhoto(3, 0xC104, { seed: 31 });
+  var pr = mkProvider({ photos: [p0, p1, p2, p3] });
+  startSync(en, pr);
+  waitIdle(function (err) {
+    check(!err, 'sync terminata');
+    eq(outbox(en, MSG.PHOTO_BEGIN).map(function (d) { return d[keys.COUNT]; }).join(','), '2,3,4', 'COUNT = k (1-based) in ogni PHOTO_BEGIN');
+    eq(progressSeq(en), '0/4 2/4 4/4 0/0', '"Foto k/n": le foto saltate contano e si arriva a n/n (prima: 0/4 1/4 2/4 0/0)');
+    eq(pr.summaries[0].photosOk, 2, 'photosOk');
+    eq(pr.summaries[0].photosFailed, 2, 'photosFailed');
     checkInFlight(en, 1);
     next();
   });

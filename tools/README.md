@@ -256,7 +256,7 @@ rileggendo il binario prodotto con `struct` e controllando ogni campo del format
 
 ## 6. `palette/` – palette ufficiale a 64 colori
 
-Scaricata da developer.repebble.com:
+Scaricata da developer.repebble.com (file identici, md5, a quelli di `coredevices/sdk-docs`, Apache-2.0: vedi `THIRD-PARTY-NOTICES.md`):
 
 | File | Dimensione | Tipo | Uso |
 |---|---|---|---|
@@ -381,9 +381,9 @@ su liste piatte di interi (~0,2 s per foto; la LUT `--sunlight` aggiunge 0,2 s u
 ### Uso
 
 ```bash
-# le due foto demo del repo (comandi esatti in apps/galleria/resources/photos/README.md)
+# le due foto demo del repo (CC0, S9-prep 05/09/2026; comandi esatti e provenienza in apps/galleria/resources/photos/README.md)
 python3 tools/photo_prep.py --out apps/galleria/resources/photos --name demo_1 \
-        --preview --preview-dir /tmp/prep --stats /usr/share/backgrounds/mizuno-as-Big_Dipper.jpg
+        --preview --preview-dir ~/galleria-gate/s9/final_prev --stats ~/galleria-gate/s9/src/d10_lauklines.jpg
 
 # più foto in un colpo: il nome viene dal file (niente --name). Due input con lo stesso
 # basename (a/foto.png e b/foto.jpg) darebbero gli stessi .raw6/.raw1: il tool rifiuta ed esce 1
@@ -1045,7 +1045,7 @@ pebble emu-app-config --emulator emery      # apre http://localhost:8765/config.
 | `--photo-prep-args "…"` | opzioni extra per `photo_prep.py`. **Serve la forma con l'uguale** (`--photo-prep-args="--sunlight"`): senza `=`, argparse scambierebbe `--sunlight` per una propria opzione |
 | `--selftest` | autotest di tutti gli endpoint, poi esce (0/1) |
 | `--dump-page` | stampa su stdout la pagina di `/config.html` (quella incorporata, o il file di `--page`) ed esce **senza avviare il server**: è quello che usa `apps/galleria/test/test_devpage.js` per eseguire lo script della pagina sotto node |
-| `--dump-json pool\|state` | stampa su stdout `/pool.json` o `/state.json` costruiti dalle opzioni date (`--album`, `--slots`, `--order`, `--settings`, `--scenario`, `--open-ms`) ed esce senza avviare il server; con `--album` converte le foto (in una temporanea, rimossa subito) e su stdout esce **solo il JSON** (niente righe `pool[..]`) |
+| `--dump-json pool\|state` | stampa su stdout `/pool.json` o `/state.json` costruiti dalle opzioni date (`--album`, `--slots`, `--order`, `--settings`, `--scenario`, `--open-ms`) ed esce senza avviare il server; con `--album` converte le foto (in una temporanea, rimossa subito) e su stdout esce **solo il JSON** (niente righe `pool[..]`); Ctrl-C o SIGTERM a metà conversione: uscita **1** con «interrotto: nessun JSON prodotto.» (nessun traceback), temporanea rimossa e `photo_prep` figlio ucciso — con `--work DIR` i raw restano invece nella cartella scelta, come per il server |
 
 Campi di `--settings` (stessi intervalli di `settings_validate()` in `apps/galleria/src/c/settings.c`;
 un valore fuori intervallo è un **errore**, non viene sostituito in silenzio dal default):
@@ -1596,9 +1596,9 @@ Questa VM **non ha bus USB** e il telefono non è raggiungibile in ingresso: l'u
 telefono deve essere sulla stessa Wi‑Fi dell'host:
 
 ```bash
-adb pair 192.168.0.42:37115 123456     # 1. una volta sola: porta e codice a 6 cifre da "Accoppia dispositivo"
-adb connect 192.168.0.42:41283         # 2. PORTA DIVERSA: quella mostrata sotto "Debug wireless"
-adb devices                            # 3. deve comparire "192.168.0.42:41283   device"
+adb pair <IP del telefono>:37115 123456     # 1. una volta sola: porta e codice a 6 cifre da "Accoppia dispositivo"
+adb connect <IP del telefono>:41283         # 2. PORTA DIVERSA: quella mostrata sotto "Debug wireless"
+adb devices                            # 3. deve comparire "<IP del telefono>:41283   device"
 pebble install build_s8/galleria_p.pbw --adb --logs   # 4. (o `pebble ping --adb`; il .pbw PRIMA di --adb: un percorso subito dopo il flag verrebbe letto come seriale)
 ```
 

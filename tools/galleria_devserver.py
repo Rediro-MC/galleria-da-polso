@@ -2761,6 +2761,50 @@ def selftest():
                           res['cancel_error'] is None and res['cancel']['reloads'] == 1
                           and res['cancel']['hrefs'] == [], str(res['cancel']))
 
+        # --- SIGTERM durante --dump-json --album: temporanea rimossa, nessun figlio orfano ---
+        # Senza handler nel ramo --dump-json il processo muore prima del `finally`: la cartella
+        # galleria_dev_* resta e il photo_prep in corso resta orfano (PIANO.md, voce [13][15]).
+        tmp_root = tempfile.gettempdir()
+
+        def dev_tmps():
+            return set(n for n in os.listdir(tmp_root) if n.startswith('galleria_dev_'))
+
+        before = dev_tmps()
+        proc = subprocess.Popen(me + ['--dump-json', 'pool', '--album'] + [paths[0]] * 4,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            work_dir = None
+            deadline = time.time() + 20.0
+            while time.time() < deadline and proc.poll() is None:
+                fresh = dev_tmps() - before
+                if fresh:
+                    cand = os.path.join(tmp_root, sorted(fresh)[0])
+                    if os.listdir(cand):      # prima foto convertita: la seconda e' in corso
+                        work_dir = cand
+                        break
+                time.sleep(0.02)
+            check('--dump-json --album: temporanea in uso durante la conversione',
+                  work_dir is not None and proc.poll() is None, str(work_dir))
+            if work_dir and proc.poll() is None:
+                proc.send_signal(signal.SIGTERM)
+                out, err = proc.communicate(timeout=20)
+                check('--dump-json + SIGTERM: uscita 1 con messaggio, nessun traceback',
+                      proc.returncode == 1 and 'interrotto' in err and 'Traceback' not in err,
+                      'rc=%s err=%s' % (proc.returncode, err.strip()[-80:]))
+                check("--dump-json + SIGTERM: niente JSON a meta'", out.strip() == '', out[:60])
+                check('--dump-json + SIGTERM: temporanea rimossa', not os.path.exists(work_dir),
+                      work_dir)
+                time.sleep(0.5)               # un photo_prep sopravvissuto riscriverebbe qui
+                check('--dump-json + SIGTERM: nessun figlio che ricrea i raw',
+                      not os.path.exists(work_dir), work_dir)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
+
         # --- SIGTERM: la temporanea viene rimossa come con Ctrl-C (README §11) ---
         # Album vuoto: nessuna conversione, il server e' su in poche decine di ms.
         proc = subprocess.Popen([sys.executable, os.path.abspath(__file__), '--port', '0'],
@@ -3017,6 +3061,10 @@ def main(argv=None):
     if args.dump_json:
         # Stesso stato del server, ma senza porta ne' serve_forever: il pool si converte in
         # una temporanea (rimossa subito) e su stdout esce SOLO il JSON (niente righe "pool[..]").
+        # SIGTERM (`timeout`, `kill`) va trattato come Ctrl-C anche qui: senza handler il
+        # processo muore prima del `finally` e la temporanea resta, mentre il `photo_prep`
+        # in corso resta orfano (subprocess.run lo uccide solo se l'attesa alza un'eccezione).
+        install_sigterm_handler()
         temp_work = None
         try:
             if args.work:
@@ -3027,6 +3075,9 @@ def main(argv=None):
             state = build_state(args, slots, order, settings, work, prep_args, verbose=False)
             out = state.pool_dict() if args.dump_json == 'pool' else state.state_dict()
             _write_stdout(json.dumps(out, ensure_ascii=False, separators=(',', ':')) + '\n')
+        except (KeyboardInterrupt, Terminated):
+            sys.stderr.write('\ninterrotto: nessun JSON prodotto.\n')
+            return 1
         finally:
             if temp_work:
                 shutil.rmtree(temp_work, ignore_errors=True)
