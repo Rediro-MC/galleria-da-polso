@@ -1,7 +1,7 @@
 # Asset per lo store — Galleria (S7 §2.12, sorgenti aggiornate in S9-prep)
 
 Immagini di presentazione dell'app (icone + screenshot) per la pubblicazione con
-`pebble publish`. **Generate**, mai ritoccate a mano: l'unica sorgente di verita' e'
+`pebble publish`. **Generate**, mai ritoccate a mano: l'unica sorgente di verità è
 `make_assets.py`. Nessuna cornice, nessun testo aggiunto, nessun fotoritocco.
 
 ## Provenienza
@@ -11,11 +11,11 @@ normale, layout A, font Anton, 24 h, album vuoto -> foto demo **CC0**):
 
 | Sorgente | Piattaforma | Dimensioni | Cosa ne esce |
 |---|---|---|---|
-| `../../../docs/design/galleria/s9_emery_a_anton_scura.png` (demo 1, aurora sul fiordo: testo bianco, piu' leggibile nelle icone) | `emery` (Pebble Time 2) | 200x228 | `icon_144/80/48.png` + `emery_screenshot_1.png` |
+| `../../../docs/design/galleria/s9_emery_a_anton_scura.png` (demo 1, aurora sul fiordo: testo bianco, più leggibile nelle icone) | `emery` (Pebble Time 2) | 200x228 | `icon_144/80/48.png` + `emery_screenshot_1.png` |
 | `../../../docs/design/galleria/s9_flint_a_anton_chiara.png` (demo 2, Bryce Canyon: la scena si legge meglio in B/N) | `flint` (Pebble 2 Duo) | 144x168 | `flint_screenshot_1.png` |
 
 Le **icone** sono un ritaglio quadrato 200x200 dello screenshot emery, centrato
-verticalmente (`y` da 14 a 214, cioe' `(228-200)/2`): comprende l'ora grande, la riga
+verticalmente (`y` da 14 a 214, cioè `(228-200)/2`): comprende l'ora grande, la riga
 di stato (batteria / passi / data) e la parte alta della foto. Il ritaglio viene poi
 ridimensionato con **LANCZOS** alle tre taglie richieste.
 
@@ -28,7 +28,7 @@ cambiano, **questi asset vanno rigenerati** (`make_assets.py`).
 
 ```bash
 cd ~/ProgettiClaude/Pebble/apps/galleria
-python3 store/make_assets.py            # rigenera (idempotente: riscrive solo cio' che cambia)
+python3 store/make_assets.py            # rigenera (idempotente: riscrive solo ciò che cambia)
 python3 store/make_assets.py --check     # verifica senza scrivere (exit 1 se qualcosa differisce)
 ```
 
@@ -46,7 +46,7 @@ sorgente manca o non ha le dimensioni attese.
 | `flint_screenshot_1.png` | 144x168 | RGB | screenshot Pebble 2 Duo (`pebble publish --screenshots`) |
 
 Gli screenshot conservano i pixel dello screenshot del gate (nessun ridimensionamento);
-l'unica differenza rispetto ai file di `docs/design/galleria/` e' la conversione da
+l'unica differenza rispetto ai file di `docs/design/galleria/` è la conversione da
 RGBA a **RGB** (canale alfa opaco e inutile, rimosso).
 
 ### Nome degli screenshot
@@ -67,8 +67,8 @@ Nel **pebble-tool 5.0.40** i prompt interattivi dicono **`iconSmall` 80x80** e
 **`icon_80.png`**, non `icon_48.png` (48x48 era la taglia del vecchio portale Rebble e
 resta buona per il listing e le anteprime).
 
-Per una **watchface** il flusso interattivo **non chiede le icone** (il blocco e' dentro
-`if app_type == "watchapp"`), ma in modalita' non interattiva i due flag vengono letti
+Per una **watchface** il flusso interattivo **non chiede le icone** (il blocco è dentro
+`if app_type == "watchapp"`), ma in modalità non interattiva i due flag vengono letti
 **a prescindere dal tipo di app** (`publish.py:819-820`) e caricati come
 `iconSmall`/`iconLarge` se valorizzati (`:871-889`): passarle funziona. Se il server
 rispondesse 400, il comando fallisce **senza creare l'app** e basta rilanciarlo senza i
@@ -86,5 +86,5 @@ pebble publish \
 Il **comando completo** per S9 (nome, versione, descrizione, release notes, `--source`,
 `--non-interactive`, `--no-gif-all-platforms`) e i prerequisiti stanno in
 [`LISTING.md`](LISTING.md) §6; la ricerca riga per riga sul sorgente del tool, con le
-trappole (visibilita', GIF, sostituzione degli screenshot, procedura Rebble), sta in
-[`PUBLISH.md`](PUBLISH.md). Galleria e' una **watchface**: nessun banner richiesto.
+trappole (visibilità, GIF, sostituzione degli screenshot, procedura Rebble), sta in
+[`PUBLISH.md`](PUBLISH.md). Galleria è una **watchface**: nessun banner richiesto.

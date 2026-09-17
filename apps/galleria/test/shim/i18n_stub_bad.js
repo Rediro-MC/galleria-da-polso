@@ -6,5 +6,7 @@ module.exports = {
   en: ['Save', 'Add photo'],
   it: 'Salva',                       /* <- rotto: stringa invece di array */
   de: ['Speichern', 'Foto hinzufügen'],
-  fr: ['Enregistrer', 'Ajouter une photo']
+  fr: ['Enregistrer', 'Ajouter une photo'],
+  es: ['Guardar', 'Añadir foto'],
+  pt: ['Salvar', 'Adicionar foto']
 };

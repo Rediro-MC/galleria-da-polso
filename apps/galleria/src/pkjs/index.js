@@ -255,8 +255,8 @@ function applyDevState(state) {
   }
   /* Lingua automatica finta (S10/D33, --lang): stessa regola dell'hook open_ms — uno stato con
    * `hooks` e SENZA `lang` AZZERA l'hook (dev server riavviato senza il flag), uno stato senza
-   * `hooks` del tutto non lo tocca. Serve a vedere la config page in de/fr senza cambiare la
-   * lingua dell'orologio (in emulatore non e' nemmeno cambiabile: en_US fisso). */
+   * `hooks` del tutto non lo tocca. Serve a vedere la config page in una delle sei lingue (D39)
+   * senza cambiare la lingua dell'orologio (in emulatore non e' nemmeno cambiabile: en_US fisso). */
   if (state && state.hooks) {
     lg = state.hooks.lang;
     nextLang = (typeof lg === 'string' && LANGS[lg] === 1) ? lg : null;
@@ -319,7 +319,11 @@ Pebble.addEventListener('ready', function () {
  * Lo stato (album.state() + piattaforma/formato/tetto) viaggia nell'HASH dell'URL come base64url
  * dei byte UTF-8 del JSON: identico sul telefono (data: URL con la pagina inlinata da config_page.js)
  * e in emulatore (pagina servita dal dev server; `pebble emu-app-config` aggiunge ?return_to=
- * prima dell'hash). La pagina produce sempre e solo il formato dell'orologio collegato (fmt). */
+ * prima dell'hash). La pagina produce sempre e solo il formato dell'orologio collegato (fmt).
+ * S12/D44: sul telefono la PAGINA viaggia in base64 standard (`;base64,`) invece del
+ * percent-encoding — 1,333 caratteri per byte invece di 1,659 — e l'hash resta base64url.
+ * Ripiego, se una WebView non aprisse la forma base64: rimettere questa riga sola
+ *   url = 'data:text/html;charset=utf-8,' + encodeURIComponent(CONFIG_HTML) + '#' + hash; */
 var CONFIG_HTML = null;   /* require pigro: config_page.js è una stringa da ~60 KB generata da tools/build_config_page.py */
 
 function watchPlatform() {
@@ -329,19 +333,25 @@ function watchPlatform() {
   return (info && typeof info.platform === 'string') ? info.platform : 'unknown';
 }
 
-/* ---- lingua (S10, D33) ----
+/* ---- lingua (S10, D33; S11/D39: + es, pt) ----
  * La lingua "automatica" della pagina e' quella dell'OROLOGIO (getActiveWatchInfo().language,
  * p.es. 'it_IT'): coincide con quella di notifiche e calendario ed e' l'unica che il PKJS
  * conosce su iOS, dove `navigator` non esiste (in pypkjs vale sempre 'en-GB'). Ripieghi, in
  * ordine: navigator.language se il runtime ce l'ha, poi 'en'. In DEV l'hook `lang` del dev
- * server (--lang) vince su tutto: prova la pagina nelle quattro lingue senza toccare l'orologio.
- * Le quattro lingue della pagina; le altre (es/pt/ru...) ricadono su 'en' (l'orologio, in auto,
- * continua a usare strftime e quindi il suo language pack: D33). */
-var LANGS = { en: 1, it: 1, de: 1, fr: 1 };
-var LANG_ORDER = ['en', 'it', 'de', 'fr'];       /* ordine fisso nello stato della pagina */
+ * server (--lang) vince su tutto: prova la pagina nelle sei lingue senza toccare l'orologio.
+ * Le sei lingue della pagina; le altre (ru, nl...) ricadono su 'en' (l'orologio, in auto,
+ * continua a usare strftime e quindi il suo language pack: D33). L'ordine e' quello di
+ * GalSettings.lang 1..6 (D39: es e pt in coda) ed e' lo stesso di page_core.js LANGS e degli
+ * array di i18n.js: build_config_page.py controlla che le tre liste coincidano. */
+var LANG_ORDER = ['en', 'it', 'de', 'fr', 'es', 'pt'];   /* ordine fisso nello stato della pagina (unica copia) */
+var LANGS = (function () {                                /* insieme derivato: revisione S11 (R-JS), niente quarta copia */
+  var m = {}, i;
+  for (i = 0; i < LANG_ORDER.length; i++) { m[LANG_ORDER[i]] = 1; }
+  return m;
+}());
 
 /* '<xx>' dai primi due caratteri del locale ('it_IT', 'de-CH' -> 'it', 'de'), null se non e' una
- * delle quattro lingue della pagina. */
+ * delle sei lingue della pagina. */
 function langOf(loc) {
   var xx = (typeof loc === 'string') ? loc.slice(0, 2).toLowerCase() : '';
   return (LANGS[xx] === 1) ? xx : null;
@@ -360,7 +370,7 @@ function watchLanguage() {
   return (info && typeof info.language === 'string' && info.language) ? info.language : null;
 }
 
-/* Codice della lingua automatica ('en'|'it'|'de'|'fr') + una riga di log che dice DA DOVE viene. */
+/* Codice della lingua automatica ('en'|'it'|'de'|'fr'|'es'|'pt') + una riga di log che dice DA DOVE viene. */
 function langAuto() {
   var loc = watchLanguage(), code = langOf(loc), nav = null, navCode;
   if (DEV && devLang) { log('[config] lang auto=' + devLang + ' (hook dev)'); return devLang; }
@@ -373,7 +383,7 @@ function langAuto() {
 }
 
 /* Dizionari della pagina (S10/D35): require PIGRO di ./i18n (generato da tools/build_i18n.py,
- * come config_page.js), tutte e quattro le lingue perche' il select della pagina cambi lingua
+ * come config_page.js), tutte e sei le lingue perche' il select della pagina cambi lingua
  * senza tornare al PKJS. Modulo assente o malformato -> null: la pagina resta in inglese minimo
  * invece di non aprirsi. I testi hanno accenti: non finiscono MAI in un log (F-S8-2). */
 var I18N = null;
@@ -402,6 +412,101 @@ function i18nDicts() {
   return I18N;
 }
 
+/* ---- maschere delle cifre per l'anteprima (S12, D45) ----
+ * `src/pkjs/digit_masks.js` (generato da `tools/gen_digits.py --masks-js`) porta, per piattaforma,
+ * font e taglia, la maschera a 1 bit del solo RIEMPIMENTO di ogni glifo (anello e ombra la pagina
+ * li ricostruisce). Alla pagina servono soltanto la piattaforma COLLEGATA e i glifi dell'ora
+ * campione: tutto il resto sarebbe peso morto nell'URL. I font restano TUTTI, e cosi' le due
+ * taglie, perche' l'anteprima si ridisegna al volo quando si cambia font o layout senza tornare
+ * al PKJS. Nella taglia B il ':' non c'e' (la strip B non lo ha: --no-colon-b), e i glifi assenti
+ * o di larghezza 0 vengono saltati.
+ * Il modulo e' il pezzo piu' grosso del PKJS dopo la pagina: require PIGRO come config_page.js e
+ * i18n.js, e se manca (build senza --masks-js) `masks` vale null e la pagina mostra la sola foto
+ * invece di non aprirsi. Niente accenti nei log (F-S8-2). */
+var PREVIEW_TIME = '12:34';                       /* ora campione dell'anteprima (D46) */
+var MASKS = null;
+var masksTried = false;
+
+function masksModule() {
+  var m = null;
+  if (masksTried) { return MASKS; }
+  masksTried = true;
+  try { m = require('./digit_masks'); }
+  catch (e) {
+    log('[config] digit_masks.js mancante (' + e + '): anteprima senza cifre');
+    return null;
+  }
+  if (!m || typeof m !== 'object' || m.v !== 1) {
+    log('[config] digit_masks.js malformato: anteprima senza cifre');
+    return null;
+  }
+  MASKS = m;
+  return MASKS;
+}
+
+/* Sottoinsieme del modulo per l'hash: { v, <piattaforma>: { <font>: { a|b: { …metriche, glyphs } } } }. */
+function previewMasks(fmt) {
+  var m = masksModule(), plat = (fmt === 2) ? 'flint' : 'emery', src, dst, out;
+  var fonts = 0, glyphs = 0, widths = 0, bits = 0, fname, sname, font, size, sz, g, ch, i, k;
+  var sub, sizes;
+  if (!m) { return null; }
+  src = m[plat];
+  if (!src || typeof src !== 'object') {
+    log('[config] digit_masks.js senza la piattaforma ' + plat + ': anteprima senza cifre');
+    return null;
+  }
+  dst = {};
+  for (fname in src) {
+    if (!Object.prototype.hasOwnProperty.call(src, fname)) { continue; }
+    font = src[fname];
+    if (!font || typeof font !== 'object') { continue; }
+    sub = {};
+    sizes = 0;
+    for (sname in font) {
+      if (!Object.prototype.hasOwnProperty.call(font, sname)) { continue; }
+      size = font[sname];
+      if (!size || typeof size !== 'object') { continue; }
+      sz = {};
+      for (k in size) {                            /* metriche (strip_h, digit_h, ring, shadow, cell_w, …) */
+        if (Object.prototype.hasOwnProperty.call(size, k) && k !== 'glyphs') { sz[k] = size[k]; }
+      }
+      sz.glyphs = {};
+      for (i = 0; i < PREVIEW_TIME.length; i++) {
+        ch = PREVIEW_TIME.charAt(i);
+        if (Object.prototype.hasOwnProperty.call(sz.glyphs, ch)) { continue; }   /* gia' preso ('1' e '2' una volta sola) */
+        if (sname === 'b' && ch === ':') { continue; }                           /* la strip B non ha il ':' */
+        g = size.glyphs ? size.glyphs[ch] : null;
+        if (!g || !g.w || typeof g.bits !== 'string') { continue; }
+        sz.glyphs[ch] = { w: g.w, bits: g.bits };
+        glyphs++;
+        bits += g.bits.length;
+      }
+      /* Revisione S12 (V1): la griglia D25 (prv_grid_steps) usa il riempimento della cifra PIU' LARGA fra le 10,
+       * non solo di quelle disegnate: le altre viaggiano con il solo `w` (niente bit: non si disegnano). */
+      for (i = 0; i < 10; i++) {
+        ch = String(i);
+        if (Object.prototype.hasOwnProperty.call(sz.glyphs, ch)) { continue; }
+        g = size.glyphs ? size.glyphs[ch] : null;
+        if (!g || !g.w) { continue; }
+        sz.glyphs[ch] = { w: g.w };
+        widths++;
+      }
+      sub[sname] = sz;
+      sizes++;
+    }
+    /* Revisione S12 (R-K): il sottoalbero si assegna, e si conta nel log, solo se il font ha
+     * almeno una taglia valida: un font malformato non viaggia nell'hash come oggetto vuoto. */
+    if (sizes > 0) {
+      dst[fname] = sub;
+      fonts++;
+    }
+  }
+  out = { v: 1 };
+  out[plat] = dst;
+  log('[config] masks ' + plat + ': ' + fonts + ' font, ' + glyphs + ' glifi + ' + widths + ' larghezze, ' + bits + ' car. di bit');
+  return out;
+}
+
 function configState() {
   var st, platform = watchPlatform(), fmt;
   if (!album) { album = new Album(safeStorage(), log); }
@@ -414,11 +519,13 @@ function configState() {
   /* cap_kb: 900 (Android). Pebble.platform è il runtime ('pebble' sul telefono, 'pypkjs' in emulatore), NON
    * l'OS: iOS non è riconoscibile da qui (revisione S6 #4) → è la pagina ad abbassare il tetto a 200 KB
    * quando navigator.userAgent è iPhone/iPad/iPod. */
-  /* lang_auto (S10/D33) = lingua della pagina quando settings.lang vale 0; i dizionari (D35)
-   * vanno IN CODA: sono il pezzo grosso dello stato e cosi' l'inizio dell'hash resta leggibile. */
+  /* lang_auto (S10/D33) = lingua della pagina quando settings.lang vale 0; i dizionari (D35) e
+   * le maschere delle cifre (S12/D45) vanno IN CODA: sono i pezzi grossi dello stato e cosi'
+   * l'inizio dell'hash resta leggibile. */
   return { v: 1, platform: platform, fmt: fmt, cap_kb: 900, dev: DEV, lang_auto: langAuto(),
            settings: st.settings, settingsSet: st.settingsSet, photos: st.photos, order: st.order,
-           deleted: st.deleted, watch: st.watch || null, i18n: i18nDicts() };
+           deleted: st.deleted, watch: st.watch || null, preview_time: PREVIEW_TIME,
+           masks: previewMasks(fmt), i18n: i18nDicts() };
 }
 
 var cfgOpenedAt = 0;                                /* S8: ms fra Pebble.openURL e webviewclosed (tempo nella pagina) */
@@ -439,7 +546,7 @@ Pebble.addEventListener('showConfiguration', function () {
                       '<p>Pagina di configurazione non inclusa nel pacchetto (config_page.js mancante).</p><p><a href="pebblejs://close#">Chiudi</a></p>';
       }
     }
-    url = 'data:text/html;charset=utf-8,' + encodeURIComponent(CONFIG_HTML) + '#' + hash;
+    url = 'data:text/html;charset=utf-8;base64,' + b64.encodeUtf8Std(CONFIG_HTML) + '#' + hash;
     log('[config] apro la pagina (URL ' + url.length + ' car., stato ' + hash.length + ')');
   }
   cfgOpenedAt = new Date().getTime();

@@ -1360,7 +1360,7 @@
     "Whether Core Devices will widen virtual_size/load_size (issue #1873, open since 2026-08-16) or enable PSRAM in a future PebbleOS release is undecided.",
     "Running the QEMU emulator on Ubuntu 26.04 without sudo depends on the downloaded binary's shared-library needs (SDL2, glib, pixman, sndio, libpng); the user-space workaround is untested."
    ],
-   "file_written": "/tmp/claude-1000/-home-claudecode-ProgettiClaude/01e8b2a5-9207-4a3f-ad1c-afa8bf64e2ac/scratchpad/pebble-research/gap-1.md"
+   "file_written": "docs/ricerca/gap-1-memoria-emery.md"
   },
   {
    "key": "gap-3",
@@ -1492,7 +1492,7 @@
     "Does firmware 4.33.x expose an on-watch configuration menu for third-party apps (beyond the system Settings -> Display -> Touch)? Nothing found; per-app config still appears to be Clay/PebbleKit JS on the phone, so an on-watch settings menu must be implemented by the app itself.",
     "Exact SDK install paths and whether toolchain/bin is auto-added to PATH by `pebble sdk install` (pebble-tool defaults to plain 'qemu-pebble' on PATH) — not verifiable without running the installer."
    ],
-   "file_written": "/tmp/claude-1000/-home-claudecode-ProgettiClaude/01e8b2a5-9207-4a3f-ad1c-afa8bf64e2ac/scratchpad/pebble-research/gap-3.md"
+   "file_written": "docs/ricerca/gap-3-emulatore-touch.md"
   },
   {
    "key": "gap-2",
@@ -1618,7 +1618,7 @@
     "Whether 'pebble install --emulator emery --sdk 4.17' works as a combination to reproduce the incompatibility dialog locally.",
     "Whether the QEMU emulator can run on Ubuntu 26.04 without sudo (SDL2/glib/pixman/sndio shared libraries)."
    ],
-   "file_written": "/tmp/claude-1000/-home-claudecode-ProgettiClaude/01e8b2a5-9207-4a3f-ad1c-afa8bf64e2ac/scratchpad/pebble-research/gap-2.md"
+   "file_written": "docs/ricerca/gap-2-firmware-minimo.md"
   }
  ]
 }

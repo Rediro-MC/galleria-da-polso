@@ -1,5 +1,18 @@
 # v2:61e3b5cc55614cc02186a336ce0891e986f6f55a9817707482ccb0512973751d
 
+> **Stato (17/09/2026).** Documento storico del 25/08/2026 (`README.md` della cartella). Le evidenze
+> `scratchpad/<clone>` sono cloni di sessione non conservati: i repo originali sono elencati in
+> `docs/design/galleria.md` §11. La raccomandazione §1–§6 è superata (raw6, schema persist 2, chunk 4.096,
+> colore del testo sull'orologio, `text_layer_set_should_cache_layout` inesistente). Restano validi F12 e
+> le misure persist su PT2 di Fields of Gold. Delle nove «Open questions» hanno risposta in S8
+> (`docs/design/galleria-s8-risultati.md`) quelle su throughput BLE, `<input type=file>` su iOS e costo
+> delle scritture/letture persist; il limite del close URL è misurato solo fino a ~50 KB (§S8b O10:
+> 49.806 caratteri, i 200 KB sono la prova P16 del gate sul telefono) e il tempo di una compattazione
+> non è mai stato osservato (il firmware compatta oltre ~615 KB fisici, mai raggiunti); la dimensione di
+> un font `.pbf` a ~95–100 px non serve più (S3 usa sprite generate da `tools/gen_digits.py`); restano
+> senza risposta il limite pratico del `localStorage` PKJS, il PKJS in background su iOS, l'identità di
+> «Tempest Time» e l'interno di Face Boss.
+
 ## Findings (24)
 
 ### F0 [verified CRIT] Esistono almeno tre watchface fotografiche 'moderne' (2025-2026) per le nuove piattaforme: Retro Photo Face (URL → server → raw framebuffer, nessuna persistenza sull'orologio), Fields of Gold (file-input in Clay, PBI 4-bit, persist su orologio con 2 slot, open source MIT) e Face Boss (companion Android con PebbleKit, immagini inviate a richiesta). Le tre usano strategie di acquisizione e storage completamente diverse.

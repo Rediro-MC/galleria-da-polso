@@ -1,5 +1,11 @@
 # v2:e5fbec238e2a37b1f36102b666bf1af88f5a5bbbfba766402519495735cf8095
 
+> **Stato (17/09/2026).** Documento storico del 25/08/2026 (`README.md` della cartella). È il file più
+> citato della cartella: la tabella LUM_SUN (F14) e §1–§3 sono la provenienza richiamata dal C e dai test.
+> Due avvertenze: il riferimento **byte-esatto** della pipeline è `tools/photo_prep.py` (`tools/README.md`
+> §9), non gli snippet; lo snippet flint di §2 **non** è il formato dell'orologio (raw1 = 1BitPalette
+> MSB-first, 18 B/riga, 3.024 B). La LUT «sunlight» resta da confermare sul vetro (O6 di S8, non fatta).
+
 ## Findings (21)
 
 ### F0 [verified CRIT] GColorFromRGB/GColorFromRGBA/GColorFromHEX quantizzano per TRONCAMENTO (`>> 6` per canale). I valori 0/85/170/255 mappano esattamente su 0/1/2/3 (85>>6=1, 170>>6=2, 255>>6=3); ma 84 → 0, 169 → 2. Quindi la palette che il telefono scrive nel PLTE del PNG deve contenere ESATTAMENTE i valori 0/85/170/255, perché il decoder PNG del firmware converte il PLTE con GColorFromRGBA (troncamento).
@@ -12,7 +18,7 @@
 
 ### F2 [verified] I file palette del repo sono coerenti con i 64 colori RGB222: `pebble_colors_64.gif` (GIF 177x177, modo P, 64 voci, 64 colori pixel unici = esattamente le 64 terne {0,85,170,255}^3), `pebble_colors_64.act` (772 B: 256 terne + 4 B coda `00 40 ff ff` = count 64; le prime 64 terne sono le 64 combinazioni), `pebble_colors_64.pal` (RIFF PAL, 256 entry, insieme = le 64 combinazioni).
 - evidenza: Script Pillow: `pixels == expected 64 combos: True`, `ACT first 64 == expected: True`, `RIFF PAL count 256 == expected True`.
-- fonte: /home/claudecode/ProgettiClaude/Pebble/tools/palette/pebble_colors_64.{gif,act,pal}; verifica eseguita con Pillow 12.1.1 (script nello scratchpad quant/)
+- fonte: ~/ProgettiClaude/Pebble/tools/palette/pebble_colors_64.{gif,act,pal}; verifica eseguita con Pillow 12.1.1 (script nello scratchpad quant/)
 
 ### F3 [verified] La LUT 'sunlight' del color picker (JS) e quella di `pebble screenshot` (`_correct_colours`) sono identiche: 64 voci, stessi valori (es. #ff0000→#e35462, #ffff00→#ffeeab). È una tabella discreta 64→64: non è 'invertibile' per pre-compensare i colori, ma si può usare per scegliere il colore di palette in base alla RESA (quantizzazione nello spazio corretto).
 - evidenza: Confronto programmatico dei due dizionari: `JS LUT entries 64 identical: True, diffs []`.

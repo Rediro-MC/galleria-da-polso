@@ -29,10 +29,16 @@
  *      stato dev successivo SENZA l'hook (dev server riavviato senza --open-ms) lo azzera
  *   k  dev: hooks.open_ms 0 (valido: avviso spento), non numerico e negativo (ignorati)
  *   l  fuori dall'emulatore (platform android) l'hook non ha alcun effetto: il token dev è rifiutato
- *   m  S10 (D33/D35): lingua automatica nello stato della config page (orologio, ripiego
- *      navigator, ripiego 'en') e dizionari `i18n` (modulo assente/malformato → null)
+ *   m  S10 (D33/D35) + S11 (D39): lingua automatica nello stato della config page (orologio,
+ *      ripiego navigator, ripiego 'en') e dizionari `i18n` a SEI lingue (modulo assente, malformato
+ *      o con una lingua MANCANTE → null); es/pt sono lingue vere, la sconosciuta di prova e' ru
  *   n  S10: in dev l'hook `lang` forza la lingua automatica, uno stato senza l'hook la ridà
  *      all'orologio e un valore ignoto viene rifiutato
+ *   o  S12 (D45): `masks` nello stato della config page — solo la piattaforma collegata, solo i
+ *      glifi dell'ora campione «12:34» (in taglia B senza ':'), metriche copiate, `preview_time`;
+ *      modulo assente / malformato / senza la piattaforma → `masks: null` e la pagina si apre lo stesso
+ *   p  S12 (D44): sul telefono l'URL è `data:text/html;charset=utf-8;base64,<pagina>#<hash>` —
+ *      corpo = config_page.js byte a byte, hash ancora base64url, log invariato
  *
  * I casi j-l girano con platform 'pypkjs' e devserver.js stubbato via require.cache (nessun server:
  * lo stato dev arriva da devStub.state / devStub.saveState), come in test_devstorage.js.
@@ -85,14 +91,19 @@ function restoreNavigator() {
  * il modulo ASSENTE (require che lancia MODULE_NOT_FOUND). */
 var I18N_OK = require.resolve('i18n_stub');
 var I18N_BAD = require.resolve('i18n_stub_bad');
+var I18N_MISS = require.resolve('i18n_stub_missing');   /* S11/D39: modulo senza `pt` */
 var i18nTarget = I18N_OK;
 (function hijackI18n() {
   var orig = Module._resolveFilename;
   Module._resolveFilename = function (request, parent) {
-    var e;
-    if (request === './i18n' && parent && /src[\/\\]pkjs[\/\\]index\.js$/.test(parent.filename || '')) {
+    var e, fromIndex = parent && /src[\/\\]pkjs[\/\\]index\.js$/.test(parent.filename || '');
+    if (request === './i18n' && fromIndex) {
       if (i18nTarget === null) { e = new Error("Cannot find module './i18n'"); e.code = 'MODULE_NOT_FOUND'; throw e; }
       return i18nTarget;
+    }
+    if (request === './digit_masks' && fromIndex) {      /* S12/D45: vedi setMasks() */
+      if (!masksPresent) { e = new Error("Cannot find module './digit_masks'"); e.code = 'MODULE_NOT_FOUND'; throw e; }
+      return MASKS_FAKE;
     }
     return orig.apply(this, arguments);
   };
@@ -101,6 +112,12 @@ var i18nTarget = I18N_OK;
 var pass = 0, fail = 0;
 var origLog = console.log;
 function check(c, what) { if (c) { pass++; } else { fail++; origLog('FAIL ' + what); } }
+/* uguaglianza stretta con il valore ottenuto nel messaggio (S12) */
+function eq(got, exp, what) {
+  if (got === exp) { pass++; return; }
+  fail++;
+  origLog('FAIL ' + what + ': ' + JSON.stringify(got) + ' invece di ' + JSON.stringify(exp));
+}
 
 /* ---- timer: tracciati tutti; quelli ≥ 30 s compressi di `divisor` ---- */
 var realSetTimeout = global.setTimeout, realClearTimeout = global.clearTimeout;
@@ -199,6 +216,7 @@ function env(opts) {
    * bersaglio. Cancellare gli stub invalida anche quella cache. */
   delete require.cache[I18N_OK];
   delete require.cache[I18N_BAD];
+  delete require.cache[I18N_MISS];
   delete require.cache[INDEX];
   require(INDEX);
   en.pebble.fire('ready');
@@ -231,11 +249,13 @@ function snapOpenMs() {
 
 /* Stato che la config page riceve nell'HASH dell'URL (b64url dei byte UTF-8 del JSON): è quello che
  * la pagina legge davvero, quindi ciò che conta per lang_auto e i dizionari (S10). */
-function pageState(en) {
-  var url, hash;
+function pageUrl(en) {
   en.pebble.fire('showConfiguration');
-  url = en.pebble.opened[en.pebble.opened.length - 1] || '';
-  hash = url.slice(url.indexOf('#') + 1);
+  return en.pebble.opened[en.pebble.opened.length - 1] || '';
+}
+
+function pageState(en) {
+  var url = pageUrl(en), hash = url.slice(url.indexOf('#') + 1);
   try { return JSON.parse(Buffer.from(b64.decode(hash)).toString('utf8')); } catch (e) { return null; }
 }
 
@@ -569,6 +589,65 @@ cases.push(['l fuori dall\'emulatore l\'hook open_ms non ha effetto (token dev r
 
 /* Un ambiente "telefono" con la lingua dell'orologio scelta dal caso: `lang` è il locale di
  * getActiveWatchInfo() (null = campo assente, false = getActiveWatchInfo() che non torna nulla). */
+/* S12/D45: `require('./digit_masks')` di index.js dirottato su un modulo finto che vive SOLO in
+ * require.cache (nessun file su disco: `src/pkjs/digit_masks.js` lo genera
+ * `tools/gen_digits.py --masks-js` e i test non ne dipendono). setMasks(null) simula il modulo
+ * ASSENTE. Un solo percorso finto, con le exports mutate da setMasks: cosi' la cache
+ * request->file di node (che salta _resolveFilename finche' il file risolto resta in
+ * require.cache) non consegna mai il modulo del caso precedente. */
+var MASKS_FAKE = require('path').resolve(__dirname, 'shim', 'digit_masks_fake.js');
+var masksPresent = false;
+
+function setMasks(exp) {
+  var m;
+  delete require.cache[MASKS_FAKE];
+  masksPresent = (exp !== null);
+  if (!masksPresent) { return; }
+  m = new Module(MASKS_FAKE, null);
+  m.filename = MASKS_FAKE; m.loaded = true; m.exports = exp;
+  require.cache[MASKS_FAKE] = m;
+}
+
+/* Bit finti ma della forma vera (D45): righe da ceil(w/8) byte, strip_h righe, base64url. */
+function fakeBits(ch, w, h) {
+  var bytes = [], n = ((w + 7) >> 3) * h, i;
+  for (i = 0; i < n; i++) { bytes.push((ch.charCodeAt(0) + i * 37) & 255); }
+  return b64.encode(bytes);
+}
+
+/* Modulo finto con la forma di D45: due font per piattaforma, taglie a/b, tutti gli 11 glifi
+ * (nella taglia B il ':' ha w 0, come nelle strip vere generate con --no-colon-b). */
+function masksFixture() {
+  var out = { v: 1 }, plats = [['emery', 12, 16, 2, 2, 40, 64], ['flint', 8, 10, 1, 0, 28, 48]];
+  var fonts = ['anton', 'bebas'], GL = '0123456789:';
+  var p, f, sz, i, size, w, dst;
+  for (p = 0; p < plats.length; p++) {
+    dst = {};
+    for (f = 0; f < fonts.length; f++) {
+      dst[fonts[f]] = {};
+      for (sz = 0; sz < 2; sz++) {
+        size = { strip_h: plats[p][1 + sz], digit_h: plats[p][1 + sz] - 3, ring: plats[p][3],
+                 shadow: plats[p][4], cell_w: plats[p][5 + sz], glyphs: {} };
+        for (i = 0; i < GL.length; i++) {
+          w = (GL.charAt(i) === ':') ? (sz === 1 ? 0 : (plats[p][0] === 'emery' ? 6 : 5))
+                                     : (8 + i) - (plats[p][0] === 'emery' ? 0 : 3);
+          size.glyphs[GL.charAt(i)] = { w: w, bits: w ? fakeBits(GL.charAt(i), w, size.strip_h) : '' };
+        }
+        dst[fonts[f]][sz === 0 ? 'a' : 'b'] = size;
+      }
+    }
+    out[plats[p][0]] = dst;
+  }
+  return out;
+}
+
+var WATCH_EMERY = { platform: 'emery', model: 'qemu', language: 'it_IT',
+                    firmware: { major: 4, minor: 33, patch: 2, suffix: '' } };
+var WATCH_FLINT = { platform: 'flint', model: 'qemu', language: 'it_IT',
+                    firmware: { major: 4, minor: 33, patch: 2, suffix: '' } };
+
+setMasks(masksFixture());       /* modulo presente per default: i casi o/p lo cambiano */
+
 function langEnv(loc) {
   var info = { platform: 'emery', model: 'qemu', firmware: { major: 4, minor: 33, patch: 2, suffix: '' } };
   if (loc !== null) { info.language = loc; }
@@ -577,7 +656,9 @@ function langEnv(loc) {
 
 cases.push(['m lingua automatica dall\'orologio, ripieghi e dizionari nello stato della config page', function (next) {
   var en, st, i, want = [['it_IT', 'it'], ['de_DE', 'de'], ['fr_FR', 'fr'], ['en_GB', 'en'],
-                         ['de-CH', 'de'], ['IT_it', 'it']];
+                         ['de-CH', 'de'], ['IT_it', 'it'],
+                         /* S11/D39: es e pt sono lingue della pagina, non piu' ripieghi su 'en' */
+                         ['es_ES', 'es'], ['es-419', 'es'], ['pt_PT', 'pt'], ['pt-BR', 'pt']];
   setNavigator(null);                    /* PKJS su iOS: `navigator` non esiste (ripiego 3 = 'en') */
   for (i = 0; i < want.length; i++) {
     en = langEnv(want[i][0]);
@@ -585,11 +666,11 @@ cases.push(['m lingua automatica dall\'orologio, ripieghi e dizionari nello stat
     check(!!st && st.lang_auto === want[i][1], 'm: watch ' + want[i][0] + ' -> lang_auto ' + want[i][1] + ' (got ' + (st && st.lang_auto) + ')');
     check(hasLog(en, '[config] lang auto=' + want[i][1] + ' (watch ' + want[i][0] + ')'), 'm: log ASCII per ' + want[i][0]);
   }
-  /* lingua fuori dalle quattro, campo assente, getActiveWatchInfo() muta: niente navigator in node → 'en' */
-  en = langEnv('es_ES');
+  /* lingua fuori dalle sei, campo assente, getActiveWatchInfo() muta: niente navigator in node → 'en' */
+  en = langEnv('ru_RU');
   st = pageState(en);
-  check(!!st && st.lang_auto === 'en', 'm: watch es_ES (lingua non tradotta) -> en, got ' + (st && st.lang_auto));
-  check(hasLog(en, '[config] lang auto=en (default, watch es_ES)'), 'm: log del ripiego con il locale dell\'orologio');
+  check(!!st && st.lang_auto === 'en', 'm: watch ru_RU (lingua non tradotta) -> en, got ' + (st && st.lang_auto));
+  check(hasLog(en, '[config] lang auto=en (default, watch ru_RU)'), 'm: log del ripiego con il locale dell\'orologio');
   en = langEnv(null);
   check(pageState(en).lang_auto === 'en', 'm: watchInfo senza `language` -> en');
   check(hasLog(en, '[config] lang auto=en (default, watch assente)'), 'm: log del ripiego senza lingua');
@@ -608,18 +689,20 @@ cases.push(['m lingua automatica dall\'orologio, ripieghi e dizionari nello stat
   en = langEnv('it_IT');
   check(pageState(en).lang_auto === 'it', 'm: l\'orologio vince su navigator (D33)');
   setNavigator(null);
-  /* dizionari: tutte e quattro le lingue, senza `keys` (la pagina lavora per indice) */
+  /* dizionari: tutte e sei le lingue, senza `keys` (la pagina lavora per indice) */
   en = langEnv('it_IT');
   st = pageState(en);
   check(!!st && !!st.i18n, 'm: i18n presente nello stato');
-  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr"]',
-        'm: i18n con le quattro lingue, senza `keys` (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
-  check(!!st && st.i18n.it[0] === 'Salva' && st.i18n.de[1] === 'Foto hinzuf\u00fcgen' && st.i18n.fr[2] === 'Photos : {0}',
-        'm: i dizionari arrivano interi (accenti compresi)');
-  check(st.i18n.en.length === 3 && st.i18n.it.length === 3 && st.i18n.de.length === 3 && st.i18n.fr.length === 3,
+  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr","es","pt"]',
+        'm: i18n con le sei lingue nell\'ordine di LANG_ORDER, senza `keys` (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
+  check(!!st && st.i18n.it[0] === 'Salva' && st.i18n.de[1] === 'Foto hinzuf\u00fcgen' && st.i18n.fr[2] === 'Photos : {0}' &&
+        st.i18n.es[1] === 'A\u00f1adir foto' && st.i18n.pt[0] === 'Salvar',
+        'm: i dizionari arrivano interi (accenti compresi, es/pt compresi)');
+  check(st.i18n.en.length === 3 && st.i18n.it.length === 3 && st.i18n.de.length === 3 && st.i18n.fr.length === 3 &&
+        st.i18n.es.length === 3 && st.i18n.pt.length === 3,
         'm: array paralleli della stessa lunghezza');
   check(st.settings && st.settings.lang === 0, 'm: settings.lang (byte 13) nello stato, 0 = automatica');
-  check(!hasLog(en, /Salva|hinzuf/), 'm: nessun testo dei dizionari nei log (F-S8-2)');
+  check(!hasLog(en, /Salva|hinzuf|adir foto/), 'm: nessun testo dei dizionari nei log (F-S8-2)');
   /* modulo assente: la pagina resta in inglese minimo invece di non aprirsi */
   i18nTarget = null;
   en = langEnv('it_IT');
@@ -636,6 +719,14 @@ cases.push(['m lingua automatica dall\'orologio, ripieghi e dizionari nello stat
   st = pageState(en);
   check(!!st && st.i18n === null, 'm: i18n.js malformato -> i18n null');
   check(hasLog(en, '[config] i18n.js malformato (it): pagina senza dizionari'), 'm: log del modulo malformato');
+  /* S11/D39: una lingua che MANCA del tutto (i18n.js generato prima di es/pt, LANG_ORDER a sei):
+   * stesso trattamento del malformato — niente dizionario parziale alla pagina */
+  i18nTarget = I18N_MISS;
+  en = langEnv('it_IT');
+  st = pageState(en);
+  check(!!st && st.i18n === null, 'm: i18n.js senza pt -> i18n null (S11/D39)');
+  check(hasLog(en, '[config] i18n.js malformato (pt): pagina senza dizionari'), 'm: log della lingua mancante');
+  check(!!st && st.lang_auto === 'it', 'm: senza dizionari lang_auto resta calcolata (lingua mancante)');
   i18nTarget = I18N_OK;
   restoreNavigator();
   next();
@@ -670,6 +761,125 @@ cases.push(['n dev: hooks.lang forza la lingua automatica, uno stato senza hook 
       });
     });
   });
+}]);
+
+cases.push(['o S12/D45: maschere delle cifre nello stato (piattaforma e glifi filtrati)', function (next) {
+  var en, st, m, a, b, l, fx;
+
+  /* --- emery: solo la piattaforma collegata, solo i glifi di "12:34" --- */
+  setMasks(masksFixture());
+  en = env({ watchInfo: WATCH_EMERY });
+  st = pageState(en);
+  check(!!st, 'o: stato della pagina leggibile');
+  st = st || {};
+  eq(st.preview_time, '12:34', 'o: preview_time');
+  m = st.masks;
+  check(!!m && m.v === 1, 'o: masks.v = 1');
+  m = m || {};
+  check(!!m.emery && !m.flint, 'o: solo la piattaforma collegata (emery)');
+  eq(Object.keys(m.emery || {}).sort().join(','), 'anton,bebas', 'o: tutti i font restano');
+  a = (m.emery && m.emery.anton && m.emery.anton.a) || {};
+  b = (m.emery && m.emery.anton && m.emery.anton.b) || {};
+  eq(Object.keys(a.glyphs || {}).sort().join(''), '0123456789:', 'o: taglia A = 10 digit (6 con il solo w) + il ":"');
+  eq(Object.keys(b.glyphs || {}).sort().join(''), '0123456789', 'o: taglia B senza ":" (la strip non ce l\'ha)');
+  check(!!(a.glyphs || {})['0'] && (a.glyphs || {})['0'].w === 8 && typeof (a.glyphs || {})['0'].bits === 'undefined' &&
+        typeof (a.glyphs || {})['9'].bits === 'undefined', 'o: i glifi fuori da "12:34" portano solo w (griglia D25), niente bit');
+  eq(a.strip_h, 12, 'o: metriche copiate (strip_h)');
+  eq(a.ring, 2, 'o: metriche copiate (ring)');
+  eq(a.shadow, 2, 'o: metriche copiate (shadow)');
+  eq(a.cell_w, 40, 'o: metriche copiate (cell_w)');
+  eq(a.digit_h, 9, 'o: metriche copiate (digit_h)');
+  eq(a.glyphs['1'].w, 9, 'o: larghezza del glifo');
+  eq(a.glyphs['1'].bits, fakeBits('1', 9, 12), 'o: bit del glifo invariati');
+  /* 9 glifi per font (5 in A con il ':', 4 in B) x 2 font + 6 larghezze per taglia x 2 x 2 */
+  check(hasLog(en, /^\[config\] masks emery: 2 font, 18 glifi \+ 24 larghezze, \d+ car\. di bit$/), 'o: log ASCII con i conteggi');
+  /* seconda apertura: il modulo e' gia' in cache, lo stato non cambia */
+  st = pageState(en);
+  eq(Object.keys(((st || {}).masks || {}).emery || {}).sort().join(','), 'anton,bebas',
+     'o: seconda apertura identica');
+
+  /* --- revisione S12 (R-K): un font senza nemmeno una taglia valida resta fuori dall'hash --- */
+  fx = masksFixture();
+  fx.emery.rotto = { a: null, b: 7 };            /* c'e', ma nessuna taglia utilizzabile */
+  fx.emery.vuoto = {};                           /* nemmeno una chiave */
+  setMasks(fx);
+  en = env({ watchInfo: WATCH_EMERY });
+  st = pageState(en) || {};
+  eq(Object.keys((st.masks || {}).emery || {}).sort().join(','), 'anton,bebas',
+     'o: font senza taglie valide non entra nell\'hash (niente sottoalbero vuoto)');
+  check(hasLog(en, /^\[config\] masks emery: 2 font, 18 glifi \+ 24 larghezze, \d+ car\. di bit$/),
+        'o: il log conta 2 font, non 4');
+
+  /* --- flint: cambia la piattaforma, non i glifi --- */
+  setMasks(masksFixture());
+  en = env({ watchInfo: WATCH_FLINT });
+  st = pageState(en) || {};
+  m = st.masks || {};
+  check(!!m.flint && !m.emery, 'o: orologio flint -> solo le maschere flint');
+  eq(Object.keys((m.flint.anton || {}).a.glyphs || {}).sort().join(''), '0123456789:', 'o: flint taglia A');
+  eq((m.flint.anton.a.glyphs[':'] || {}).w, 5, 'o: flint, larghezza del ":"');
+  eq(m.flint.anton.a.ring, 1, 'o: flint ring 1');
+  eq(m.flint.anton.a.shadow, 0, 'o: flint senza ombra');
+
+  /* --- modulo assente (build senza --masks-js): masks null, la pagina si apre lo stesso --- */
+  setMasks(null);
+  en = env({ watchInfo: WATCH_EMERY });
+  l = logs.length;
+  st = pageState(en) || {};
+  eq(st.masks, null, 'o: modulo assente -> masks null');
+  eq(st.preview_time, '12:34', 'o: preview_time c\'e\' comunque');
+  check(hasLog(en, /^\[config\] digit_masks\.js mancante \(.*\): anteprima senza cifre$/),
+        'o: log del modulo mancante');
+  check(countLog(en, /digit_masks\.js mancante/, l) === 1, 'o: il require pigro non si ripete');
+  pageState(en);
+  check(countLog(en, /digit_masks\.js mancante/, l) === 1, 'o: niente secondo log alla riapertura');
+
+  /* --- modulo malformato (versione diversa) --- */
+  setMasks({ v: 2, emery: {} });
+  en = env({ watchInfo: WATCH_EMERY });
+  st = pageState(en) || {};
+  eq(st.masks, null, 'o: modulo con v != 1 -> masks null');
+  check(hasLog(en, '[config] digit_masks.js malformato: anteprima senza cifre'), 'o: log del malformato');
+
+  /* --- modulo senza la piattaforma collegata (generato solo per emery) --- */
+  setMasks({ v: 1, emery: masksFixture().emery });
+  en = env({ watchInfo: WATCH_FLINT });
+  st = pageState(en) || {};
+  eq(st.masks, null, 'o: piattaforma assente -> masks null');
+  check(hasLog(en, '[config] digit_masks.js senza la piattaforma flint: anteprima senza cifre'),
+        'o: log della piattaforma assente');
+
+  setMasks(masksFixture());
+  next();
+}]);
+
+cases.push(['p S12/D44: sul telefono la pagina viaggia in base64 (data:...;base64,)', function (next) {
+  var PFX = 'data:text/html;charset=utf-8;base64,';
+  var page = require('../src/pkjs/config_page');
+  var en, url, hash, body, st, i;
+  setMasks(masksFixture());
+  en = env({ watchInfo: WATCH_EMERY });
+  url = pageUrl(en);
+  check(url.slice(0, PFX.length) === PFX, 'p: prefisso data: con ;base64,');
+  i = url.indexOf('#');
+  check(i > PFX.length, 'p: c\'e\' l\'hash dopo il corpo');
+  check(i === url.lastIndexOf('#'), 'p: un solo # (il base64 standard non ne ha)');
+  body = url.slice(PFX.length, i);
+  hash = url.slice(i + 1);
+  check(/^[A-Za-z0-9+/]+={0,2}$/.test(body), 'p: corpo in base64 standard con padding');
+  eq(Buffer.from(body, 'base64').toString('utf8'), page, 'p: il corpo e\' esattamente config_page.js');
+  check(/^[A-Za-z0-9_-]+$/.test(hash), 'p: hash ancora base64url senza padding');
+  try { st = JSON.parse(Buffer.from(b64.decode(hash)).toString('utf8')); } catch (e) { st = null; }
+  check(!!st && st.v === 1, 'p: lo stato nell\'hash resta leggibile');
+  check(hasLog(en, new RegExp('^\\[config\\] apro la pagina \\(URL ' + url.length +
+                              ' car\\., stato ' + hash.length + '\\)$')),
+        'p: log invariato con le lunghezze vere');
+  /* piu' corto del percent-encoding di prima (D44): e' tutto il senso del cambio */
+  check(url.length < PFX.length + encodeURIComponent(page).length + 1 + hash.length,
+        'p: URL piu\' corto della forma percent-encoded');
+  origLog('  p: URL ' + url.length + ' car. (pagina ' + body.length + ' + hash ' + hash.length +
+          '), percent sarebbe ' + (encodeURIComponent(page).length + PFX.length + 1 + hash.length));
+  next();
 }]);
 
 (function run(i) {

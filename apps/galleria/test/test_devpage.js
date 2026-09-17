@@ -32,7 +32,7 @@ var cp = require('child_process');
 
 var DEVSERVER = path.join(__dirname, '..', '..', '..', 'tools', 'galleria_devserver.py');
 /* S8 (D21/D22): + `digit_style` in coda (byte 12 del blob) e font fino a 5.
- * S10 (D31): + `lang` (byte 13, 0 automatica / 1 en / 2 it / 3 de / 4 fr). */
+ * S10 (D31) + S11 (D39): + `lang` (byte 13, 0 automatica / 1 en / 2 it / 3 de / 4 fr / 5 es / 6 pt). */
 var SETTINGS_KEYS = ['layout', 'font', 'clock_mode', 'leading_zero', 'text_color', 'outline',
                      'interval_min', 'order', 'shake_next', 'info_row', 'digit_style', 'lang'];
 var NKEYS = SETTINGS_KEYS.length;                 /* campi resi dalla pagina = SETTINGS_SPEC */
@@ -41,7 +41,7 @@ var SETTINGS_DEFAULTS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, te
                           digit_style: 0, lang: 0 };
 /* opzioni attese per campo (settings.c: settings_validate(); info_row è un <input number>) */
 var OPTION_COUNT = { layout: 2, font: 6, clock_mode: 3, leading_zero: 3, text_color: 5,
-                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4, lang: 5 };
+                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4, lang: 7 };
 var SCENARIOS = ['photo', 'seq', 'dup', 'crc', 'interrupt', 'none'];
 var RT = 'http://127.0.0.1:5555/close?';
 var TOKEN2 = '%7B%22v%22%3A1%2C%22dev%22%3Atrue%2C%22seq%22%3A2%7D';

@@ -1,0 +1,6 @@
+Galleria 0.4.0 - simpler settings page, a preview with your photo and the time, Spanish and Portuguese; now called Galleria.
+- Italiano: pagina piu' semplice, anteprima con la tua foto e l'ora, spagnolo e portoghese; ora si chiama Galleria.
+- Deutsch: einfachere Seite, Vorschau mit deinem Foto und der Uhrzeit, Spanisch und Portugiesisch; heisst jetzt Galleria.
+- Francais: page plus simple, apercu avec votre photo et l'heure, espagnol et portugais ; nouveau nom : Galleria.
+- Espanol: pagina mas simple, vista previa con tu foto y la hora, espanol y portugues; ya se llama Galleria.
+- Portugues: pagina mais simples, previa com sua foto e a hora, espanhol e portugues; agora se chama Galleria.

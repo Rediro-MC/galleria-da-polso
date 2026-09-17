@@ -1,5 +1,11 @@
 # v2:5d81829efd85c42ac9a73b5a1a8f135dd0603d174638d756fbccbadcf4c89518
 
+> **Stato (17/09/2026).** Documento storico del 25/08/2026 (`README.md` della cartella). Restano validi il
+> limite di 512 B per glifo e le altezze reali dei font di sistema; sono superati i «Tre font consigliati»
+> (l'app usa 5 strip — Anton, Bebas, Barlow, Francois One, Staatliches — più LECO di sistema, S8-stile
+> D20–D26) e il wireframe (i layout A/B veri sono in `docs/design/galleria.md` §3). Il tool vivo della
+> pipeline è `tools/gen_digits.py`.
+
 ## Findings (22)
 
 ### F0 [verified CRIT] MAX_FONT_GLYPH_SIZE = 512 B su emery e gabbro, 256 B su aplite/basalt/chalk/diorite/flint. Il generatore di font dell'SDK passa questo valore per piattaforma a fontgen.py.
@@ -8,7 +14,7 @@
 
 ### F1 [verified CRIT] La dimensione di un glifo è calcolata come ceil(width×height/8) byte del SOLO bounding box dell'inchiostro (1 bit/pixel, righe non allineate; header di 5 B escluso). Se supera il limite fontgen solleva un'eccezione e il build FALLISCE (nessun glifo saltato silenziosamente). Limite pratico su emery: area inchiostro ≤ 4096 px (es. 56×72 = 4032 px → 504 B ok; 45×90 = 4050 ok; 64×64 ok; 90×100 = 9000 px impossibile).
 - evidenza: fontgen.py:362-375: `size = ((width * height) + (8 - 1)) // 8 ; if size > self.max_glyph_size: raise Exception("Glyph too large! codepoint {}: {} > {}…")`. Verificato con `pebble build` reale (progetto di test con Anton-Regular a pixelHeight 110 su emery): output `Exception: Glyph too large! codepoint 9647: 559 > 512 … Build failed.` (exit 1). Con pixelHeight 100 il build passa (cifra '0' = 45×88 px = 496 B).
-- fonte: fontgen.py:362-375 ; test: /tmp/claude-1000/-home-claudecode-ProgettiClaude-Pebble/3a0edc64-8139-470b-b1b7-295a8aad8717/scratchpad/fonttest (package.json, build log)
+- fonte: fontgen.py:362-375 ; test: <scratchpad di sessione, non conservato>/fonttest (package.json, build log)
 
 ### F2 [verified CRIT] La compressione RLE4 ("compress": "RLE4" in package.json) NON permette glifi più grandi: il numero di unità RLE deve stare in un byte (≤ 255 → al massimo 2040 px) e la decodifica avviene in-place nello stesso buffer da 512 B. Per cifre grandi fallisce con "Unable to RLE4 compress -- more than 255 units required".
 - evidenza: fontgen.py:351-360 (`if height > 255: raise Exception("Unable to RLE4 compress…")`, poi `check_decompress_glyph_RLE4` che verifica la decodifica in-place entro max_glyph_size, righe 234-308). Firmware: text_resources.c:244 `PBL_ASSERTN(num_rle_units <= (CACHE_GLYPH_SIZE * RLE4_UNITS_PER_BYTE))`, 282 `PBL_ASSERTN(dst < &data[CACHE_GLYPH_SIZE])`. Test: tutti i 12 font provati a (altezza max + 2) px falliscono con RLE4 (es. Anton 102: 612 unità; Oswald 102: 572 unità).
@@ -52,7 +58,7 @@
 
 ### F12 [verified CRIT] Approccio (c) PDC: i comandi path sono riempiti con gpath_draw_filled (o gpath_fill_precise_internal per i path 'precise' a 1/8 px); su piattaforme colore il riempimento è antialiasato se ctx->draw_state.antialiased (default true), altrimenti scanline non-AA (bordi a gradini). Il PDC porta anche stroke color+width, quindi il contorno è gratis in un solo draw. svg2pdc appiattisce le curve ai soli estremi dei segmenti: le curve vanno pre-flattenate in polilinee nell'SVG. Non pixel-exact con AA; CPU per redraw più alta di un blit (fill poligonale con molti vertici).
 - evidenza: gdraw_command.c:49-98 (`prv_draw_path`: `gpath_draw_filled` + `gpath_draw_stroke` se stroke_width>0; `prv_draw_precise_path`: `gpath_fill_precise_internal`). gpath.c:118-125 `if (ctx->draw_state.antialiased) { prv_fill_path_with_cb_aa(…); return; }`. tools/svg2pdc.py:113-115 "only .start/.end endpoints of each segment … curves are already flattened to their endpoints".
-- fonte: pebbleos/src/fw/applib/graphics/gdraw_command.c ; pebbleos/src/fw/applib/graphics/gpath.c ; /home/claudecode/ProgettiClaude/Pebble/tools/svg2pdc.py:113-115,136-150
+- fonte: pebbleos/src/fw/applib/graphics/gdraw_command.c ; pebbleos/src/fw/applib/graphics/gpath.c ; ~/ProgettiClaude/Pebble/tools/svg2pdc.py:113-115,136-150
 
 ### F13 [verified] Costo della tecnica contorno via testo: disegnare la stringa 8 volte con offset ±1 px nel colore opposto e poi 1 volta nel colore principale funziona (verificato visivamente) e costa 3-5 ms su QEMU emery per "23" a 88 px con font .pbf (8-9 ms su QEMU flint). Tempi QEMU solo indicativi.
 - evidenza: fonttest.c `draw_text_outlined` (8 offset {-1,-1}…{1,1}); log: `custom 9x text=3..5 ms` (emery), `8..9 ms` (flint); screenshot mostra contorno nero continuo di 1 px attorno alle cifre bianche su sfondo a bande.
@@ -84,7 +90,7 @@
 
 ### F20 [likely] Timeline Quick View su emery ostruisce 59 px in basso (51 px sulle altre piattaforme); l'area non ostruita è quindi 200×169 e va gestita con layer_get_unobstructed_bounds + unobstructed_area_service_subscribe.
 - evidenza: docs/ricerca/display.md:252 (tabella TIMELINE_PEEK_HEIGHT 59 px emery / 51 px), 279-283 (sorgente popups/timeline/peek.h con PREFERRED_CONTENT_SIZE_SWITCH); non riverificato in questa sessione sul sorgente.
-- fonte: /home/claudecode/ProgettiClaude/Pebble/docs/ricerca/display.md:252-300
+- fonte: ~/ProgettiClaude/Pebble/docs/ricerca/display.md:252-300
 
 ### F21 [verified] Tempi di rendering misurati su QEMU (solo indicativi, non cycle-accurate): LECO 60 "23:59" 0-4 ms; font .pbf 88 px "23" ×9 (contorno) 3-5 ms; sprite 51×101 1-bit ×9 blit 4-7 ms su emery; su flint 2-6 / 8-9 / 1-2 ms.
 - evidenza: APP_LOG con time_ms() nell'update_proc del progetto di test, due passate per piattaforma.
@@ -148,8 +154,12 @@ Flint 144×168 (1-bit): Layout A con LECO 32 Bold (22 px) o LECO 42 (29 px) a y 
 - Non spedire mai .pbf pre-generati con glifi > 512 B: nessun controllo a build e assert a runtime.
 - Test di regressione: screenshot emulatore + script Pillow che verifica righe di inchiostro attese e assenza di colori intermedi (come fatto in `scratchpad/fonttest`).
 
-## Materiale prodotto (riutilizzabile)
-- `scratchpad/glyphtest3.py`: misura per qualunque TTF l'altezza massima compatibile col limite (usa fontgen.py dell'SDK). `scratchpad/pbfparse.py`: metriche dei .pbf. `scratchpad/fonttest/`: app di test (font custom, sprite con palette swap, contorno, timing) con screenshot emery/flint.
+## Materiale prodotto (non conservato)
+- Gli script citati qui vivevano nello scratchpad della sessione e **non sono stati conservati**:
+  `glyphtest3.py` (altezza massima di un TTF compatibile con il limite di 512 B, usando `fontgen.py`
+  dell'SDK), `pbfparse.py` (metriche dei `.pbf`) e l'app di test `fonttest/` (font custom, sprite con
+  palette swap, contorno, timing, screenshot emery/flint). Il generatore vivo delle strip di cifre
+  dell'app è `tools/gen_digits.py` (`tools/README.md` §10).
 
 ## Open questions
 - Comportamento del PBL_ASSERT in text_resources.c:317 (glifo > 512 B in un .pbf pre-generato): fault dell'intero orologio o solo kill dell'app? (fault_handling.c non letto) — rilevante solo se si spediscono .pbf non generati dall'SDK.

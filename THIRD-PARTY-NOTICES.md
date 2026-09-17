@@ -55,20 +55,22 @@ Identici al template (`cmp` senza differenze):
 
 | File nel repository | Template |
 |---|---|
-| `apps/galleria/.cursor/rules/pebble.mdc` | `templates/app/ai.md` |
-| `apps/hello-emery/.cursor/rules/pebble.mdc` | `templates/app/ai.md` |
-| `apps/hello-emery/CLAUDE.md` | `templates/app/ai.md` |
 | `apps/hello-emery/wscript` | `templates/app/wscript` |
 | `apps/heapprobe/wscript` | `templates/app/wscript` |
 | `apps/hello-emery/src/c/hello-emery.c` | `templates/app/main.c` |
+
+Le tre copie di `templates/app/ai.md` che stavano nel repository (`apps/galleria/.cursor/rules/pebble.mdc`,
+`apps/hello-emery/.cursor/rules/pebble.mdc` e `apps/hello-emery/CLAUDE.md`, byte per byte identiche fra
+loro) sono state **rimosse il 17/09/2026**: nessuno usa Cursor e le loro regole (aplite/basalt/chalk,
+`pebble install --emulator basalt`) contraddicevano quelle del progetto. Restano nella storia git.
 
 Derivati dal template con modifiche:
 
 | File nel repository | Template | Modifiche |
 |---|---|---|
 | `apps/galleria/wscript` | `templates/app/wscript` | +7 righe per le define di test `GALLERIA_DEFINES` |
-| `apps/hello-emery/README.md` | `templates/app/README.md` | solo il titolo (`${display_name}` → `hello-emery`) |
-| `apps/heapprobe/README.md` | `templates/app/README.md` | solo il titolo (`${display_name}` → `heapprobe`) |
+| `apps/hello-emery/README.md` | `templates/app/README.md` | **riscritto il 17/09/2026** (smoke test di Fase 0): del template non resta nulla |
+| `apps/heapprobe/README.md` | `templates/app/README.md` | **riscritto il 17/09/2026** (sonda di memoria): del template non resta nulla |
 | `apps/galleria/package.json`, `apps/hello-emery/package.json`, `apps/heapprobe/package.json` | `templates/app/package.json` | metadati dell'app (nome, UUID, piattaforme, risorse, message keys) |
 
 `apps/galleria/CLAUDE.md` **non** deriva dal template (è scritto per l'app).
@@ -191,12 +193,26 @@ Ubuntu **`ubuntu-wallpapers`**, che sono sotto **CC-BY-SA-4.0**.
 
 ### File interessati
 
-- Gli screenshot `docs/design/galleria/{s2,s3,s4,s5b,s6,s7,s8perf,s8stile,rev19}_*.png` in cui si
-  vede una foto di prova (foto a schermo intero o miniature nella config page).
-  **Non** rientrano: gli `s1_*` (nessuna foto), gli `s5a_*` e `s5b_*_fixture_*` (figura di prova
-  sintetica a barre colorate), gli `s9_*` (foto demo CC0), le schermate della config page senza
-  miniature (per esempio `rev19_page_slow_4foto.png`, che mostra solo i nomi dei file) e
-  `rev19_watch_francois_3d.png` (fotografia personale dell'autore) è stato **rimosso dal repository e dalla sua storia** il 05/09/2026.
+- Gli screenshot di `docs/design/galleria/` in cui si vede una **foto di prova** (a schermo intero,
+  nella cornice di ritaglio o come miniatura nella config page), riclassificati aprendo gli screenshot
+  di ogni set il 17/09/2026:
+  - `{s2,s3,s4,s5b,s6,s7,s8perf,s8stile,rev19}_*.png` — orologio e config page fino al 05/09/2026;
+  - i sei `s12_*.png` — anteprima nella config page e scatto dell'emulatore usato per il confronto al
+    pixel, con `dark_portrait.jpg` e `light_landscape.jpg`;
+  - i due `s13_ux_before_*.png`, otto dei dieci `s13_ux3_*.png` e due dei quattro `s13_ux4_*.png` —
+    tessere, cornice di ritaglio e anteprima con `dark_portrait.jpg`, `light_landscape.jpg` e
+    `mid_landscape.jpg`;
+  - `s8_02_emery_a_anton_reale.png` — unico scatto dal Pebble Time 2 reale (30/08/2026), con la
+    **demo_1 storica** (`mizuno-as-Big_Dipper.jpg`).
+
+  La classificazione set per set è in [`docs/design/galleria/README.md`](docs/design/galleria/README.md).
+- **Non** rientrano: gli `s1_*` (nessuna foto); gli `s5a_*` e `s5b_*_fixture_*` (figura di prova
+  sintetica a barre colorate); gli `s9_*`, gli scatti dell'orologio di `s10_*` e `s11_*` e i quattro
+  `s13_ux*_emu_*` (foto demo e foto candidate **CC0 1.0**, fra cui `b01_densefog`…`b04_sprucefog`
+  scelte in S9); le schermate della config page senza miniature (`rev19_page_slow_4foto.png`, i quattro
+  `s10_page_*` e i due `s11_page_*`, che mostrano solo nomi di file e segnaposto grigi).
+- `rev19_watch_francois_3d.png` (fotografia personale dell'autore) è stato **rimosso dal repository e
+  dalla sua storia** il 05/09/2026: non c'è più nemmeno come oggetto git irraggiungibile.
 - Nella **storia git**: le versioni precedenti di `apps/galleria/resources/photos/demo_*` e di
   `apps/galleria/store/*.png` (icone e screenshot dello store, generati dagli screenshot del gate
   S7 — così dice la versione storica di `apps/galleria/store/README.md`).

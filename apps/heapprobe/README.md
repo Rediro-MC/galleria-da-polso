@@ -1,36 +1,19 @@
-# heapprobe
+# heapprobe — sonda di memoria (Fase 0)
 
-A Pebble watchapp/watchface written in C using the Pebble SDK.
+Watchapp di misura, scritta il 24/08/2026 per sapere **quanto heap resta davvero** su emery e flint:
+`src/c/heapprobe.c` logga `heap_bytes_free()/heap_bytes_used()` a ogni fase, prova `malloc()` da 8 a
+128 KiB, conta quanti blocchi da 8 KiB stanno in piedi insieme e alloca un `GBitmap` a schermo intero.
+È la sonda descritta in `../../docs/ricerca/gap-1-memoria-emery.md` §6.
 
-## Building & running
-
-```sh
-pebble build                          # build for all targetPlatforms
-pebble install --emulator emery       # install on the emery emulator
-pebble install --phone <ip>           # install to a paired phone
+```bash
+cd apps/heapprobe
+pebble install --emulator emery --logs     # e --emulator flint; leggere le righe [main entry] … PROBE DONE
 ```
 
-## Target platforms
-
-`targetPlatforms` in `package.json` controls which watches you build for. The
-modern Pebble hardware is **emery** (Pebble Time 2), **gabbro** (Pebble Round
-2), and **flint** (Pebble 2 Duo); the original Pebble platforms (aplite,
-basalt, chalk, diorite) are included by default for backwards compatibility.
-
-## Project layout
-
-```
-src/c/           C source for the watchapp
-src/pkjs/        PebbleKit JS (phone-side) source, if any
-worker_src/c/    Background worker source, if any
-resources/       Images, fonts, and other bundled resources
-package.json     Project metadata (UUID, platforms, resources, message keys)
-wscript          Build rules — usually no need to edit
-```
-
-By default this project is configured as a watchapp. To make it a watchface,
-set `pebble.watchapp.watchface` to `true` in `package.json`.
-
-## Documentation
-
-Full SDK docs, tutorials, and API reference: <https://developer.repebble.com>
+- `targetPlatforms` in `package.json`: **`["emery", "flint"]`**; la CI `.github/workflows/build.yml` la
+  compila a ogni push insieme a `galleria` e `hello-emery`.
+- Misure di Fase 0 su emulatori freschi (SDK 4.33.1): a `[main entry]` **129.680 B** liberi su emery e
+  **64.144 B** su flint; 15 blocchi da 8 KiB insieme su emery, 7 su flint. Log completi in
+  `../../docs/fase0/heapprobe-{emery,flint}-4.33.1.log`, lettura in `../../docs/CONTINUA-QUI.md`
+  §«Fase 0, ambiente, verifiche in emulatore».
+- Resta da rieseguire sull'orologio reale: `../../PIANO-SVILUPPO-PEBBLE.md` §15, riga 1.

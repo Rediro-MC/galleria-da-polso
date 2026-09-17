@@ -1,9 +1,9 @@
-Your photos as the watchface. Pick and crop them on your phone: up to 12 rotate on the watch, and a shake skips to the next one.
+Your photos as the watchface. Designed for Pebble Time 2 (colour display); also runs on Pebble 2 Duo. Crop them on the phone: up to 12 rotate on the watch, shake for the next one.
 
-Big bitmap clock: 6 fonts, 4 styles (solid, transparent, 3D), white or black text chosen from the photo. Two layouts: time with steps, battery and date, or time only. 12 h or 24 h.
+Big bitmap clock: 6 fonts, 4 digit styles, white or black text from the photo. Two layouts: time with steps, battery and date, or time only. 12 h or 24 h.
 
-Works offline: photos and settings stay on the watch. Pebble Time 2 and Pebble 2 Duo, PebbleOS 4.32 or newer. Photo upload tested on Android. Settings page in English, Italian, German and French.
+Works offline: photos and settings stay on the watch. PebbleOS 4.32+. Photo upload tested on Android and iPhone. Settings page in English, Italian, German, French, Spanish and Portuguese.
 
-Slow to start after many photo swaps? Remove Galleria and install it again: your photos come back from the phone.
+Slow to start after many photo swaps? Remove and reinstall Galleria: photos come back from the phone.
 
-Beta 0.2.0, open source (MIT): github.com/Rediro-MC/galleria-da-polso. Fonts: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (OFL). Demo photos: CC0.
+Beta 0.4.0, open source (MIT): github.com/Rediro-MC/galleria-da-polso. Fonts: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches (OFL). Demo photos: CC0.

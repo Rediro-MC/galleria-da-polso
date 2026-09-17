@@ -1,51 +1,217 @@
-/* page.css — Galleria S6: una colonna, max 480 px, usabile a 360–400 px. */
+/* page.css — Galleria (S6; struttura rivista in UX-2, flusso della foto in UX-3): una colonna,
+ * max 480 px, usabile a 360-400 px. UX-2 (U-16): «only light» e' l'opt-out del Force Dark di
+ * Chromium/WebView («light» da solo non basta) e sta su «html», non su «:root», per il motore
+ * di cascata dei test (§4e di test_page.js non conosce le pseudo-classi). */
 * { box-sizing: border-box; }
-body { margin: 0 auto; max-width: 480px; padding: 0 12px 96px; font: 15px/1.4 -apple-system, Roboto, "Segoe UI", sans-serif; color: #222; background: #f4f4f6; }
+html { color-scheme: only light; }
+/* UX-3 (D121): il fondo passa da 96 a 150 px. Il footer fisso ora porta i pulsanti (che a 360 px
+ * vanno su due righe) piu' #msg e #hint: 96 px non bastavano e l'ultima riga della pagina nasceva
+ * coperta. Resta un valore di partenza: fitFooter() riscrive il padding vero a init/resize. */
+body { margin: 0 auto; max-width: 480px; padding: 0 12px 150px; font: 15px/1.4 -apple-system, Roboto, "Segoe UI", sans-serif; color: #222; background: #f4f4f6; }
 h1 { font-size: 22px; margin: 14px 0 2px; }
 h2 { font-size: 17px; margin: 18px 0 8px; border-bottom: 1px solid #ccd; }
+/* UX-2 (U-08): i gruppi dentro una sezione («Cambio foto», «Aspetto dell'ora») sono h3 senza
+ * filetto: la riga di separazione resta solo sulle sezioni. #wfPrev h3 tiene il suo margine. */
+h3 { font-size: 15px; margin: 14px 0 4px; }
 p { margin: 6px 0; }
 label { font-size: 15px; }
 .help { color: #666; font-size: 14px; }
 .val { display: inline-block; min-width: 3em; text-align: right; }
-.kb { font-weight: bold; }
 .warn { background: #fff3cd; border: 1px solid #e0c060; color: #533; padding: 6px 8px; border-radius: 4px; font-size: 14px; }
 .err { background: #f8d7da; border-color: #d99; }
-/* v1.9: avviso di avvio lento (#slow, .warn) e sezione Aiuto: la procedura e' un elenco numerato. */
+/* v1.9: avviso di avvio lento (#slow, .warn) e sezione Aiuto: la procedura e' un elenco numerato.
+ * UX-2 (U-03): la procedura sta SOLO nell'Aiuto; in #slow resta una frase e il pulsante che lo apre. */
 #slow p, #helpBody p { margin: 4px 0; }
-#slow ol, #helpBody ol { margin: 4px 0; padding-left: 22px; }
-#slow li, #helpBody li { margin: 2px 0; }
+#helpBody ol { margin: 4px 0; padding-left: 22px; }
+#helpBody li { margin: 2px 0; }
 .okmsg { background: #d4edda; border-color: #8c8; color: #253; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .row > .rlab { min-width: 9.5em; }
-.opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1 1 150px; }
+.opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1 1 150px; }
+/* UX-2 (U-09): le label con la casella sono alte 40 px come i pulsanti (regola #10 di S7).
+ * Mai «.row label» nudo: batterebbe .btn della label «Aggiungi foto». */
+.chk { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; }
+/* UX-2 (G02): con le caselle alte 40 px e .opts su piu' righe, l'align-items: center di
+ * .row porterebbe «Sotto l'ora» nel vuoto FRA due righe (a 360 px finisce accanto a
+ * «data»). flex-start + line-height 40px la mettono sulla PRIMA riga di caselle, con la
+ * stessa altezza di riga di una .chk e senza aggiungere altezza alla pagina. Dichiara solo
+ * align-self/line-height: fuori dalla cascata dei pulsanti (#41 / §4e dei test). */
+#infoRow .rlab { align-self: flex-start; line-height: 40px; }
 select, input[type=range] { font-size: 15px; min-height: 40px; }
-select { padding: 4px 8px; background: #fff; border: 1px solid #bbc; border-radius: 4px; }
+/* UX-2 (U-16): max-width/min-width = rete contro le option lunghe (in tedesco e in francese
+ * un <option> puo' superare la colonna e allargare la pagina). */
+select { padding: 4px 8px; background: #fff; border: 1px solid #bbc; border-radius: 4px; max-width: 100%; min-width: 0; }
+/* UX-2 (U-10/D87): la riga del font e' «etichetta ‹ [select] ›» e a 360-400 px va a capo
+ * con l'etichetta sola in cima e «‹ [select] ›» a tutta larghezza sotto. Con la sola
+ * flex-basis del select NON succede: il flexbox spezza la riga sulle flex-basis (il
+ * flex-grow agisce DOPO, dentro la riga), e con l'etichetta da 142,5 px + 2 frecce da 40 +
+ * 3 gap da 8 restava a capo la freccia destra da sola (400 px) o select + freccia destra
+ * (360 px): misurato in Firefox, catena A4 di UX-2. flex-basis 100% sull'etichetta (la
+ * stessa leva di #addHelp) prenota tutta la prima riga e manda insieme frecce e select.
+ * Dichiara solo flex-basis: fuori dalla cascata dei pulsanti (#41 / §4e dei test). */
+#fontRow .rlab { flex-basis: 100%; }
+select#s_font { flex: 1 1 140px; min-width: 0; }
 input[type=range] { flex: 1 1 120px; min-width: 100px; }
 input[type=checkbox] { width: 22px; height: 22px; vertical-align: middle; margin: 0 4px 0 0; }
 input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
-.btn { display: inline-block; min-height: 40px; line-height: 38px; padding: 0 16px; border: 1px solid #889; border-radius: 6px; background: #fff; color: #222; font-size: 15px; cursor: pointer; text-align: center; }
+/* UX-3 (D121): inline-flex + line-height 1.2 + padding verticale al posto di line-height 38px.
+ * Le etichette del footer sono lunghe (de «Ohne Speichern verlassen» 217 px, fr «Quitter sans
+ * enregistrer» 203): fino a 320 px restano su una riga sola e sono i DUE pulsanti ad andare a
+ * capo nel footer, interi. Quando invece una label va a capo davvero (colonna stretta, corpo di
+ * sistema grande) la riga da 38 px faceva crescere il pulsante a dismisura: misurati in Firefox
+ * 116 px di altezza per tre righe, 72 con questa regola, e le righe di testo attaccate invece
+ * che spaziate di 38 px. min-height 40 px (regola #10 di S7) resta il bersaglio per il dito, il
+ * centraggio lo fa il flex. Vale anche per la label «Aggiungi foto», che e' un .btn.
+ * UX-3 rev (G05): il gap da 6 px e' lo spazio fra etichetta e freccia nei due soli .btn con
+ * due figli (#advBtn, #editAdvBtn). In un contenitore flex l'item anonimo di soli spazi del
+ * markup non viene reso (CSS Flexbox 1 §4), quindi da quando .btn e' inline-flex la freccia si
+ * incollava all'ultima lettera («Weitere Einstellungen▾»); con l'inline-block di UX-2 quello
+ * spazio del markup valeva 3,63 px. Dichiara solo gap: fuori dalla cascata dei pulsanti
+ * (#41 / §4e). I pulsanti con un solo testo (#save, #add, #fit, #helpBtn) non cambiano. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; line-height: 1.2; padding: 8px 16px; border: 1px solid #889; border-radius: 6px; background: #fff; color: #222; font-size: 15px; cursor: pointer; text-align: center; }
 .btn.primary { background: #2a6fd6; border-color: #2a6fd6; color: #fff; font-weight: bold; }
-.btn.small { padding: 0 12px; font-size: 14px; }
+/* UX-2 (U-10): min-width 40 px per le frecce del font (‹ ›), che hanno un solo carattere.
+ * UX-3 (D121): padding verticale 8 px, perche' con .btn a line-height 1.2 lo zero di prima
+ * avrebbe schiacciato il testo sul bordo. Stessa misura: «Weitere Einstellungen» su tre righe
+ * passa da 78 a 52 px. Orizzontale 12 px invariato. */
+.btn.small { padding: 8px 12px; font-size: 14px; min-width: 40px; }
+/* UX-2 (G04): «‹» e «›» sono virgolette angolari, non triangoli: a 14 px — il corpo di
+ * .btn.small, nato per i pulsanti con le PAROLE («Aiuto», «Altre impostazioni», «Adatta») —
+ * il loro inchiostro e' un decimo di quello delle frecce delle tessere e il bersaglio da
+ * 40x40 px sembra vuoto. D87 fissa i CARATTERI, non il corpo: cambia solo il corpo, e solo
+ * sui due id.
+ * UX-3 rev (G17): con la .btn di D121 l'altezza e' corpo x 1,2 + 8 + 8 + 2, cioe' 44,4 px per
+ * queste due sole frecce (misurate in Firefox): sporgevano 2,2 px sopra e sotto la select e
+ * allungavano #fontRow da 69 a 73,4 px. line-height 1 le riporta a 22 + 16 + 2 = 40 px esatti,
+ * cioe' al bersaglio 40x40 di cui parla il commento qui sopra. La regola dichiara solo
+ * font-size e line-height: resta fuori dalla cascata dei pulsanti (#41 / §4e). */
+#fontPrev, #fontNext { font-size: 22px; line-height: 1; }
+/* UX-3 (D107/D121): «Esci comunque», cioe' il secondo stato di Esci quando c'e' qualcosa da
+ * perdere. Rosso #b71c1c su fondo bianco (≈ 6,5:1, ben oltre il 4,5:1 del testo): il pulsante
+ * cambia parola E colore, cosi' il primo tocco si vede anche senza leggere il messaggio. */
+.btn.danger { border-color: #b71c1c; color: #b71c1c; background: #fff; }
+/* UX-3 (D110): la ✕ armata dal primo tocco, con lo stesso rosso del footer. Sta qui, SOPRA la
+ * regola dei disabilitati, per la stessa ragione di .btn.danger: (0,2,1) e' la specificita' di
+ * .tbtns button[disabled], quindi a decidere e' l'ordine nel file e vince lo spento. */
+.tbtns button.arm { border-color: #b71c1c; color: #b71c1c; background: #fff; }
 /* S7 #41: disabilitato = grigio spento ma leggibile. Con opacity 0.75 il testo #444 su #ddd
  * composto sul fondo (#fff del footer/tessere o #f4f4f6 del body) resta a ~3,8:1, sopra il 3:1
  * chiesto da WCAG per i controlli; .btn[disabled] (0,2,0) viene dopo .btn.primary e la batte.
  * .tbtns button[disabled] (0,2,1) serve perche' .tbtns button (0,1,1, piu' sotto nel file)
- * batterebbe button[disabled] (0,1,1) e rimetterebbe il fondo bianco alle frecce spente. */
+ * batterebbe button[disabled] (0,1,1) e rimetterebbe il fondo bianco alle frecce spente.
+ * UX-3 rev (G22): via .tile.pv .eye[disabled], che era l'unico selettore della regola senza un
+ * caso vero: l'occhio non viene mai disabilitato (nessun «.disabled =» di page.js lo tocca, ne'
+ * prima ne' dopo UX-3), e la coppia .tile.pv .eye (0,3,0) non ha percio' nulla da battere. Se un
+ * giorno l'occhio si spegnesse, il selettore rafforzato dovra' tornare qui: .tile.pv .eye
+ * batterebbe da sola button[disabled] (0,1,0) e lo lascerebbe blu e pieno.
+ * UX-2 (U-04): «Aggiungi foto» e' .btn.primary con posto e .btn.off quando l'album e' pieno:
+ * .btn.off (0,2,0) viene dopo .btn.primary (0,2,0) e la batte. Regola per chi tocchera' il
+ * foglio: nessuna regola nuova che dichiari background/color/opacity su un pulsante se e'
+ * piu' specifica di questa, altrimenti lo spento torna acceso. Una regola piu' specifica che
+ * fissa ALTRO e' innocua (#file:focus + #add, 2,0,1, dichiara solo outline).
+ * UX-3 (D107/D110): .btn.danger (0,2,0) e .tbtns button.arm (0,2,1) sono scritte SOPRA proprio per
+ * questa regola: a parita' di specificita' vince l'ultima, quindi un pulsante rosso disabilitato
+ * torna grigio invece di restare rosso e finto-attivo. */
 .btn.off, .btn[disabled], button[disabled], .tbtns button[disabled] { opacity: 0.75; cursor: default; background: #ddd; border-color: #99a; color: #444; }
+/* UX-2 (U-04): #file e' fuori schermo e il suo focus si vede solo sulla label che lo apre
+ * (tastiera e VoiceOver). Fissa il solo contorno: non entra nella cascata dei pulsanti. */
+#file:focus + #add { outline: 2px solid #2a6fd6; outline-offset: 2px; }
+/* UX-2 (U-04): «scegli una foto dal telefono» va su una riga sua, sotto il pulsante. */
+#addHelp { flex-basis: 100%; }
 #tiles { display: flex; flex-direction: column; gap: 8px; }
-.tile { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #ccd; border-radius: 6px; padding: 6px; }
+.tile { position: relative; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #ccd; border-radius: 6px; padding: 6px; }
 .thumb { width: 100px; height: 114px; flex: 0 0 100px; image-rendering: pixelated; background: #ddd; border-radius: 3px; }
-.thumb.empty { display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; }
 .meta { flex: 1 1 auto; min-width: 0; }
-.name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* UX-3 (D112): il nome del file va su due righe invece di essere tagliato dai puntini. Dentro
+ * .meta (142 px a 400 px, 102 a 360: misurati in Firefox, UX-3 rev G22) di «foto di prova
+ * citta'.jpg» si leggeva mezza parola, e il nome e' l'unico modo che ha l'utente per riconoscere
+ * la foto. max-height 2,8em = due righe, cosi' l'altezza della tessera non cambia; il title con
+ * il nome intero resta (page.js).
+ * UX-3 rev (G19): con word-break: break-all la rottura cadeva a meta' parola («light_landscap»
+ * + «e.jpg» a 360, «light_landscape.jp» + «g» a 400). Ora page.js mette uno zero-width space
+ * (U+200B) prima dell'ultimo punto del nome e qui la rottura preferita diventa quella:
+ * word-break: normal non spezza piu' dove capita, overflow-wrap interviene solo se la riga non
+ * ci sta comunque (i nomi di una parola sola, IMG_20260913_184512.jpg). Due overflow-wrap di
+ * fila: «anywhere» vince dove c'e' (e spezza anche prima di riempire la riga), «break-word»
+ * resta come ripiego sulle WebView vecchie che non la conoscono e scartano la seconda. */
+.name { font-weight: bold; white-space: normal; overflow-wrap: break-word; overflow-wrap: anywhere; word-break: normal; max-height: 2.8em; overflow: hidden; }
 .badge { display: inline-block; font-size: 14px; padding: 2px 8px; border-radius: 10px; background: #e5e7ee; color: #334; margin: 2px 4px 2px 0; }
 .badge.warnb { background: #fff3cd; color: #633; }
 .badge.newb { background: #d6e6fb; color: #134; }
-.tbtns { display: flex; flex-direction: column; gap: 8px; }
+/* UX-3 (D112): ▲ ▼ affiancati sulla prima riga e ✕ da sola sulla seconda, 16 px piu' in basso
+ * (8 di gap + 8 di margine): in colonna la ✕ stava a 48 px dalla freccia ▼ e si toccava per
+ * sbaglio mentre si riordina. width 88 px = due pulsanti da 40 + il gap da 8: e' la larghezza che
+ * fa andare a capo la terza, e la tessera passa da 150 a 128 px di altezza (-22, -264 con 12 foto).
+ * flex-shrink: 0 NON e' un di piu': .tbtns e' un flex item di .tile e con lo shrink di fabbrica la
+ * riga della tessera si prendeva anche i suoi 88 px (misurati 72,48 a 400 e 59,88 a 360 in
+ * Firefox: numeri rimisurati sulla pagina vera, UX-3 rev G22), i pulsanti tornavano incolonnati
+ * e il margine della ✕ diventava solo spazio in piu'. Con lo shrink a 0 il nome (.meta,
+ * min-width 0) assorbe tutto: 142 px a 400, 102 a 360. */
+.tbtns { display: flex; flex-flow: row wrap; flex-shrink: 0; width: 88px; gap: 8px; }
 .tbtns button { min-width: 40px; min-height: 40px; line-height: 38px; padding: 0; font-size: 16px; border: 1px solid #99a; border-radius: 4px; background: #fff; }
-#crop { display: block; margin: 0 auto; border: 1px solid #889; touch-action: none; -webkit-user-select: none; user-select: none; cursor: move; }
+.tbtns button:last-child { margin-top: 8px; }
+/* UX-3 (D113): 28 px di corsia per lato attorno alla cornice del ritaglio. Il canvas si prende
+ * tutti i gesti (touch-action: none), quindi senza corsie il pollice non trova un punto da cui
+ * far scorrere la pagina. startEditor misura clientWidth − 56: il padding sta DENTRO clientWidth. */
+#cropWrap { padding: 0 28px; }
+/* UX-3 rev (G16): box-sizing content-box come #preview e #wfPreview (D92/D105). Col border-box
+ * globale il bordo da 1 px mangiava la larghezza che startEditor scrive in style.width: il
+ * bitmap di ed.Fw px viveva in ed.Fw - 2 px CSS (misurati 298x340 di bitmap dentro 296x338 di
+ * contenuto) e pos(), che divide per r.width partendo dal bordo esterno, sbagliava fino a 1 px
+ * per lato e faceva scorrere il ritaglio dello 0,67% in meno del dito — UX-4 (D127): la meta' JS sta
+ * in pos(), che ora toglie il bordo e divide per r.width - 2. */
+#crop { box-sizing: content-box; display: block; margin: 0 auto; border: 1px solid #889; touch-action: none; -webkit-user-select: none; user-select: none; cursor: move; }
+/* UX-3 rev (G20): l'etichetta «Zoom» non ha bisogno dei 9,5em di «.row > .rlab»: con quelli
+ * 142 + 8 + 120 + 8 + 125 = 403 px non stavano nei 388 di contenuto a 400 px e «Riparti da capo»
+ * cadeva da solo sulla riga sotto, facendo costare la riga 92 px invece di 40 (misurato in
+ * Firefox anche a 360 px e in tedesco). Con min-width 0 l'etichetta si stringe sul suo testo,
+ * che e' corto in tutte e sei le lingue, e le tre parti restano in fila. Dichiara solo
+ * min-width: fuori dalla cascata dei pulsanti (#41 / §4e). */
+#zoomRow .rlab { min-width: 0; }
 .prevwrap { text-align: center; }
-#preview { width: 100%; max-width: 400px; image-rendering: pixelated; border: 1px solid #889; }
-.fontprev { box-sizing: content-box; height: 28px; image-rendering: pixelated; vertical-align: middle; background: #fff; border: 1px solid #ccd; }
+/* UX-3 (D105): con l'editor aperto questo canvas mostra la watchface intera (foto ditherata +
+ * «12:34» nel font, stile e colore scelti), non piu' la sola foto: e' lo stesso motore di
+ * #wfPreview, quindi valgono le stesse regole di D92 — backing store a 2x, style.width scritto da
+ * page.js (200 px su emery, 144 su flint) e box-sizing: content-box, perche' col border-box
+ * globale il bordo da 1 px lascerebbe 198 px e l'anteprima non sarebbe piu' 1:1. width: auto
+ * lascia comandare quella misura, max-width: 100% e' la rete a 360 px, il fondo grigio si vede
+ * finche' non arriva il primo render. */
+#preview { box-sizing: content-box; width: auto; max-width: 100%; image-rendering: pixelated; border: 1px solid #889; background: #6b6b6b; }
+/* S12 (D46) rivista in UX-2 (D92/D56): anteprima della watchface sotto «Colore dell'ora». Il
+ * canvas ha il backing store a 2x (400x456 su emery, 288x336 su flint) ma si mostra a
+ * GRANDEZZA NATURALE: page.js scrive style.width = larghezza/2 (200 px su emery, 144 su
+ * flint), cosi' un pixel dell'orologio e' un pixel CSS e la foto si legge come sul vetro.
+ * width: auto lascia comandare quella misura; max-width: 100% e' la rete a 360 px.
+ * UX-3 (D105): con l'editor aperto tutto #wfPrev e' nascosto e lo stesso render va in #preview,
+ * che ha le stesse dichiarazioni: l'anteprima e' una sola, cambia solo il canvas. */
+#wfPrev { margin: 10px 0 2px; }
+#wfPrev h3 { font-size: 15px; margin: 0 0 4px; font-weight: bold; }
+#wfPreview { box-sizing: content-box; width: auto; max-width: 100%; image-rendering: pixelated; border: 1px solid #889; background: #6b6b6b; }
+/* UX-2 (U-08): Lingua e «Altre impostazioni» in un contenitore proprio, staccato dal filetto,
+ * per non farli leggere come coda della sezione «Anteprima». */
+#misc { margin-top: 12px; border-top: 1px solid #ccd; padding-top: 6px; }
+/* S12 (D47): l'occhio sceglie quale foto AGGIUNTA ORA mostrare nell'anteprima. Sta sopra
+ * l'angolo in basso a sinistra della miniatura (non aggiunge righe alla tessera): la miniatura
+ * e' alta 114 px ed e' centrata nella tessera (align-items: center), quindi il suo bordo
+ * inferiore sta a meta' tessera + 57 px e il pulsante si appoggia 4 px sopra (57 - 40 - 4 = 13).
+ * S12 (ru): 40x40 come gli altri pulsanti delle tessere (regola #10), non 36: ci si tocca col
+ * pollice e i 40 px stanno comodi nei 100x114 della miniatura.
+ * UX-3 (D111): l'occhio (e il bordo blu .tile.pv) compare solo con ALMENO DUE foto nuove; con una
+ * sola l'anteprima mostra quella lo stesso e un pulsante che non sceglie niente sparisce. */
+.eye { position: absolute; left: 10px; top: 50%; margin-top: 13px; width: 40px; height: 40px; min-height: 40px; line-height: 38px; padding: 0; font-size: 18px; text-align: center; border: 1px solid #99a; border-radius: 4px; background: #fff; color: #222; opacity: 0.85; }
+/* UX-3 rev (G15): rete a costo quasi zero per i gesti «a due tocchi» che UX-3 introduce (✕
+ * armata D110, «Esci comunque» D107) e per i pulsanti che si toccano a raffica (▲ ▼ delle
+ * tessere, ‹ › del font). La pagina resta ingrandibile di proposito — il viewport non ha
+ * user-scalable=no — e su WebKit il doppio tocco ravvicinato su un bersaglio piccolo puo'
+ * ingrandire: manipulation toglie il solo doppio-tocco-per-ingrandire sui pulsanti e lascia il
+ * pinch alla pagina. Non provata su iPhone (qui c'e' solo Firefox): la verifica vera e' il gate
+ * sul telefono di U-18b. Regola a se' che dichiara solo touch-action: fuori dalla cascata dei
+ * pulsanti (#41 / §4e) e nessun cambio d'ordine per le regole dei colori. */
+.btn, .tbtns button, .eye { touch-action: manipulation; }
+.tile.pv { border-color: #2a6fd6; box-shadow: 0 0 0 2px #2a6fd6; }
+.tile.pv .eye { background: #2a6fd6; border-color: #2a6fd6; color: #fff; opacity: 1; }
 #footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #ccd; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#footer p { flex: 1 1 100%; margin: 0; font-size: 14px; min-height: 1.2em; max-height: 4.3em; overflow-y: auto; }
+/* UX-3 (D121): sotto i pulsanti stanno due righe, #msg (role=status) e #hint. max-height 8em al
+ * posto di 4,3: in tedesco e in francese a 360 px un messaggio lungo arriva a sei righe e veniva
+ * tagliato a meta'; oltre le 8 righe la riga scorre invece di far salire il footer a mezza pagina. */
+#footer p { flex: 1 1 100%; margin: 0; font-size: 14px; min-height: 1.2em; max-height: 8em; overflow-y: auto; }

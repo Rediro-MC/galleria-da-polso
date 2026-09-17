@@ -73,7 +73,7 @@ static char  s_time_buf[TIMEFMT_HHMM_BUFSZ];
 static char  s_ampm_buf[3];
 static char  s_steps_buf[16];
 static char  s_batt_buf[8];
-static char  s_date_buf[24];     /* >= DATEFMT_BUFSZ (S10): "Dim 31 Juill." + NUL */
+static char  s_date_buf[24];     /* >= DATEFMT_BUFSZ (S10; S11: "Sáb 31 de Set" = 14 B + NUL) */
 static char  s_sync_buf[8];      /* "255/255" (S5a; S10: senza parole, D32) */
 static uint8_t s_sync_index, s_sync_count;
 static bool  s_connected = true;
@@ -536,10 +536,12 @@ static void prv_format_date(const struct tm *t, uint8_t level) {
   }
 }
 
-/* S10 (D34): separatore delle migliaia dei passi. Lingua forzata → tabella di datefmt (en ',', it/de '.',
- * fr ' '); auto → prefisso del locale di sistema con la stessa tabella e '.' per QUALUNQUE altro locale
- * (es, pt, nl, …: com'era prima di S10 — gal_lang_from_locale manda gli sconosciuti su EN solo per la lingua
- * della pagina). Corregge il bug pregresso "fr → punto". Chiamata in init e in ui_time_lang_changed. */
+/* S10 (D34) + S11 (D41): separatore delle migliaia dei passi. Lingua forzata → tabella di datefmt (en ',',
+ * it/de/es/pt '.', fr ' '); auto → prefisso del locale di sistema con la stessa tabella per le lingue NOTE
+ * (en/it/de/fr/es/pt, D39: la lista vive in una sola copia, gal_lang_from_locale) e '.' per QUALUNQUE altro
+ * locale (nl, ru, …: com'era prima di S10). gal_lang_from_locale manda gli sconosciuti su EN (per la lingua della
+ * pagina): qui "noto" = risultato diverso da EN oppure prefisso "en" vero, cosi' uno sconosciuto non prende la
+ * virgola. Corregge il bug pregresso "fr → punto". Chiamata in init e in ui_time_lang_changed. */
 static bool prv_locale_is(const char *loc, char a, char b) {
   return loc && loc[0] == a && loc[1] == b;
 }
@@ -551,9 +553,9 @@ static void prv_update_thousands_sep(void) {
     return;
   }
   const char *loc = i18n_get_system_locale();
-  const bool known = prv_locale_is(loc, 'e', 'n') || prv_locale_is(loc, 'i', 't')
-                  || prv_locale_is(loc, 'd', 'e') || prv_locale_is(loc, 'f', 'r');
-  s_thousands_sep = known ? datefmt_thousands_sep(gal_lang_from_locale(loc)) : '.';
+  const uint8_t auto_lang = gal_lang_from_locale(loc);
+  const bool known = auto_lang != GAL_LANG_EN || prv_locale_is(loc, 'e', 'n');
+  s_thousands_sep = known ? datefmt_thousands_sep(auto_lang) : '.';
 }
 
 static void prv_format_battery(void) {

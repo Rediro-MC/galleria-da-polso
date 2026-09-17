@@ -1,5 +1,11 @@
 # Stato della piattaforma Pebble e hardware Pebble Time 2 (agosto 2026)
 
+> **Stato (17/09/2026).** Snapshot del 24/08/2026, non aggiornato (indice ed errata della cartella in
+> `README.md`; correzioni in `verifica.md` e in `PIANO-SVILUPPO-PEBBLE.md` §18). §4 dà come ultima release
+> firmware la v4.35.0: il 24/08 era già uscita la **v4.36.0** e sull'orologio di prova gira la **v4.36.2**.
+> Delle domande aperte di §10 sono chiuse quelle sull'ambiente Linux (librerie QEMU senza sudo, Python per
+> pebble-tool): risolte in Fase 0 da `tools/setup-env.sh` + `tools/pebble-env.sh`.
+
 Data ricerca: 24 agosto 2026. Fonti primarie consultate: blog ufficiale Core Devices (repebble.com/blog), developer.repebble.com (docs SDK, changelog, FAQ, hardware matrix), GitHub `coredevices/*` (PebbleOS, mobileapp, pebble-tool, hardware, nonfree), Zephyr board docs, Rebble blog, PyPI, help center repebble, TechCrunch/Liliputing/9to5Google per conferme.
 
 Legenda: **[CONFERMATO]** = fatto verificato su fonte primaria con URL; **[INFERENZA]** = deduzione ragionata; **[NON CONFERMATO]** = non trovata conferma.

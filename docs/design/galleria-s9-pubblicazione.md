@@ -4,6 +4,20 @@
 > **senza l'orologio e senza decisioni dell'utente**; le decisioni restano elencate in §7 con una raccomandazione.
 > La pubblicazione vera (`pebble publish`, tag `v1.0.0`, Rebble) avviene **solo dopo la conferma dell'utente**.
 
+> **Nota di chiusura (17/09/2026): sessione finita, documento storico.** Com'è andata: le decisioni **U1–U7**
+> di §7 sono state prese dall'utente la sera stessa del **05/09/2026** e sono registrate in
+> `apps/galleria/PIANO.md` §4 e §6, dove stanno anche **U8** (indicatore di sync in layout B, R10 → «subito»)
+> e **U9** (issue PebbleOS → rimandata), poste quella sera fuori da questo documento. La
+> pubblicazione è avvenuta lo stesso giorno, ma **non con i nomi e i numeri scritti qui**: non c'è nessuna
+> `1.0.0` e nessun tag `v1.0.0`. Sono uscite la **0.1.0 beta** alle **20:41** (tag `v0.1.0-beta`) e, in
+> nottata, la **0.2.0** alle **23:16** locali con il multilingua di S10 (tag `v0.2.0`, l'ultima pubblicata: lo
+> store è fermo lì; l'API dello store risponde **21:16**, la stessa ora in UTC, ed è il numero che si legge
+> in `apps/galleria/store/PUBLISH.md`). Il nome nello store è ancora «Galleria for Pebble»: diventa **«Galleria»** con la 0.4.0 (**D42** di S11, con il `PATCH` di
+> `apps/galleria/store/PUBLISH.md` §0.1). La versione in `package.json` oggi è **0.4.0** (**D126**: la 0.3.0
+> non è mai uscita) e l'`author` è **«Rediro»** (U2). Il listing vivo, con i testi e i comandi di oggi, è
+> `apps/galleria/store/LISTING.md`; la pubblicazione della 0.4.0 la lancia l'utente dopo il gate sul telefono
+> (`galleria-s13-ux4-gate-telefono.md` §5).
+
 ## 0. Cosa deve esserci alla fine
 
 | # | Obiettivo | Misura di "fatto" |
@@ -118,7 +132,7 @@ con prefisso piattaforma, GIF: `ffmpeg` **assente** in questa VM → `--no-gif-a
 | # | Decisione | Raccomandazione |
 |---|---|---|
 | U1 | Licenza del codice (README: TBD) | **MIT** (come il pebble-tool; semplice per una watchface) |
-| U2 | `author` in `package.json` («Marco») e nome autore nello store | nome e cognome, o lasciare «Marco» |
+| U2 | `author` in `package.json` (il nome personale di allora) e nome autore nello store | nome e cognome, o lasciare il nome personale → deciso il 05/09 sera: **«Rediro»** |
 | U3 | Foto demo: le 2 CC0 scelte in questa sessione oppure 2 foto proprie | tenere le CC0 (nessun obbligo di attribuzione, riproducibili) |
 | U4 | `--source`: il repo GitHub era **privato** | **deciso il 05/09 sera: pubblico** (MIT), dopo la scansione dei dati sensibili e la riscrittura della storia (autore «Rediro», seriale/IP/URL bonificati, screenshot personale rimosso) |
 | U5 | D5: SDK 4.33.1 (fw ≥ 4.32) | **confermare** (campo: PT2 con fw 4.36.2) |

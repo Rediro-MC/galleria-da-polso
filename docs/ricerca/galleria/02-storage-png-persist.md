@@ -1,5 +1,11 @@
 # v2:ed5af4463c0681c566bb1a85f25cb01ee9d3285d4263fc9978140bb38d27c1d8
 
+> **Stato (17/09/2026).** Documento storico del 25/08/2026 (`README.md` della cartella). Restano validi i
+> finding (F12 e F16 sono citati dal codice); è superata la raccomandazione §2, sostituita dallo **schema
+> persist 2** (manifest unico da 234 B, `docs/design/galleria.md` §4), e la stima «134 chunk ≈ 0,1–0,2 s»
+> è 3–8 volte il misurato sul PT2 (`apps/galleria/PIANO.md`, esito S8-perf). §3 consiglia
+> `text_layer_set_should_cache_layout`, API che nell'SDK 4.33.1 **non esiste**.
+
 ## Findings (28)
 
 ### F0 [verified CRIT] gbitmap_create_from_png_data() esiste ed è esportata nell'SDK 4.33.1 sia per emery sia per flint (insieme a gbitmap_create_blank_with_palette, gbitmap_set_palette, persist_get_max_size).
@@ -111,8 +117,8 @@
 - fonte: tools/sdk-docs/source/_guides/events-and-services/persistent-storage.md:39-43; tools/sdk-docs/source/_changelogs/4.17.md:23-24; emery/include/pebble.h:3172-3176
 
 ### F27 [verified] Note operative sulla verifica: la sonda è in scratchpad/pngprobe (build verde emery+flint, screenshot shot_emery7.png e shot_flint3.png); durante i test l'emulatore emery era condiviso con un altro agente (app "fonttest") che ha causato disconnessioni e rilanci: i numeri riportati provengono dai run completi (logs5_emery.log, logs_flint.log). Nessun file del repo del progetto è stato modificato.
-- evidenza: logs2_emery.log e logs3_emery.log contengono `fonttest.c:...` di un'altra sessione; `git status --short` nel repo mostra solo file untracked preesistenti (.github/, CLAUDE.md, apps/, docs/, tools/, nuova-app-galleria.txt).
-- fonte: /tmp/claude-1000/-home-claudecode-ProgettiClaude-Pebble/3a0edc64-8139-470b-b1b7-295a8aad8717/scratchpad/pngprobe/{src/c/main.c,gen.py,package.json,logs5_emery.log,logs_flint.log,shot_emery7.png,shot_flint3.png}; clone sorgente: .../scratchpad/PebbleOS
+- evidenza: logs2_emery.log e logs3_emery.log contengono `fonttest.c:...` di un'altra sessione; `git status --short` nel repo mostra solo file untracked preesistenti (.github/, CLAUDE.md, apps/, docs/, tools/, nuova-app-galleria.txt, oggi `docs/design/galleria-richiesta-iniziale.txt`).
+- fonte: <scratchpad di sessione, non conservato>/pngprobe/{src/c/main.c,gen.py,package.json,logs5_emery.log,logs_flint.log,shot_emery7.png,shot_flint3.png}; clone sorgente: .../scratchpad/PebbleOS
 
 ## Recommendation
 

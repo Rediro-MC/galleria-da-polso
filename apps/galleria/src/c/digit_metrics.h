@@ -4,6 +4,7 @@
  *       --fonts-dir apps/galleria/resources/fonts \
  *       --out apps/galleria/resources/digits \
  *       --header apps/galleria/src/c/digit_metrics.h \
+ *       --masks-js apps/galleria/src/pkjs/digit_masks.js \
  *       --fit-width --no-colon-b --pack
  *
  * Segnalazioni della generazione:

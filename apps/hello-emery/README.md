@@ -1,36 +1,19 @@
-# hello-emery
+# hello-emery — smoke test dell'ambiente (Fase 0)
 
-A Pebble watchapp/watchface written in C using the Pebble SDK.
+Progetto generato con `pebble new-project --ai hello-emery` il 24/08/2026 e tenuto come **prova che la
+toolchain funziona**: compila, si installa negli emulatori e mostra una schermata fissa. Non è un'app
+da pubblicare (`"private": true`, watchapp, nessuna risorsa) e il sorgente `src/c/hello-emery.c` è
+ancora il template di `pebble-tool` (vedi `../../THIRD-PARTY-NOTICES.md` §1.2).
 
-## Building & running
-
-```sh
-pebble build                          # build for all targetPlatforms
-pebble install --emulator emery       # install on the emery emulator
-pebble install --phone <ip>           # install to a paired phone
+```bash
+cd apps/hello-emery
+pebble build                                                # statico 833 B in Fase 0
+pebble install --emulator emery                             # e --emulator flint
+pebble screenshot --emulator emery --no-open shot_emery.png
 ```
 
-## Target platforms
-
-`targetPlatforms` in `package.json` controls which watches you build for. The
-modern Pebble hardware is **emery** (Pebble Time 2), **gabbro** (Pebble Round
-2), and **flint** (Pebble 2 Duo); the original Pebble platforms (aplite,
-basalt, chalk, diorite) are included by default for backwards compatibility.
-
-## Project layout
-
-```
-src/c/           C source for the watchapp
-src/pkjs/        PebbleKit JS (phone-side) source, if any
-worker_src/c/    Background worker source, if any
-resources/       Images, fonts, and other bundled resources
-package.json     Project metadata (UUID, platforms, resources, message keys)
-wscript          Build rules — usually no need to edit
-```
-
-By default this project is configured as a watchapp. To make it a watchface,
-set `pebble.watchapp.watchface` to `true` in `package.json`.
-
-## Documentation
-
-Full SDK docs, tutorials, and API reference: <https://developer.repebble.com>
+- `targetPlatforms` in `package.json`: **`["emery", "flint"]`** (in Fase 0 fu provata anche su `gabbro`).
+- Lo usano `tools/setup-env.sh` (riga 72, l'ultimo passo del setup) e la CI
+  `.github/workflows/build.yml`, che lo compila insieme a `galleria` e `heapprobe`.
+- Risultati di Fase 0: screenshot in `../../docs/fase0/hello-emery-{emery,flint,gabbro}.png`, sintesi
+  in `../../docs/CONTINUA-QUI.md` §«Fase 0, ambiente, verifiche in emulatore».

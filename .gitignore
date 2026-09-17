@@ -3,13 +3,14 @@ apps/*/build/
 apps/*/node_modules/
 apps/*/.lock-waf*
 apps/*/*.log
-apps/*/*.pbw
 apps/*/test/build/
+apps/*/compile_commands.json
 
-# Screenshot di lavoro (quelli da conservare vanno in docs/)
-apps/*/shot_*.png
+# Screenshot e artefatti di lavoro (quelli da conservare vanno in docs/design/galleria/)
+apps/*/*.png
+apps/*/*.pbw
 
-# Repo clonati come riferimento (vedi tools/README.md per riclonarli)
+# Repo clonati come riferimento (vedi tools/README.md §1–§2 per riclonarli)
 tools/sdk-docs/
 tools/pebble-watchface-agent-skill/
 
@@ -18,11 +19,12 @@ __pycache__/
 *.pyc
 .venv/
 .vscode/
-compile_commands.json
+*.orig
+*.rej
+.DS_Store
 
 # Runtime / sessione
-apps/*/serve.pid
-apps/*/run_*.log
+*.pid
 .claude/settings.local.json
 
 # S8: build salvate per l'orologio reale (pbw + elf), rigenerabili
@@ -36,4 +38,3 @@ apps/galleria/build_s8/
 *.p12
 firebase_oauth_storage.json
 qemu_spi_flash.bin
-*.pbw

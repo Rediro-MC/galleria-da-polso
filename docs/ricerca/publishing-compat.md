@@ -1,5 +1,15 @@
 # Pubblicazione, compatibilità multi-piattaforma e QA per le nuove Pebble (2026)
 
+> **Stato (17/09/2026).** Snapshot del 24/08/2026, non aggiornato (indice ed errata della cartella in
+> `README.md`). **§2 (pubblicazione) è superata**: la pubblicazione è stata eseguita davvero il
+> 05/09/2026 e la fonte sono `apps/galleria/store/PUBLISH.md` (API dello store e comandi letti sul
+> sorgente di pebble-tool 5.0.40) e `apps/galleria/store/LISTING.md`. Restano utili §3–§6: un solo
+> codebase, app legacy, `package.json`, checklist QA. Anche **§10** va letto con l'errata: le domande 2
+> (dimensione degli screenshot emery/gabbro), 6 (`pebble install --emulator flint`) e 7 (QEMU senza sudo)
+> hanno risposta in Fase 0 (`docs/fase0/hello-emery-flint.png`, `hello-emery-gabbro.png`,
+> `tools/setup-env.sh`, `tools/qemu-pebble-wrapper`) e in `apps/galleria/store/PUBLISH.md` (screenshot
+> 200×228 e 144×168 accettati dallo store il 05/09/2026).
+
 > Report di ricerca — dati raccolti il **24 agosto 2026**.
 > Fonti primarie: `developer.repebble.com`, `repebble.com/blog`, `github.com/coredevices/*`, `dev-portal.rebble.io`, `appstore-api.repebble.com`, `rebble.io`.
 > Convenzione: **[CONFERMATO]** = verificato su fonte primaria (URL + data). **[INFERENZA]** = deduzione ragionata. **[INCERTO]** = non verificabile con le fonti disponibili.

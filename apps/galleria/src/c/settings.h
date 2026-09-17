@@ -24,8 +24,11 @@ enum GalOutline     { GAL_OUTLINE_AUTO = 0, GAL_OUTLINE_ALWAYS = 1, GAL_OUTLINE_
 enum GalOrder       { GAL_ORDER_SEQUENTIAL = 0, GAL_ORDER_RANDOM = 1 };
 /* S10 (D31): lingua della config page E dell'orologio. 0 = automatica (pagina: lingua dell'orologio; orologio:
  * data da strftime del firmware con il language pack, separatore delle migliaia dal locale di sistema);
- * 1..4 = forzata (data da datefmt.c con le abbreviazioni dei pack e il formato della lingua, separatore per lingua). */
-enum GalLang        { GAL_LANG_AUTO = 0, GAL_LANG_EN = 1, GAL_LANG_IT = 2, GAL_LANG_DE = 3, GAL_LANG_FR = 4 };
+ * 1..6 = forzata (data da datefmt.c con le abbreviazioni dei pack e il formato della lingua, separatore per lingua).
+ * S11 (D39): es = 5 e pt = 6 SEMPRE in coda (stesso ordine in datefmt.h, page_core.js, index.js, build_i18n.py);
+ * GAL_LANG_LAST = ultima lingua: i confronti di intervallo (settings_validate, test) usano LAST, mai il nome di una lingua. */
+enum GalLang        { GAL_LANG_AUTO = 0, GAL_LANG_EN = 1, GAL_LANG_IT = 2, GAL_LANG_DE = 3, GAL_LANG_FR = 4,
+                      GAL_LANG_ES = 5, GAL_LANG_PT = 6, GAL_LANG_LAST = GAL_LANG_PT };
 enum GalInfoRowBits { GAL_INFO_STEPS = 1 << 0, GAL_INFO_BATTERY = 1 << 1, GAL_INFO_DATE = 1 << 2, GAL_INFO_BT = 1 << 3 };
 
 typedef struct __attribute__((packed)) {
@@ -63,9 +66,11 @@ static inline bool gal_style_shadow(uint8_t style) {
   return style == GAL_STYLE_OUTLINE_3D || style == GAL_STYLE_FILL_3D;
 }
 
-/* S10 (D33): lingua dal locale di sistema (i18n_get_system_locale(): "it_IT", "en_US", …) per il prefisso
- * en/it/de/fr → GAL_LANG_EN..GAL_LANG_FR; qualunque altro prefisso, stringa corta o NULL → GAL_LANG_EN.
- * Pura (nessuna libreria): stesso mapping di langAuto nel PKJS. Non ritorna mai GAL_LANG_AUTO. */
+/* S10 (D33) + S11 (D39): lingua dal locale di sistema (i18n_get_system_locale(): "it_IT", "en_US", "es_ES",
+ * "pt_PT", …) per il prefisso en/it/de/fr/es/pt → GAL_LANG_EN..GAL_LANG_PT (confronto sui 2 caratteri: "es" ≠ "en");
+ * qualunque altro prefisso, stringa corta o NULL → GAL_LANG_EN.
+ * Pura (nessuna libreria): stesso mapping di langOf nel PKJS (che pero' abbassa le maiuscole: qui no, i locale del
+ * firmware sono «xx_YY» minuscoli). Non ritorna mai GAL_LANG_AUTO. */
 static inline uint8_t gal_lang_from_locale(const char *loc) {
   if (loc && loc[0] != '\0' && loc[1] != '\0') {
     const char a = loc[0], b = loc[1];
@@ -77,6 +82,12 @@ static inline uint8_t gal_lang_from_locale(const char *loc) {
     }
     if (a == 'f' && b == 'r') {
       return GAL_LANG_FR;
+    }
+    if (a == 'e' && b == 's') {
+      return GAL_LANG_ES;
+    }
+    if (a == 'p' && b == 't') {
+      return GAL_LANG_PT;
     }
   }
   return GAL_LANG_EN;

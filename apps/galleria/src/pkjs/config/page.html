@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="only light">
 <title>Galleria</title>
 <link rel="stylesheet" href="page.css">
 </head>
@@ -10,23 +11,29 @@
 <header id="head">
   <h1>Galleria</h1>
   <p id="watch"></p>
-  <p id="kb" class="kb"></p>
-  <p id="status" class="warn" style="display:none"></p>
-  <div id="slow" class="warn" style="display:none">
+  <p id="kb" class="help" style="display:none"></p>
+  <p id="status" class="warn err" role="alert" style="display:none"></p>
+  <div id="slow" class="warn" role="status" style="display:none">
     <p id="slowLead"></p>
+    <p class="row"><button type="button" id="slowHelpBtn" class="btn small" aria-controls="helpBody" data-i18n="sec_help"></button></p>
     <div id="slowFix"></div>
   </div>
 </header>
 
 <section id="photos">
   <h2 data-i18n="sec_photos"></h2>
-  <p id="photosCap" class="help"></p>
-  <div id="tiles"></div>
   <p class="row">
-    <label id="add" class="btn" for="file" data-i18n="add_photo"></label>
     <input type="file" id="file" accept="image/*">
+    <label id="add" class="btn primary" for="file" data-i18n="add_photo"></label>
     <span id="addHelp" class="help"></span>
   </p>
+  <p id="photosCap" class="help"></p>
+  <div id="tiles"></div>
+  <p id="photosHint" class="help" style="display:none" data-i18n="photos_cap_hint"></p>
+  <h3 data-i18n="sec_rotation"></h3>
+  <p class="row"><label for="s_interval_min" class="rlab" data-i18n="lbl_interval"></label> <select id="s_interval_min"></select></p>
+  <p class="row"><label for="s_order" class="rlab" data-i18n="lbl_order"></label> <select id="s_order"></select></p>
+  <p class="row"><label class="chk"><input type="checkbox" id="s_shake_next"> <span data-i18n="opt_shake_next"></span></label></p>
 </section>
 
 <section id="editor" style="display:none">
@@ -34,46 +41,60 @@
   <p id="editName" class="help"></p>
   <div id="cropWrap"><canvas id="crop"></canvas></div>
   <p class="help" data-i18n="crop_hint"></p>
-  <p class="row"><label for="zoom" class="rlab" data-i18n="lbl_zoom"></label> <input type="range" id="zoom" min="1" max="4" step="0.01" value="1"> <button type="button" id="fit" class="btn small" data-i18n="btn_fit"></button></p>
-  <p class="row"><label for="gamma" class="rlab" data-i18n="lbl_gamma"></label> <input type="range" id="gamma" min="0.5" max="2" step="0.05" value="1"> <span id="gammaVal" class="val"></span></p>
-  <p class="row"><label for="lift" class="rlab" data-i18n="lbl_lift"></label> <input type="range" id="lift" min="0" max="0.3" step="0.01" value="0"> <span id="liftVal" class="val"></span></p>
-  <p class="row"><label for="dither" class="rlab" data-i18n="lbl_dither"></label> <select id="dither"></select></p>
-  <p class="row" id="sunlightRow"><label><input type="checkbox" id="sunlight"> <span data-i18n="opt_sunlight"></span></label></p>
-  <p class="row" id="previewModeRow"><label for="previewMode" class="rlab" data-i18n="lbl_preview"></label> <select id="previewMode"><option value="sun" data-i18n="opt_prev_sun"></option><option value="nominal" data-i18n="opt_prev_nominal"></option></select></p>
+  <p class="row" id="zoomRow"><label for="zoom" class="rlab" data-i18n="lbl_zoom"></label> <input type="range" id="zoom" min="1" max="4" step="0.01" value="1"> <button type="button" id="fit" class="btn small" data-i18n="btn_fit"></button></p>
   <div class="prevwrap"><canvas id="preview"></canvas></div>
-  <p id="etime" class="help"></p>
-  <p class="row"><button type="button" id="addOk" class="btn primary" data-i18n="btn_add_ok"></button> <button type="button" id="addCancel" class="btn" data-i18n="btn_add_cancel"></button></p>
+  <p id="editPrevCap" class="help"></p>
+  <p class="row" id="addRow" style="display:none"><button type="button" id="addOk" class="btn primary" data-i18n="btn_add_ok"></button> <button type="button" id="addCancel" class="btn" data-i18n="btn_add_cancel"></button></p>
+  <p class="row"><button type="button" id="editAdvBtn" class="btn small" aria-expanded="false" aria-controls="editAdvBody"><span data-i18n="edit_adv_btn"></span> <span class="arrow" aria-hidden="true">▾</span></button></p>
+  <div id="editAdvBody" style="display:none">
+    <p class="row"><label for="gamma" class="rlab" data-i18n="lbl_gamma"></label> <input type="range" id="gamma" min="0.5" max="2" step="0.05" value="1"> <span id="gammaVal" class="val"></span></p>
+    <p class="row"><label for="lift" class="rlab" data-i18n="lbl_lift"></label> <input type="range" id="lift" min="0" max="0.3" step="0.01" value="0"> <span id="liftVal" class="val"></span></p>
+    <p class="row"><label for="dither" class="rlab" data-i18n="lbl_dither"></label> <select id="dither"></select></p>
+    <p class="row" id="sunlightRow"><label class="chk"><input type="checkbox" id="sunlight"> <span data-i18n="opt_sunlight"></span></label></p>
+    <p class="row" id="previewModeRow"><label for="previewMode" class="rlab" data-i18n="lbl_preview"></label> <select id="previewMode"><option value="sun" data-i18n="opt_prev_sun"></option><option value="nominal" data-i18n="opt_prev_nominal"></option></select></p>
+    <p id="etime" class="help" style="display:none"></p>
+  </div>
 </section>
 
 <section id="settings">
   <h2 data-i18n="sec_settings"></h2>
-  <p id="settingsNote" class="warn" style="display:none" data-i18n="settings_note"></p>
-  <p class="row"><label for="s_lang" class="rlab" data-i18n="lbl_lang"></label> <select id="s_lang"></select></p>
+  <p id="settingsNote" class="help" style="display:none" data-i18n="settings_note"></p>
+  <h3 data-i18n="sec_look"></h3>
   <p class="row"><label for="s_layout" class="rlab" data-i18n="lbl_layout"></label> <select id="s_layout"></select></p>
-  <p class="row"><label for="s_font" class="rlab" data-i18n="lbl_font"></label> <select id="s_font"></select> <img id="fontPreview" class="fontprev" alt="" style="display:none"></p>
+  <p class="row" id="fontRow"><label for="s_font" class="rlab" data-i18n="lbl_font"></label> <button type="button" id="fontPrev" class="btn small">‹</button> <select id="s_font"></select> <button type="button" id="fontNext" class="btn small">›</button></p>
   <p class="row"><label for="s_digit_style" class="rlab" data-i18n="lbl_digit_style"></label> <select id="s_digit_style"></select></p>
   <p id="s_style_hint" class="help" style="display:none" data-i18n="style_hint"></p>
   <p id="styleFlintHelp" class="help" style="display:none" data-i18n="style_flint_help"></p>
-  <p class="row"><label for="s_clock_mode" class="rlab" data-i18n="lbl_clock_mode"></label> <select id="s_clock_mode"></select></p>
-  <p class="row"><label for="s_leading_zero" class="rlab" data-i18n="lbl_leading_zero"></label> <select id="s_leading_zero"></select></p>
-  <p class="row"><label for="s_interval_min" class="rlab" data-i18n="lbl_interval"></label> <select id="s_interval_min"></select></p>
-  <p class="row"><label for="s_order" class="rlab" data-i18n="lbl_order"></label> <select id="s_order"></select></p>
-  <p class="row"><label><input type="checkbox" id="s_shake_next"> <span data-i18n="opt_shake_next"></span></label></p>
   <p class="row"><label for="s_text_color" class="rlab" data-i18n="lbl_text_color"></label> <select id="s_text_color"></select></p>
-  <p class="row"><label for="s_outline" class="rlab" data-i18n="lbl_outline"></label> <select id="s_outline"></select></p>
-  <p class="row"><span class="rlab" data-i18n="lbl_info_row"></span>
-    <span class="opts">
-      <label><input type="checkbox" id="s_info_row_b0"> <span data-i18n="opt_info_steps"></span></label>
-      <label><input type="checkbox" id="s_info_row_b1"> <span data-i18n="opt_info_battery"></span></label>
-      <label><input type="checkbox" id="s_info_row_b2"> <span data-i18n="opt_info_date"></span></label>
-      <label><input type="checkbox" id="s_info_row_b3"> Bluetooth</label>
-    </span>
-    <input type="hidden" id="s_info_row" value="15">
-  </p>
+  <div id="wfPrev">
+    <h3 data-i18n="sec_preview"></h3>
+    <div class="prevwrap"><canvas id="wfPreview"></canvas></div>
+    <p id="wfPrevCap" class="help"></p>
+    <p id="wfPrevNote" class="help"></p>
+  </div>
+  <div id="misc">
+    <p class="row"><label for="s_lang" class="rlab" data-i18n="lbl_lang"></label> <select id="s_lang"></select></p>
+    <p class="row"><button type="button" id="advBtn" class="btn small" aria-expanded="false" aria-controls="advBody"><span data-i18n="adv_btn"></span> <span class="arrow" aria-hidden="true">▾</span></button></p>
+    <div id="advBody" style="display:none">
+      <p class="row"><label for="s_clock_mode" class="rlab" data-i18n="lbl_clock_mode"></label> <select id="s_clock_mode"></select></p>
+      <p class="row"><label for="s_leading_zero" class="rlab" data-i18n="lbl_leading_zero"></label> <select id="s_leading_zero"></select></p>
+      <p class="row"><label for="s_outline" class="rlab" data-i18n="lbl_outline"></label> <select id="s_outline"></select></p>
+      <p class="row" id="infoRow"><span class="rlab" id="infoRowLbl" data-i18n="lbl_info_row"></span>
+        <span class="opts" role="group" aria-labelledby="infoRowLbl">
+          <label class="chk"><input type="checkbox" id="s_info_row_b0"> <span data-i18n="opt_info_steps"></span></label>
+          <label class="chk"><input type="checkbox" id="s_info_row_b1"> <span data-i18n="opt_info_battery"></span></label>
+          <label class="chk"><input type="checkbox" id="s_info_row_b2"> <span data-i18n="opt_info_date"></span></label>
+          <label class="chk"><input type="checkbox" id="s_info_row_b3"> <span data-i18n="opt_info_bt"></span></label>
+        </span>
+        <input type="hidden" id="s_info_row" value="15">
+      </p>
+    </div>
+  </div>
 </section>
 
 <section id="help">
   <h2 data-i18n="sec_help"></h2>
+  <p class="help" data-i18n="help_sync"></p>
   <p class="row"><button type="button" id="helpBtn" class="btn small" aria-expanded="false" aria-controls="helpBody" data-i18n="help_btn"></button></p>
   <div id="helpBody" style="display:none">
     <p id="helpWhy" class="help"></p>
@@ -82,14 +103,15 @@
 </section>
 
 <footer id="footer">
-  <button type="button" id="save" class="btn primary" data-i18n="btn_save"></button>
-  <button type="button" id="cancel" class="btn" data-i18n="btn_cancel"></button>
-  <p id="msg"></p>
+  <button type="button" id="save" class="btn primary"></button>
+  <button type="button" id="cancel" class="btn"></button>
+  <p id="msg" role="status" aria-live="polite"></p>
+  <p id="hint" class="help" style="display:none"></p>
 </footer>
 
 <script src="pipeline.js"></script>
 <script src="page_core.js"></script>
-<script src="previews.js" data-optional="1"></script>
+<script src="preview.js"></script>
 <script src="page.js"></script>
 </body>
 </html>

@@ -4,8 +4,10 @@
  * Copre: vettori RFC 4648 §10, round trip di tutti i 256 byte, buffer casuali (LCG con seme
  * fisso) di ogni lunghezza 0..70, un buffer da 34.200 B (una foto raw6), confronto con
  * Buffer.from(...).toString('base64url') di node, decodifica dell'alfabeto standard, del
- * padding e degli spazi, errori sugli input non validi, e infine la fixture di
- * test/fixture_photo.js (i byte decodificati devono avere il CRC32 dichiarato).
+ * padding e degli spazi, errori sugli input non validi, la fixture di
+ * test/fixture_photo.js (i byte decodificati devono avere il CRC32 dichiarato) e — §8, S12/D44 —
+ * `encodeUtf8` / `encodeUtf8Std`: byte UTF-8, alfabeti, padding, accenti/emoji/CJK, surrogati
+ * spaiati, round trip con Buffer e forma del `data:` URL della config page.
  *
  * Si esegue da solo (`node test/test_b64.js`) o con `make -C test jstest`.
  */
@@ -190,6 +192,114 @@ var RFC_PAD = ['', 'Zg==', 'Zm8=', 'Zm9v', 'Zm9vYg==', 'Zm9vYmE=', 'Zm9vYmFy'];
   }
   eq(fixture.raw6.len, 34200, 'raw6.len = 34.200 (photo_codec.h)');
   eq(fixture.raw1.len, 3024, 'raw1.len = 3.024 (photo_codec.h)');
+})();
+
+/* ------------- 8. encodeUtf8 / encodeUtf8Std (S6 hash, S12/D44 data: URL) --- */
+(function () {
+  var STD_RE = /^[A-Za-z0-9+\/]*={0,2}$/;
+  var URL_RE = /^[A-Za-z0-9_-]*$/;
+  var casi = ['', 'f', 'fo', 'foo', 'foob', 'fooba', 'foobar',
+              'città è perché', 'èéìòù',
+              'Español Português Français',
+              '京都 テスト', '😀📷❤️',
+              '<html>"quote" & \'apice\' \\ / \n\t', ' '];
+  var i, s, std, url, buf;
+
+  /* i vettori del RFC 4648 §10 con il padding: encodeUtf8Std di una stringa ASCII e' base64 standard */
+  for (i = 0; i < RFC.length; i++) {
+    eq(b64.encodeUtf8Std(RFC[i][0]), RFC_PAD[i], 'encodeUtf8Std("' + RFC[i][0] + '")');
+  }
+
+  for (i = 0; i < casi.length; i++) {
+    s = casi[i];
+    std = b64.encodeUtf8Std(s);
+    url = b64.encodeUtf8(s);
+    buf = Buffer.from(s, 'utf8');
+    eq(std, buf.toString('base64'), 'encodeUtf8Std = Buffer.toString(base64) [' + i + ']');
+    eq(url, buf.toString('base64url'), 'encodeUtf8 = Buffer.toString(base64url) [' + i + ']');
+    check(STD_RE.test(std), 'alfabeto standard e padding solo in coda [' + i + ']');
+    check(URL_RE.test(url), 'alfabeto url senza padding [' + i + ']');
+    eq(std.length % 4, 0, 'lunghezza multipla di 4 [' + i + ']');
+    eq(std.length, Math.ceil(buf.length / 3) * 4, 'lunghezza = ceil(n/3)*4 [' + i + ']');
+    eq(std.replace(/=+$/, '').length, url.length, 'stesso numero di simboli con e senza padding [' + i + ']');
+    eq(std.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), url,
+       'std -> url e\' solo il cambio di alfabeto [' + i + ']');
+    eqBytes(b64.decode(std), Array.prototype.slice.call(buf), 'decode(encodeUtf8Std) = byte UTF-8 [' + i + ']');
+    eq(Buffer.from(std, 'base64').toString('utf8'), s, 'round trip Buffer [' + i + ']');
+  }
+
+  /* il padding c'e' davvero quando serve, e vale la regola (3 - n%3) % 3 */
+  for (i = 0; i < 7; i++) {
+    s = 'abcdefg'.slice(0, i);
+    eq((b64.encodeUtf8Std(s).match(/=/g) || []).length, (3 - (i % 3)) % 3,
+       'numero di "=" per ' + i + ' byte');
+  }
+
+  /* surrogato spaiato: come Buffer, diventa U+FFFD (encodeURIComponent lancerebbe) */
+  eq(b64.encodeUtf8Std('a\ud800b'), Buffer.from('a\ud800b', 'utf8').toString('base64'),
+     'surrogato alto spaiato -> U+FFFD');
+  eq(b64.encodeUtf8Std('a\udfffb'), Buffer.from('a\udfffb', 'utf8').toString('base64'),
+     'surrogato basso spaiato -> U+FFFD');
+  eq(b64.encodeUtf8Std('😀'), Buffer.from('😀', 'utf8').toString('base64'),
+     'coppia valida: nessuna sostituzione');
+
+  /* non stringhe: String(v), come encodeUtf8 (nessuna eccezione: la pagina si apre comunque) */
+  eq(b64.encodeUtf8Std(42), Buffer.from('42', 'utf8').toString('base64'), 'encodeUtf8Std(numero)');
+  eq(b64.encodeUtf8Std(null), Buffer.from('null', 'utf8').toString('base64'), 'encodeUtf8Std(null)');
+
+  /* stringhe casuali (LCG con seme fisso), tutti i piani Unicode */
+  (function () {
+    var rnd = new Lcg(20260906), n, j, cp, txt, k;
+    for (n = 0; n < 60; n++) {
+      txt = '';
+      for (j = 0; j < 1 + (n % 37); j++) {
+        k = rnd.byte() & 3;
+        if (k === 0) { cp = 0x20 + (rnd.byte() % 95); }
+        else if (k === 1) { cp = 0xA0 + (rnd.byte() % 0x300); }
+        else if (k === 2) { cp = 0x800 + (((rnd.byte() << 4) | (rnd.byte() & 15)) % 0xD000); }
+        else { cp = 0x10000 + (((rnd.byte() << 8) | rnd.byte()) % 0x8000); }
+        if (cp > 0xFFFF) {
+          cp -= 0x10000;
+          txt += String.fromCharCode(0xD800 + (cp >> 10), 0xDC00 + (cp & 0x3FF));
+        } else {
+          txt += String.fromCharCode(cp);
+        }
+      }
+      eq(b64.encodeUtf8Std(txt), Buffer.from(txt, 'utf8').toString('base64'),
+         'casuale ' + n + ': encodeUtf8Std = Buffer');
+      eq(b64.encodeUtf8(txt), Buffer.from(txt, 'utf8').toString('base64url'),
+         'casuale ' + n + ': encodeUtf8 = Buffer');
+    }
+  })();
+
+  /* pagina finta delle dimensioni vere (D44): rapporto 1,333 contro 1,659 del percent-encoding */
+  (function () {
+    var html = '<!doctype html><title>Galleria città</title><p>', t0, ms, pct, nb;
+    while (html.length < 76000) { html += 'x<span class="tile">12:34</span>'; }
+    t0 = Date.now();
+    std = b64.encodeUtf8Std(html);
+    ms = Date.now() - t0;
+    pct = encodeURIComponent(html).length;
+    nb = Buffer.byteLength(html, 'utf8');
+    eq(std, Buffer.from(html, 'utf8').toString('base64'), 'pagina finta: uguale a Buffer');
+    eq(Buffer.from(std, 'base64').toString('utf8'), html, 'pagina finta: round trip');
+    check(std.length < pct, 'base64 piu\' corto del percent-encoding');
+    console.log('  pagina finta di ' + nb + ' B: base64 ' + std.length + ' car. (x' +
+                (std.length / nb).toFixed(3) + '), percent ' + pct + ' car., risparmio ' +
+                (pct - std.length) + ', encode ' + ms + ' ms');
+  })();
+
+  /* la forma esatta che index.js mette in Pebble.openURL (S12/D44) */
+  (function () {
+    var page = '<!doctype html><p>città</p>', hash = b64.encodeUtf8('{"v":1}');
+    var pfx = 'data:text/html;charset=utf-8;base64,';
+    var url = pfx + b64.encodeUtf8Std(page) + '#' + hash;
+    var body = url.slice(pfx.length, url.indexOf('#'));
+    eq(Buffer.from(body, 'base64').toString('utf8'), page, 'data: URL: il corpo torna la pagina');
+    eq(Buffer.from(b64.decode(url.slice(url.indexOf('#') + 1))).toString('utf8'), '{"v":1}',
+       'data: URL: l\'hash resta base64url');
+    check(url.indexOf('#') === url.lastIndexOf('#'), 'un solo # nell\'URL (il base64 non ne ha)');
+  })();
 })();
 
 console.log('b64: ' + g_pass + ' ok, ' + g_fail + ' falliti');

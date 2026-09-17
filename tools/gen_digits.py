@@ -110,12 +110,24 @@ nell'output, quindi due esecuzioni danno gli stessi byte (`cmp` come controllo).
 """
 
 import argparse
+import base64
 import collections
+import json
 import os
 import sys
 
-import freetype
-from PIL import Image, ImageDraw, ImageFont
+# freetype-py e Pillow servono SOLO a rasterizzare i TTF e a scrivere i PNG (interprete del
+# pebble-tool). S12/D48: test/gen_preview_fixture.py importa questo modulo con il python3 di
+# sistema per le sole funzioni PURE (grid_steps/place_row_fit/maschere), che non toccano nessuna
+# delle due: l'import non deve fallire se mancano.
+try:
+    import freetype
+except ImportError:                                              # pragma: no cover
+    freetype = None
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:                                              # pragma: no cover
+    Image = ImageDraw = ImageFont = None
 
 # ---------------------------------------------------------------- costanti ---
 
@@ -175,9 +187,23 @@ FIT_MARGIN = 2               # ui_time.c: px liberi per lato richiesti ai tentat
 PX_MAX = 400                 # limite della ricerca lineare della pixel size
 PX_FIELD_MAX = 255           # il campo `px` di digit_metrics.h è uint8_t
 
-FT_FLAGS = (freetype.FT_LOAD_RENDER
+PEBBLE_PY = '~/.local/share/uv/tools/pebble-tool/bin/python'   # l'unico interprete con freetype-py
+
+
+def _ft_flags():
+    """Flag di FT_Load_Char (bitmap monocromatica); errore chiaro se manca freetype-py."""
+    if freetype is None:
+        raise GenError('freetype-py non disponibile: rigenerare con %s' % PEBBLE_PY)
+    return (freetype.FT_LOAD_RENDER
             | freetype.FT_LOAD_TARGET_MONO
             | freetype.FT_LOAD_MONOCHROME)
+
+
+def _require_pil():
+    """Pillow serve solo a scrivere i PNG (strip e anteprime)."""
+    if Image is None:
+        raise GenError('Pillow non disponibile: rigenerare con %s' % PEBBLE_PY)
+
 
 # valori nella mappa della strip (D20)
 EMPTY, FILL, RING, SHADOW = 0, 1, 2, 3
@@ -234,10 +260,11 @@ class Glyph(object):
 
 def render(face, px, chars=GLYPHS):
     """Rasterizza `chars` a `px` pixel; ritorna {char: Glyph}."""
+    flags = _ft_flags()
     face.set_pixel_sizes(0, px)
     out = {}
     for ch in chars:
-        face.load_char(ch, FT_FLAGS)
+        face.load_char(ch, flags)
         slot = face.glyph
         bm = slot.bitmap
         if bm.pixel_mode != 1:          # FT_PIXEL_MODE_MONO
@@ -478,6 +505,17 @@ def row_ink_width(st, text, digit_cell, colon_cell, gap=0):
     return total - gap if text else 0
 
 
+def draw_x(st, k, x, adv):
+    """x del blit di ui_digits.c:ui_digits_draw: gx = x + (passo - nucleo) / 2, nucleo = ink - ombra
+    (il riempimento resta centrato nel passo e l'ombra sporge a destra). Usato anche dalla fixture
+    dell'anteprima (S12/D48)."""
+    w = st.ink_w[k]
+    core = w - st.shadow
+    if core < 1:
+        core = w
+    return x + cdiv(adv - core, 2)
+
+
 def row_extents(st, placed, x0):
     """Prima e ultima COLONNA di pixel della riga, come le disegna ui_digits.c:ui_digits_draw:
     gx = x + (passo - nucleo) / 2 con nucleo = ink - ombra (il riempimento resta centrato nel
@@ -487,10 +525,7 @@ def row_extents(st, placed, x0):
         w = st.ink_w[k]
         if w <= 0:
             continue                      # glifo assente dalla strip: ui_digits_draw non disegna
-        core = w - st.shadow
-        if core < 1:
-            core = w
-        gx = x0 + x + cdiv(adv - core, 2)
+        gx = x0 + draw_x(st, k, x, adv)
         if lo is None or gx < lo:
             lo = gx
         if hi is None or gx + w - 1 > hi:
@@ -716,10 +751,261 @@ def build_strip(face, font, size, platform, fit_width, no_colon_b=False, pack=Fa
     return st
 
 
+# ------------------------------------------- maschere per il JS (S12, D45) ---
+#
+# src/pkjs/digit_masks.js porta, per piattaforma x font x taglia, la maschera a 1 bit del SOLO
+# RIEMPIMENTO di ogni glifo: anello e ombra si ricostruiscono ESATTAMENTE con la regola di D20
+# (glyph_index_map), quindi l'anteprima della config page (src/pkjs/config/preview.js) disegna gli
+# stessi pixel della watchface senza portarsi dietro i PNG. check_masks() lo verifica su ogni strip
+# prima di scrivere il modulo: se una ricostruzione non torna, il tool esce con errore.
+
+MASKS_VERSION = 1                       # campo `v` del modulo (preview.js lo controlla)
+MASKS_BEGIN = '/*BEGIN-MASKS*/'         # marcatori del payload JSON dentro il .js: li usa
+MASKS_END = '/*END-MASKS*/'             # test/gen_preview_fixture.py per rileggerlo (load_masks_js)
+CANON_MASKS = 'apps/galleria/src/pkjs/digit_masks.js'   # percorso citato nell'intestazione
+
+
+def b64url(data):
+    """base64url SENZA padding (l'alfabeto di src/pkjs/b64.js)."""
+    return base64.urlsafe_b64encode(bytes(data)).decode('ascii').rstrip('=')
+
+
+def b64url_decode(s):
+    """Inverso di b64url (il padding manca: si ricalcola)."""
+    return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4))
+
+
+def mask_bits(st, k):
+    """Maschera del riempimento del glifo k: strip_h righe da ceil(w/8) byte, MSB-first, 1 = FILL.
+
+    Le colonne sono quelle dell'INCHIOSTRO (ink[k].x .. ink[k].x + w - 1, cioe' riempimento u
+    anello u ombra): l'origine x nella strip non entra nel modulo, al JS serve solo la casella.
+    """
+    w = st.ink_w[k]
+    if w <= 0:
+        return b''                       # glifo assente (taglia B senza ':')
+    stride = (w + 7) // 8
+    out = bytearray(stride * st.strip_h)
+    for y in range(st.strip_h):
+        base = y * st.strip_w + st.ink_x[k]
+        rb = y * stride
+        for x in range(w):
+            if st.buf[base + x] == FILL:
+                out[rb + (x >> 3)] |= 0x80 >> (x & 7)
+    return bytes(out)
+
+
+def mask_fill(bits, w, strip_h):
+    """Set dei pixel (x, y) di riempimento di una maschera."""
+    stride = (w + 7) // 8
+    out = set()
+    for y in range(strip_h):
+        rb = y * stride
+        for x in range(w):
+            if bits[rb + (x >> 3)] & (0x80 >> (x & 7)):
+                out.add((x, y))
+    return out
+
+
+def glyph_index_map(bits, w, strip_h, ring, shadow):
+    """Mappa di indici 0..3 (EMPTY/FILL/RING/SHADOW) ricostruita dalla SOLA maschera, riga per riga
+    (w byte per riga, w x strip_h byte in tutto). E' il contratto che preview.js:glyphMap deve
+    rispettare: anello = dilatazione di Chebyshev di R meno il riempimento, ombra = scorrimenti
+    (+k, +k) k = 1..S di (riempimento u anello) meno (riempimento u anello), tutto ritagliato alla
+    casella (i pixel fuori casella non esistono nemmeno nella strip: la casella e' l'inchiostro)."""
+    fill = mask_fill(bits, w, strip_h)
+    rng = ring_pixels(fill, ring)
+    shd = shadow_pixels(fill | rng, shadow)
+    out = bytearray(w * strip_h)
+    for value, pixels in ((FILL, fill), (RING, rng), (SHADOW, shd)):
+        for (x, y) in pixels:
+            if 0 <= x < w and 0 <= y < strip_h:
+                out[y * w + x] = value
+    return out
+
+
+def check_masks(st):
+    """La ricostruzione dalla maschera deve dare gli STESSI pixel della strip: errore se no."""
+    if st.buf is None:
+        return
+    for k in range(st.ncells):
+        w = st.ink_w[k]
+        if w <= 0:
+            continue
+        got = glyph_index_map(mask_bits(st, k), w, st.strip_h, st.ring, st.shadow)
+        bad = 0
+        for y in range(st.strip_h):
+            base = y * st.strip_w + st.ink_x[k]
+            for x in range(w):
+                if got[y * w + x] != st.buf[base + x]:
+                    bad += 1
+        if bad:
+            st.errors.append("maschera del glifo '%s': %d pixel diversi dalla strip (anello o "
+                             'ombra non ricostruibili dal solo riempimento)' % (GLYPHS[k], bad))
+
+
+def masks_payload(strips):
+    """Il dizionario del modulo (D45): { v, emery: { font: { a|b: {...} } }, flint: {...} }."""
+    by_key = {(st.font['key'], st.size, st.platform): st for st in strips}
+    out = {'v': MASKS_VERSION}
+    for platform in PLATFORMS:
+        by_font = {}
+        for font in FONTS:
+            by_size = {}
+            for size in SIZES:
+                st = by_key[(font['key'], size, platform)]
+                glyphs = {}
+                for k, ch in enumerate(GLYPHS):
+                    if k >= st.ncells or st.ink_w[k] <= 0:
+                        continue                 # taglia B senza ':' (--no-colon-b): chiave assente
+                    glyphs[ch] = {'w': st.ink_w[k], 'bits': b64url(mask_bits(st, k))}
+                by_size[size] = {'strip_h': st.strip_h, 'digit_h': st.digit_h, 'ring': st.ring,
+                                 'shadow': st.shadow, 'cell_w': st.cell_w, 'glyphs': glyphs}
+            by_font[font['key']] = by_size
+        out[PLATFORM_NAME[platform]] = by_font
+    return out
+
+
+def strip_from_masks(entry, size, platform, font=None):
+    """Strip di sole METRICHE ricostruita da una voce del payload (nessun pixel): basta a
+    fill_width, grid_steps, place_row, place_row_fit, row_width e draw_x, cioe' al porting del
+    layout di ui_time.c. La usa test/gen_preview_fixture.py (S12/D48)."""
+    st = Strip(font or FONTS[0], size, platform)
+    st.cell_w = entry['cell_w']
+    st.ring = entry['ring']
+    st.shadow = entry['shadow']
+    st.strip_h = entry['strip_h']
+    st.digit_h = entry['digit_h']
+    st.rows_h = entry['strip_h'] - 2 * entry['ring'] - entry['shadow']
+    st.px = 0
+    st.buf = None
+    st.strip_w = 0
+    st.work_w = 0
+    st.ink_x = [0] * NGLYPHS
+    st.ink_w = [int(entry['glyphs'][ch]['w']) if ch in entry['glyphs'] else 0 for ch in GLYPHS]
+    st.chars = GLYPHS if st.ink_w[GLYPHS.index(COLON)] > 0 else DIGITS
+    st.ncells = len(st.chars)
+    return st
+
+
+MASKS_HEADER = """\
+/* digit_masks.js - GENERATO da tools/gen_digits.py (%(ver)s) con --masks-js: non modificare a mano.
+ * Rigenerare con:
+ *   %(cmd)s
+ *
+ * S12/D45: maschere a 1 bit del SOLO RIEMPIMENTO delle cifre sprite, per l'anteprima "onesta"
+ * della config page (src/pkjs/config/preview.js). Struttura:
+ *
+ *   { v: %(v)d,
+ *     emery: { anton: { a: { strip_h, digit_h, ring, shadow, cell_w,
+ *                            glyphs: { "0": { w, bits }, ..., ":": { w, bits } } },
+ *                       b: { ... } },
+ *              bebas: {...}, barlow: {...}, francois: {...}, staatliches: {...} },
+ *     flint: { ... } }
+ *
+ * bits = base64url SENZA padding (alfabeto di src/pkjs/b64.js) delle righe della casella
+ * d'inchiostro del glifo: w = ink[k].w colonne, strip_h righe, riga = ceil(w / 8) byte, MSB-first
+ * (pixel x nel bit 0x80 >> (x & 7) del byte x / 8), 1 = riempimento. L'origine x nella strip
+ * (ink[k].x) NON serve al JS, che disegna il glifo per conto suo.
+ * Anello e ombra si RICOSTRUISCONO dalla sola maschera con la regola di D20 (la stessa che disegna
+ * la strip, verificata su tutte e %(nstrips)d le strip da gen_digits.py prima di scrivere questo
+ * file): anello = pixel a distanza di Chebyshev 1..R dal riempimento, meno il riempimento; ombra =
+ * scorrimenti (+k, +k), k = 1..S, di (riempimento u anello), meno (riempimento u anello); tutto
+ * ritagliato alla casella w x strip_h. R (ring) e S (shadow) stanno in ogni taglia: emery 2/2,
+ * flint 1/0 (D26: niente ombra). La taglia B non ha il ':' (--no-colon-b): la chiave manca.
+ * ES5 + UMD (module.exports / root.GalDigitMasks), ASCII, nessuna data: due esecuzioni danno lo
+ * stesso file byte per byte (--check). */
+"""
+
+
+def canon_cmd(fit_width, no_colon_b, pack, allow_row_overflow, masks_js=False):
+    """Comando canonico citato nelle intestazioni generate (percorsi del repo: riproducibile).
+
+    E' LO STESSO per digit_metrics.h e digit_masks.js: riporta TUTTE le opzioni usate, --masks-js
+    compreso quando e' attiva (revisione S12, rk: chi copia la riga «Rigenerare con» dell'header
+    deve riottenere anche le maschere, non solo strip e header)."""
+    cmd = CANON_CMD
+    if masks_js:
+        cmd += ' \\\n *       --masks-js %s' % CANON_MASKS
+    if fit_width:
+        cmd += ' \\\n *       --fit-width'
+    opts = []
+    if no_colon_b:
+        opts.append('--no-colon-b')
+    if pack:
+        opts.append('--pack')
+    if allow_row_overflow:
+        opts.append('--allow-row-overflow')
+    if opts:
+        cmd += ((' ' if fit_width else ' \\\n *       ') + ' '.join(opts))
+    return cmd
+
+
+def emit_masks_js(strips, fit_width=False, no_colon_b=False, pack=False, allow_row_overflow=False):
+    """Testo di src/pkjs/digit_masks.js (D45): intestazione + UMD + payload JSON fra i marcatori."""
+    head = MASKS_HEADER % {'ver': TOOL_VERSION, 'v': MASKS_VERSION, 'nstrips': len(strips),
+                           'cmd': canon_cmd(fit_width, no_colon_b, pack, allow_row_overflow, True)}
+    body = json.dumps(masks_payload(strips), indent=1, sort_keys=False)
+    return (head
+            + '(function (root, factory) {\n'
+            + "  if (typeof module === 'object' && module.exports) { module.exports = factory(); }\n"
+            + '  else { root.GalDigitMasks = factory(); }\n'
+            + '}(this, function () {\n'
+            + "  'use strict';\n"
+            + '  /* Payload JSON puro fra i marcatori: lo rilegge test/gen_preview_fixture.py. */\n'
+            + '  var MASKS = ' + MASKS_BEGIN + body + MASKS_END + ';\n'
+            + '  return MASKS;\n'
+            + '}));\n')
+
+
+def load_masks_text(text, where='digit_masks.js'):
+    """Payload (dict) di un digit_masks.js gia' letto: JSON fra MASKS_BEGIN e MASKS_END."""
+    i = text.find(MASKS_BEGIN)
+    j = text.find(MASKS_END, i + 1)
+    if i < 0 or j < 0:
+        raise GenError('%s non contiene i marcatori delle maschere (rigenerare con --masks-js)'
+                       % where)
+    return json.loads(text[i + len(MASKS_BEGIN):j])
+
+
+def load_masks_js(path):
+    """Come load_masks_text, leggendo il file (usata da test/gen_preview_fixture.py)."""
+    with open(path, 'r', encoding='utf-8') as fh:
+        return load_masks_text(fh.read(), path)
+
+
+def first_diff(a, b):
+    """Numero di riga (1-based) e testo della prima riga diversa fra due testi."""
+    la, lb = a.split('\n'), b.split('\n')
+    for i in range(min(len(la), len(lb))):
+        if la[i] != lb[i]:
+            return i + 1, la[i], lb[i]
+    n = min(len(la), len(lb))
+    return n + 1, (la[n] if len(la) > n else '<fine>'), (lb[n] if len(lb) > n else '<fine>')
+
+
+def check_masks_file(text, path):
+    """--check del modulo: 0 se il file su disco e' identico al generato, 1 altrimenti."""
+    if not os.path.isfile(path):
+        print('--check: %s NON esiste (rigenerare con --masks-js)' % path)
+        return 1
+    with open(path, 'r', encoding='utf-8') as fh:
+        have = fh.read()
+    if have == text:
+        print('--check: %s aggiornato (%d B)' % (path, len(text.encode('utf-8'))))
+        return 0
+    n, ra, rb = first_diff(have, text)
+    print('--check: %s DIVERSO dal generato, prima differenza alla riga %d' % (path, n))
+    print('  nel repo:  %s' % ra[:100])
+    print('  generato:  %s' % rb[:100])
+    return 1
+
+
 # ----------------------------------------------------------------- PNG ---
 
 def strip_image(st):
     """Immagine RGBA della strip (4 colori esatti, D20)."""
+    _require_pil()
     img = Image.new('RGBA', (st.strip_w, st.strip_h), RGBA[EMPTY])
     px = img.load()
     for y in range(st.strip_h):
@@ -761,6 +1047,7 @@ def write_png(st, out_dir):
 
 def style_image(st, fill_c, ring_c, shadow_c):
     """La strip resa con una palette di D21 (None = trasparente), su sfondo trasparente."""
+    _require_pil()
     img = Image.new('RGBA', (st.strip_w, st.strip_h), (0, 0, 0, 0))
     px = img.load()
     colors = {FILL: fill_c, RING: ring_c, SHADOW: shadow_c}
@@ -810,25 +1097,15 @@ def write_preview(strips, preview_dir):
 
 # -------------------------------------------------------------- header ---
 
-def emit_header(strips, fit_width, no_colon_b=False, pack=False, allow_row_overflow=False):
+def emit_header(strips, fit_width, no_colon_b=False, pack=False, allow_row_overflow=False,
+                masks_js=False):
     """Testo di src/c/digit_metrics.h (nessuna data: riproducibile).
 
-    La riga "Rigenerare con" riporta TUTTE le opzioni usate, --allow-row-overflow compreso:
-    deve bastare copiarla per riottenere gli stessi byte.
+    La riga "Rigenerare con" riporta TUTTE le opzioni usate, --allow-row-overflow e --masks-js
+    compresi: deve bastare copiarla per riottenere gli stessi byte (strip, header E maschere).
     """
     by_key = {(st.font['key'], st.size, st.platform): st for st in strips}
-    cmd = CANON_CMD
-    if fit_width:
-        cmd += ' \\\n *       --fit-width'
-    opts = []
-    if no_colon_b:
-        opts.append('--no-colon-b')
-    if pack:
-        opts.append('--pack')
-    if allow_row_overflow:
-        opts.append('--allow-row-overflow')
-    if opts:
-        cmd += ((' ' if fit_width else ' \\\n *       ') + ' '.join(opts))
+    cmd = canon_cmd(fit_width, no_colon_b, pack, allow_row_overflow, masks_js)
     out = []
     w = out.append
     w('/* digit_metrics.h — GENERATO da tools/gen_digits.py (%s): non modificare.\n' % TOOL_VERSION)
@@ -1201,7 +1478,61 @@ def selftest():
     ck('--allow-row-overflow' not in txt, 'l\'header cita --allow-row-overflow senza il flag')
     ck('--allow-row-overflow' in emit_header(strips, True, True, True, True),
        'con il flag l\'header non lo cita')
+    # revisione S12 (rk): con --masks-js la riga «Rigenerare con» dell'header lo cita, e nello stesso
+    # ordine del modulo delle maschere (stesso comando per i due file generati)
+    ck('--masks-js' not in txt, 'l\'header cita --masks-js senza l\'opzione')
+    txt_m = emit_header(strips, True, True, True, False, True)
+    ck('--masks-js %s' % CANON_MASKS in txt_m, 'con --masks-js l\'header non lo cita')
+    ck(txt_m.index('--masks-js') < txt_m.index('--fit-width'), 'ordine di --masks-js nell\'header')
+    ck(canon_cmd(True, True, True, False)
+       == canon_cmd(True, True, True, False, True).replace(' \\\n *       --masks-js %s' % CANON_MASKS, ''),
+       'canon_cmd: la riga --masks-js deve essere l\'unica differenza fra header e maschere')
     ck('flint A (28, 42, 1, 0)' in txt, 'geometria D26 nel commento dell\'header')
+
+    # 12. maschere del JS (S12, D45): dalla sola maschera del RIEMPIMENTO si ricostruiscono anello
+    # e ombra identici alla strip; un pixel alterato viene visto; base64url, marcatori, metriche.
+    st = _fake_strip('color', 'a', [0] * 11)
+    st.ring, st.shadow = 2, 2
+    st.strip_w, st.strip_h = 16, 14
+    st.ncells = 1
+    fill = set((x, y) for x in range(6, 10) for y in range(4, 9))   # blocco 4x5 ...
+    fill.add((10, 4))                                              # ... piu' un pixel isolato
+    rng = ring_pixels(fill, st.ring)
+    shd = shadow_pixels(fill | rng, st.shadow)
+    st.buf = bytearray(st.strip_w * st.strip_h)
+    for value, pixels in ((FILL, fill), (RING, rng), (SHADOW, shd)):
+        for (x, y) in pixels:
+            if 0 <= x < st.strip_w and 0 <= y < st.strip_h:
+                st.buf[y * st.strip_w + x] = value
+    cols = sorted(set(x for (x, y) in (fill | rng | shd) if 0 <= x < st.strip_w))
+    st.ink_x[0], st.ink_w[0] = cols[0], cols[-1] - cols[0] + 1
+    check_masks(st)
+    ck(not st.errors, 'maschera: ricostruzione diversa dalla strip (%s)' % st.errors)
+    bits = mask_bits(st, 0)
+    ck(len(bits) == ((st.ink_w[0] + 7) // 8) * st.strip_h, 'maschera: %d byte' % len(bits))
+    ck(sum(bin(b).count('1') for b in bits) == len(fill), 'maschera: bit accesi != riempimento')
+    ck(b64url_decode(b64url(bits)) == bits, 'base64url senza padding: round trip')
+    ck('=' not in b64url(b'\x00'), 'base64url: padding presente')
+    victim = sorted(rng)[0]                                        # un pixel di anello in meno
+    st.errors = []
+    st.buf[victim[1] * st.strip_w + victim[0]] = EMPTY
+    check_masks(st)
+    ck(st.errors, 'maschera: strip alterata non segnalata')
+    # ombra assente con S = 0 (D26) e casella 1x1
+    m0 = glyph_index_map(mask_bits(st, 0), st.ink_w[0], st.strip_h, 1, 0)
+    ck(SHADOW not in set(m0), 'glyph_index_map: ombra con S = 0')
+    ck(list(glyph_index_map(bytes([0x80]), 1, 1, 1, 0)) == [FILL], 'glyph_index_map: casella 1x1')
+    # marcatori del payload e metriche ricostruite (strip_from_masks + draw_x)
+    txt = '  var MASKS = ' + MASKS_BEGIN + json.dumps({'v': MASKS_VERSION}) + MASKS_END + ';\n'
+    ck(load_masks_text(txt)['v'] == MASKS_VERSION, 'load_masks_text non rilegge il payload')
+    entry = {'strip_h': 72, 'digit_h': 66, 'ring': 2, 'shadow': 2, 'cell_w': 40,
+             'glyphs': dict((c, {'w': 40, 'bits': ''}) for c in DIGITS)}
+    sm = strip_from_masks(entry, 'a', 'color')
+    ck(sm.ncells == 10 and sm.ink_w[10] == 0, "strip_from_masks: taglia B senza ':'")
+    ck(fill_width(sm, 0) == 40 - 2 * 2 - 2, 'strip_from_masks: fill_width %d' % fill_width(sm, 0))
+    ck(row_width(sm, ROW_24H, 40, 16) == 4 * 40 + 16,
+       'strip_from_masks: riga 24 h %d' % row_width(sm, ROW_24H, 40, 16))
+    ck(draw_x(sm, 0, 0, 40) == 1, 'draw_x: %d' % draw_x(sm, 0, 0, 40))
 
     for f in fails:
         print('FALLITO  %s' % f)
@@ -1222,6 +1553,12 @@ def main(argv=None):
                     help='cartella delle strip PNG (default: %(default)s)')
     ap.add_argument('--header', default='apps/galleria/src/c/digit_metrics.h', metavar='FILE',
                     help='header generato (default: %(default)s)')
+    ap.add_argument('--masks-js', dest='masks_js', metavar='FILE',
+                    help='scrive FILE (src/pkjs/digit_masks.js): maschere a 1 bit del solo '
+                         "riempimento di ogni glifo per l'anteprima della config page (S12/D45). "
+                         'Anello e ombra vengono ricostruiti dalla maschera e confrontati con la '
+                         'strip: se non tornano il tool esce con errore. Con --check il file non '
+                         'viene scritto ma confrontato con il generato (exit 1 se diverso)')
     ap.add_argument('--preview', metavar='DIR',
                     help='scrive DIR/%s (foglio di contatto: strip grezza + i 4 stili di D21 '
                          'su grigio medio)' % PREVIEW_NAME)
@@ -1257,6 +1594,8 @@ def main(argv=None):
         return selftest()
 
     only_f, only_s, only_p = parse_only(args.only)
+    if freetype is None:                     # le strip vanno rasterizzate: serve l'interprete giusto
+        raise GenError('freetype-py non disponibile: rigenerare con %s' % PEBBLE_PY)
 
     faces = {}
     strips = []
@@ -1280,6 +1619,10 @@ def main(argv=None):
     if not strips:
         raise GenError('--only non ha selezionato nulla')
 
+    if args.masks_js:                        # D45: anello e ombra ricostruibili dal riempimento
+        for st in strips:
+            check_masks(st)
+
     # ordine di stampa: font, piattaforma, taglia (deterministico)
     print_table(strips)
     print('')
@@ -1293,9 +1636,18 @@ def main(argv=None):
               'glifi troppo larghi.' % (len(failed), len(strips)))
         return 1
 
+    full = len(strips) == len(FONTS) * 4     # header e maschere vogliono la generazione completa
     if args.check:
         print('')
         print('--check: nessun file scritto (%d strip verificate).' % len(strips))
+        if args.masks_js:
+            if not full:
+                print('--check: maschere NON verificate (--only ha selezionato %d strip su %d)'
+                      % (len(strips), len(FONTS) * 4))
+                return 1
+            return check_masks_file(emit_masks_js(strips, args.fit_width, args.no_colon_b,
+                                                  args.pack, args.allow_row_overflow),
+                                    args.masks_js)
         return 0
 
     if not os.path.isdir(args.out):
@@ -1303,8 +1655,8 @@ def main(argv=None):
     written = [write_png(st, args.out) for st in strips]
 
     header_txt = (emit_header(strips, args.fit_width, args.no_colon_b, args.pack,
-                              args.allow_row_overflow)
-                  if len(strips) == len(FONTS) * 4 else None)
+                              args.allow_row_overflow, bool(args.masks_js))
+                  if full else None)
     if header_txt is None:
         print('')
         print('NOTA: header non scritto (--only ha selezionato %d strip su %d).'
@@ -1313,6 +1665,18 @@ def main(argv=None):
         with open(args.header, 'w', encoding='utf-8') as fh:
             fh.write(header_txt)
         written.append(args.header)
+
+    if args.masks_js:
+        if not full:
+            print('')
+            print('NOTA: maschere non scritte (--only ha selezionato %d strip su %d).'
+                  % (len(strips), len(FONTS) * 4))
+        else:
+            masks_txt = emit_masks_js(strips, args.fit_width, args.no_colon_b, args.pack,
+                                      args.allow_row_overflow)
+            with open(args.masks_js, 'w', encoding='utf-8', newline='\n') as fh:
+                fh.write(masks_txt)
+            written.append(args.masks_js)
 
     if args.preview:
         if not os.path.isdir(args.preview):

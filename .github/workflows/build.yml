@@ -1,5 +1,5 @@
 # CI: build di ogni app in apps/ con pebble-tool 5.0.40 + SDK 4.33.1 (artefatti .pbw) e test host di Galleria.
-# Prima esecuzione al primo push su GitHub (30/08/2026). Vedi PIANO-SVILUPPO-PEBBLE.md §5.7.
+# Prima esecuzione al primo push su GitHub (30/08/2026). Questo file è l'unica fonte della CI: PIANO-SVILUPPO-PEBBLE.md §5.7 ci rimanda e non duplica più lo YAML.
 name: build
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
 
   galleria-host-tests:
     # Test host di apps/galleria/test: C (gcc), node (PKJS, config page), Python (tool, dev server, dbm.dumb),
-    # più i controlli dei file generati (config_page.js, fixture, anteprime font). Nessun SDK necessario.
+    # più i controlli dei file generati (config_page.js, i18n.js, fixture). Nessun SDK necessario.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Pillow (photo_prep.py, dev server, anteprime font)
+      - name: Pillow (photo_prep.py, dev server, fixture delle foto)
         run: python3 -m pip install --quiet pillow
       - name: make -C apps/galleria/test
         run: make -C apps/galleria/test

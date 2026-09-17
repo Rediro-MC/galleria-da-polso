@@ -1,6 +1,13 @@
 # Galleria — pubblicazione con `pebble publish` (S9, P3)
 
-> **PUBBLICATA il 05/09/2026 alle 20:41** (0.1.0) e **release 0.2.0 la sera stessa** con la variante «nuova release» (`--release-notes` da `store/release_notes_0.2.0.txt`, log locale `publish_020.log`: «Resolved existing appstore app ID … Release created successfully»); con il comando di §4 (esito in `apps/galleria/publish_010.log`, file locale): app **`cdf80cc3bf6745b1a310e4c8`**, pagina https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8, dashboard https://appstore-api.repebble.com/dashboard. Verificato via API (`/api/v1/apps/id/<id>`): title «Galleria for Pebble», type watchface, author «Rediro», category «Faces» (assegnata dal server), `visible: true`, release 0.1.0 con le note, `source` = repo GitHub, descrizione completa; **screenshot emery e flint online** (`hardware_platforms[].images.screenshot`); **`icon_image`/`list_image` vuoti** subito dopo la creazione (per una watchface lo store usa lo screenshot; da ricontrollare in dashboard dopo qualche minuto: il tool parlava di «icon generation may take ~2 min»). Il repo sorgente è **pubblico** dalla stessa sera (storia riscritta prima del push).
+> **PUBBLICATA il 05/09/2026 alle 20:41** (0.1.0) e **release 0.2.0 la sera stessa** con la variante «nuova release» (`--release-notes` da `store/release_notes_0.2.0.txt`, log locale `publish_020.log`: «Resolved existing appstore app ID … Release created successfully»); con il comando di creazione (§4; testo intero in `LISTING.md` §6; esito in `apps/galleria/publish_010.log`, file locale): app **`cdf80cc3bf6745b1a310e4c8`**, pagina https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8, dashboard https://appstore-api.repebble.com/dashboard. Verificato via API (`/api/v1/apps/id/<id>`): title «Galleria for Pebble», type watchface, author «Rediro», category «Faces» (assegnata dal server), `visible: true`, release 0.1.0 con le note, `source` = repo GitHub, descrizione completa; **screenshot emery e flint online** (`hardware_platforms[].images.screenshot`); **`icon_image`/`list_image` vuoti** subito dopo la creazione (per una watchface lo store usa lo screenshot; da ricontrollare in dashboard dopo qualche minuto: il tool parlava di «icon generation may take ~2 min»). Il repo sorgente è **pubblico** dalla stessa sera (storia riscritta prima del push).
+>
+> **Stato al 14/09/2026 (UX-4, D126)**, verificato sull'API pubblica `GET /api/v1/apps/id/cdf80cc3bf6745b1a310e4c8`:
+> `title` è **ancora «Galleria for Pebble»** e l'ultima release è **ancora la 0.2.0** (pubblicata il 05/09 alle 21:16).
+> Il `PATCH` di §0.1 **non è mai stato lanciato** e la **0.3.0 non è mai stata pubblicata**: il nome «Galleria» (D42)
+> e la descrizione nuova arrivano con la **0.4.0**. Le **icone 80/144 sono online** dal 05/09 alle 23:27 (§0), quindi
+> il dubbio «`icon_image`/`list_image` vuoti, da ricontrollare» della riga qui sopra è **chiuso**: nell'API le
+> icone 80/144 risultano presenti (campo `list_image`).
 >
 > Preparato al banco il **5 settembre 2026** leggendo il **sorgente del pebble-tool 5.0.40 installato**
 > (`~/.local/share/uv/tools/pebble-tool/lib/python3.13/site-packages/pebble_tool/`, d'ora in poi `<PT>/`) e la
@@ -26,6 +33,57 @@ Note: un `PATCH` con `Content-Type: application/json` dà 500 («Content-Type wa
 `GET /api/dashboard/apps/<id>` con il solo `Bearer` dà 401 (serve il cookie); `OPTIONS` sull'app elenca
 `GET, HEAD, OPTIONS, PATCH, DELETE`. Il cookie e il token sono credenziali: file temporanei fuori dal repo, da cancellare dopo l'uso.
 
+### 0.1 Comando pronto per la 0.4.0: nome «Galleria» + descrizione nuova
+
+> Scritto in S11 per la 0.3.0, **mai lanciato**; la 0.3.0 non è uscita, quindi vale **tale e quale per la 0.4.0**
+> (D126). Il corpo del comando **non cambia di una lettera**: cambiano solo il numero della release che gli sta
+> accanto (`pebble publish --version 0.4.0`, `LISTING.md` §6) e il testo di `store/description.txt`, che oggi
+> dice «Beta 0.4.0».
+
+**Decisione D42** (`docs/design/galleria-s11-lingue-es-pt.md`): con la **0.4.0** l'app nello store si chiama
+**«Galleria»** e non più «Galleria for Pebble». Il nome **non si cambia dalla CLI** (`--name` vale solo alla
+creazione, §9): lo cambia il campo **`title`** di questo `PATCH`, che è **obbligatorio in ogni chiamata** — quindi
+**lo stesso comando** rinomina l'app *e* carica la descrizione nuova (`store/description.txt`, 794 caratteri).
+⚠️ Da qui in poi, ogni `PATCH` futuro deve portare `title=Galleria`: rimettere il vecchio testo rinominerebbe
+l'app all'indietro. `store/LISTING.md` §1 (riga «Nome nello store») e §5 (riga 30) sono già allineati al nome nuovo.
+
+```bash
+cd ~/ProgettiClaude/Pebble/apps/galleria
+APP=cdf80cc3bf6745b1a310e4c8                      # id dell'app (stampato dal publish, PUBLISH.md in testa)
+API=https://appstore-api.repebble.com
+JAR=$(mktemp -d)/cookies.txt                      # credenziale: FUORI dal repo, da cancellare dopo l'uso
+
+# 1) token Firebase del pebble-tool (serve un `pebble login` gia' fatto)
+TOK=$(~/.local/share/uv/tools/pebble-tool/bin/python -c \
+  "from pebble_tool.account import get_account; print(get_account(auth_provider='firebase').get_access_token())")
+
+# 2) cookie di sessione della dashboard (il PATCH con il solo Bearer da' 401)
+curl -sS -c "$JAR" -X POST "$API/api/auth/firebase/session" \
+  -H 'Content-Type: application/json' --data-binary "{\"idToken\": \"$TOK\"}" >/dev/null
+
+# 3) PATCH multipart: title (obbligatorio, qui RINOMINA) + descrizione; i campi non inviati restano com'erano
+curl -sS -b "$JAR" -X PATCH "$API/api/dashboard/apps/$APP" \
+  --form-string "title=Galleria" \
+  --form-string "description=$(cat store/description.txt)"
+
+# 4) verifica sull'API pubblica (riflette in pochi secondi)
+curl -sS "$API/api/v1/apps/id/$APP" | python3 -m json.tool | grep -m2 -E '"(title|description)"' | cut -c1-120
+
+rm -f "$JAR"                                       # via il cookie appena finito
+```
+
+⚠️ **Comando scritto, non eseguito** (S11, 06/09/2026; ancora non eseguito il 14/09/2026, UX-4): lo lancia
+**l'utente** — o l'orchestratore su richiesta — **dopo il gate sul telefono**
+(`docs/design/galleria-s13-ux4-gate-telefono.md`, D128); non fa parte del gate. Atteso al punto 4:
+`"title": "Galleria"` e la descrizione nuova (le prime righe bastano; per contarla,
+`wc -m store/description.txt` = **795** con il newline finale, **794** caratteri — ricontato il 14/09/2026).
+Le **icone** non vanno rimandate (sono gia' online dal 05/09);
+se servisse rifarle, si aggiungono allo stesso `PATCH` `-F "iconSmall=@store/icon_80.png;type=image/png"` e
+`-F "iconLarge=@store/icon_144.png;type=image/png"`. Il `PATCH` **non pubblica una release**: la **0.4.0** con
+`store/release_notes_0.4.0.txt` (**696** caratteri, 697 con il newline) la fa `pebble publish` (`LISTING.md` §6 e
+§3.0), e i due passi sono indipendenti — si fanno però **nello stesso giro**, perché è la stessa novità per chi
+legge la pagina dello store.
+
 ## 1. Sintesi in cinque righe
 
 1. `pebble publish` **ricostruisce da solo** il progetto, carica `build/galleria.pbw` e — se l'UUID non e' gia' noto
@@ -38,7 +96,7 @@ Note: un `PATCH` con `Content-Type: application/json` dà 500 («Content-Type wa
    exit 1 **[F]**): quindi **sempre `--no-gif-all-platforms`** e screenshot locali con `--screenshots`.
 5. Se si omette `--source`, il tool ci mette **da solo** l'URL del remote git: qui `https://github.com/Rediro-MC/galleria-da-polso`.
    **Decisione U4 presa il 05/09/2026**: il repo viene **reso pubblico** (codice **MIT**, `LICENSE` in radice) e
-   l'URL si passa **esplicito** nel comando di §4.
+   l'URL si passa **esplicito** nel comando di creazione (§4; testo intero in `LISTING.md` §6).
 
 ---
 
@@ -52,7 +110,7 @@ Note: un `PATCH` con `Content-Type: application/json` dà 500 («Content-Type wa
 | 4 | Progetto pronto | `pebble publish` **ricompila** con `BuildCommand` (equivalente di `pebble build`, `debug=False`) e nasconde l'output: lo mostra **solo se la build fallisce** **[F]** `publish.py:217-235`. Quindi: fare prima il gate (`pebble clean && pebble build`, `make -C test`, `python3 ../../tools/build_config_page.py --check`) e lanciare `publish` **con l'ambiente pulito, senza `GALLERIA_DEFINES`**. |
 | 5 | `.pbw` atteso | `build/galleria.pbw` (il nome viene dal **basename della cartella del progetto**) **[F]** `publish.py:237-239`. La build S8 in `build_s8/` non c'entra. |
 | 6 | Asset dello store | `python3 store/make_assets.py --check` verde **dopo** aver rigenerato gli screenshot con le foto demo nuove (P1/P6). Dimensioni attuali verificate con Pillow **[F]**: `icon_48.png` 48x48 RGB, `icon_80.png` 80x80 RGB, `icon_144.png` 144x144 RGB, `emery_screenshot_1.png` 200x228 RGB, `flint_screenshot_1.png` 144x168 RGB. |
-| 7 | Testi del listing | `store/LISTING.md` (P2), con i due file di puro testo **gia' estratti**: `store/description.txt` (1.494 B con il newline finale = 1.493 caratteri, con la riga finale «Beta 0.1.0. Open source (MIT): github.com/Rediro-MC/galleria-da-polso») e `store/release_notes_0.1.0.txt` (522 B = 521 caratteri; il file si chiamava `release_notes_1.0.0.txt` fino al 05/09 sera), cosi' il comando qui sotto e' riproducibile e la lunghezza si controlla con `wc -m` **[F]**. |
+| 7 | Testi del listing | `store/LISTING.md` (P2), con i file di puro testo **gia' estratti**, cosi' i comandi sono riproducibili e la lunghezza si controlla con `wc -m` **[F]**. Oggi: `store/description.txt` **795 B con il newline finale = 794 caratteri** (riscritta il 06/09, chiusa con «Beta 0.4.0»; il tetto in vigore e' **800 caratteri**, chiesto dall'utente per la 0.4.0 — non i 1.500/1.600 della prima stesura, `LISTING.md` §2) e `store/release_notes_0.4.0.txt` **697 B = 696 caratteri**; restano anche `release_notes_0.2.0.txt` (473 B) e `release_notes_0.1.0.txt` (522 B; si chiamava `release_notes_1.0.0.txt` fino al 05/09 sera). |
 
 ---
 
@@ -70,12 +128,12 @@ Ordine reale delle operazioni in `<PT>/commands/publish.py:110-215`:
    `app_name` = `longName` (poi `shortName`, poi `displayName`), `app_type` = `watchface` se `watchapp.watchface == true`.
    Verificato sul `.pbw` del 05/09 alle 17:17 (`unzip -p build/galleria.pbw appinfo.json`) **[F]**: `uuid` gia'
    minuscolo, `versionLabel` `1.0.0`, `longName`/`shortName`/`displayName` = **`Galleria`**, `watchapp.watchface` =
-   `true`, `targetPlatforms` = `["emery","flint"]`, `companyName` = `Marco`. ⚠️ **Quel `.pbw` e' superato**: la sera
-   del 05/09 `package.json` e' passato a `"version": "0.1.0"` e `"author": "Rediro"` (decisioni U7 e U2), e
-   `appinfo.json` e' **generato** dalla build → dopo `pebble clean && pebble build` il `.pbw` avra' `versionLabel`
-   **`0.1.0`** e `companyName` **`Rediro`**: ricontrollarlo con `unzip -p` prima di pubblicare. Il `.pbw` pesava
-   **667.686 B** (`ls -l`) e conteneva anche `pebble-js-app.js.map` (209.681 B) **[F]** (`unzip -l`): il peso cambia
-   a ogni build, va riletto dopo il gate.
+   `true`, `targetPlatforms` = `["emery","flint"]`, `companyName` = il nome personale dell'autore di allora.
+   ⚠️ **Quel `.pbw` e' superato**: la sera del 05/09 `package.json` e' passato a `"version": "0.1.0"` e `"author":
+   "Rediro"` (decisioni U7 e U2), e `appinfo.json` e' **generato** dalla build → dopo `pebble clean && pebble build`
+   il `.pbw` avra' `versionLabel` **`0.1.0`** e `companyName` **`Rediro`**: ricontrollarlo con `unzip -p` prima di
+   pubblicare. Il `.pbw` pesava **667.686 B** (`ls -l`) e conteneva anche `pebble-js-app.js.map` (209.681 B) **[F]**
+   (`unzip -l`): il peso cambia a ogni build, va riletto dopo il gate.
 5. **Normalizzazione UUID**: se l'UUID nel `.pbw` avesse maiuscole, il tool crea un `.pbw` temporaneo con l'UUID
    minuscolo (`:274-307`). Il nostro e' gia' minuscolo → nessuna copia.
 6. **Versione pubblicata** = `--version` → `package.json`/`versionLabel` (`:149-153`). Dal 05/09/2026 (sera) e'
@@ -96,67 +154,40 @@ Ordine reale delle operazioni in `<PT>/commands/publish.py:110-215`:
 
 ---
 
-## 4. Comando consigliato per la PRIMA pubblicazione
+## 4. I comandi: prima pubblicazione (storico) e variante «nuova release»
 
-```bash
-. ~/ProgettiClaude/Pebble/tools/pebble-env.sh
-cd ~/ProgettiClaude/Pebble/apps/galleria
+> **La prima pubblicazione e' stata fatta il 05/09/2026** (0.1.0, esito in testa a questo file). Il
+> comando di **creazione** — con `--name`, `--description`, `--icon-small`/`--icon-large`,
+> `--screenshots` e `--source` — non si riusa piu': dalla seconda release in poi quei campi non si
+> aggiornano dalla CLI (§9) e si cambiano con il `PATCH` di §0/§0.1. Resta scritto per intero in
+> `LISTING.md` §6 (ultimo blocco «storico»), insieme ai prerequisiti e alla tabella dei valori
+> U1–U9 che lo riempivano.
 
-# controlli prima di sparare (nessuno di questi pubblica niente)
-pebble login --status                                          # prerequisito: account collegato (§2 punto 1)
-wc -m store/description.txt store/release_notes_0.1.0.txt      # 1494 e 522 (con newline): descrizione <= 1600 (doc Rebble), tetto prudenziale 1500 (LISTING.md §2)
-python3 store/make_assets.py --check
-pebble clean && pebble build                                   # `version`/`author` cambiati il 05/09: appinfo.json e' generato
-unzip -p build/galleria.pbw appinfo.json                       # atteso: versionLabel 0.1.0, companyName Rediro
-unzip -l build/galleria.pbw
+Di quella chiamata **vale ancora** questo:
 
-pebble publish \
-  --non-interactive \
-  --no-gif-all-platforms \
-  --name        "Galleria for Pebble" \
-  --version     0.1.0 \
-  --description "$(cat store/description.txt)" \
-  --release-notes "$(cat store/release_notes_0.1.0.txt)" \
-  --source      "https://github.com/Rediro-MC/galleria-da-polso" \
-  --icon-small  store/icon_80.png \
-  --icon-large  store/icon_144.png \
-  --screenshots store/emery_screenshot_1.png store/flint_screenshot_1.png
-```
+- **`--no-gif-all-platforms` sempre**: la cattura GIF e' accesa per default (`:991-995`) e chiama
+  `ffmpeg`, assente in questa VM (`<PT>/commands/screenshot.py:154-160`). Passando `--screenshots` in
+  modalita' non interattiva l'emulatore non viene nemmeno toccato (`:451-461`), ma il flag resta la
+  cintura di sicurezza per ogni chiamata **senza** `--screenshots`.
+- **`--description` e' obbligatoria** con `--non-interactive` finche' l'app non esiste (`:800-804`);
+  senza **`--name`** il nome sarebbe `Galleria`, il `longName` del `.pbw` (`:806`, `:814`); **niente
+  `--category`** per una watchface (`:777-779` → `:848`, §7); **`--is-published`** e' inerte (§8),
+  quindi la variante «pubblica subito» fa la stessa cosa.
+- Senza `--non-interactive`, per una **watchface** il tool chiede a video solo *App name*, *Version*,
+  *Short description* (obbligatoria), *Source URL* (preimpostato con il remote git) e la sorgente
+  degli screenshot: **non** chiede ne' categoria ne' icone (`:732-774`, i due blocchi sono dentro
+  `if app_type == "watchapp"`).
+- **Omettere `--source` non e' un'opzione**: il tool ci mette da solo il remote git (`:808`, `:817`),
+  quindi passarlo esplicito e' la stessa cosa senza sorprese (§6).
+- Le tre trappole della chiamata (output della build nascosto, timeout di 300 s, errore 400 sugli
+  screenshot che fa ripartire l'upload **senza immagini**) sono in §9.
 
-**Valori decisi dall'utente il 05/09/2026 (sera)** — il comando non ha piu' segnaposto: `--version 0.1.0` (U7: prima
-release pubblica in **beta**, tag git `v0.1.0-beta` a carico dell'orchestratore), `--source` con l'URL esplicito del
-repo **reso pubblico** (U4) sotto licenza **MIT** (U1, `LICENSE` in radice, «Copyright (c) 2026 Rediro»),
-`--description` dal file che ora finisce con «Beta 0.1.0. Open source (MIT): github.com/Rediro-MC/galleria-da-polso»,
-`--release-notes` dal file rinominato `store/release_notes_0.1.0.txt`. L'autore (U2: **Rediro**) non si passa dalla
-CLI: sta in `package.json` → `companyName` del `.pbw`. La **visibilita'** (U6) non si passa dalla CLI: vedi §8.
-**Omettere `--source` non e' un'opzione**: il tool ci mette da solo il remote git (`:808`, `:817`); passarlo esplicito
-e' la stessa cosa ma senza sorprese.
+### Variante «nuova release su app gia' esistente»
 
-Perche' cosi':
-
-- **`--non-interactive`**: niente domande; i valori arrivano dai flag (`:796-821`). Senza questo flag, per una
-  **watchface** il tool chiede a video solo: *App name*, *Version*, *Short description* (obbligatoria), *Source URL*
-  (preimpostato con il remote git) e la sorgente degli screenshot — **non** chiede ne' categoria ne' icone
-  (`:732-774`: quei due blocchi sono dentro `if app_type == "watchapp"`).
-- **`--no-gif-all-platforms`**: la cattura GIF e' **accesa per default** (`:991-995`) e chiama `ffmpeg`, assente qui
-  (`<PT>/commands/screenshot.py:154-160` → `ToolError: Missing required tool for GIF capture: ffmpeg`). In pratica,
-  passando `--screenshots` in modalita' non interattiva l'emulatore non viene nemmeno toccato (`:451-461`), ma il flag
-  resta la cintura di sicurezza per ogni chiamata futura **senza** `--screenshots` (per esempio un aggiornamento).
-- **`--name`**: senza, il nome sarebbe **`Galleria`** (dal `longName` del `.pbw`) (`:806`, `:814`).
-- **`--description`**: **obbligatoria** con `--non-interactive` quando l'app non esiste ancora, altrimenti
-  `ToolError: Creating a new app in --non-interactive mode requires --description.` (`:800-804`).
-- **`--source`**: vedi §6.
-- **`--icon-small` / `--icon-large`**: vedi §5.
-- **niente `--category`**: per una watchface il tool non manda categoria (`:777-779` → `None` → `:848` non la aggiunge
-  al form). Vedi §7.
-- **niente `--is-published`**: e' inerte (§8). Il comando qui sopra e quello «pubblico» fanno **la stessa cosa**.
-
-**Variante «pubblica subito» (nominale)** — aggiungere `--is-published`: dichiara l'intenzione ed e' a prova di futuro,
-ma **oggi non cambia nulla** perche' il campo inviato e' comunque `isPublished=true` (`:548`, `:846`).
-
-**Variante «nuova release su app gia' esistente»** (dalla release dopo la 0.1.0 in poi, quindi **la 0.2.0 di S10**):
-il tool riconosce l'app dall'UUID e manda solo versione, note e `.pbw`; nome, descrizione, icone e sorgente **non**
-si aggiornano piu' dalla CLI (§9).
+Dalla 0.2.0 in poi — quindi anche per la **0.4.0** — il tool riconosce l'app dall'UUID e manda solo
+versione, note e `.pbw`; nome, descrizione, icone e sorgente **non** si aggiornano piu' dalla CLI
+(§9). Il comando pronto per la 0.4.0, con i controlli da fare prima, e' in `LISTING.md` §6; qui la
+forma, con i numeri della 0.2.0 gia' lanciata:
 
 ```bash
 . ~/ProgettiClaude/Pebble/tools/pebble-env.sh
@@ -180,13 +211,12 @@ pebble publish --non-interactive --no-gif-all-platforms \
 `desired_version` viene calcolato una volta sola — flag, poi `project.version` (cioe' `package.json`), poi la
 versione del `.pbw` — e passato **anche** a `_upload_release` per un'app che esiste gia' (`publish.py:149-159`,
 `:179`). Passarlo esplicito e' quindi la cintura di sicurezza se `package.json` non fosse ancora allineato; con
-`package.json` a `0.2.0` il risultato e' lo stesso. La riga stampata `Publish Version: …` (`:159`) lo conferma
+`package.json` allineato il risultato e' lo stesso. La riga stampata `Publish Version: …` (`:159`) lo conferma
 **prima** dell'invio.
 
-⚠️ **Descrizione**: la 0.2.0 riscrive `store/description.txt` (789 caratteri, con «Settings page in English,
-Italian, German and French»), ma quel campo **non passa dalla CLI**: va incollato a mano in dashboard
-(https://appstore-api.repebble.com/dashboard), §9. Da fare insieme alla release, controllando anche la riga finale
-«Beta 0.1.0» (`LISTING.md` §2).
+⚠️ **La descrizione non passa dalla CLI** (§9): nella 0.2.0 e' stata caricata a parte (05/09, §0), e per la
+**0.4.0** c'e' il `PATCH` di §0.1, che con lo stesso comando rinomina l'app in «Galleria» e manda
+`store/description.txt`. I due passi — release e `PATCH` — sono indipendenti ma si fanno **nello stesso giro**.
 
 ---
 
@@ -218,6 +248,10 @@ Italian, German and French»), ma quel campo **non passa dalla CLI**: va incolla
   Galleria non la subisce.
 - **[I]** Non e' scritto da nessuna parte che il server accetti icone per una watchface: se rispondesse 400, il comando
   fallisce **senza creare l'app** (`:933-938`) e basta rilanciarlo togliendo i due flag `--icon-*`.
+- **Risposta sul campo (05/09/2026)**: i due flag **sono stati passati** nel comando di creazione
+  (`LISTING.md` §6, blocco «storico») e il server **non ha risposto 400** — l'app e' stata creata —,
+  ma per una watchface `icon_image`/`list_image` sono rimasti **vuoti** (preambolo e §0): le icone sono
+  arrivate online solo con il `PATCH`. L'ipotesi **[I]** qui sopra non si e' verificata.
 
 ---
 
@@ -230,8 +264,9 @@ tolto e le forme `git@host:path` / `ssh://git@…` sono convertite in `https://�
 Qui il remote e' `https://github.com/Rediro-MC/galleria-da-polso.git` (comando eseguito **[F]**) → **omettere
 `--source` NON significa «nessun sorgente»**: il listing riceverebbe comunque il link al repo.
 
-**Decisione U4 (05/09/2026, sera): il repo viene reso pubblico** con licenza **MIT** (U1, `LICENSE` in radice) →
-si passa l'URL **esplicito**, come nel comando di §4. Le altre due strade restano documentate solo per memoria:
+**Decisione U4 (05/09/2026, sera): il repo viene reso pubblico** con licenza **MIT** (U1, `LICENSE` in radice) → si
+passa l'URL **esplicito**, come nel comando di creazione (§4; testo intero in `LISTING.md` §6). Le altre due strade
+restano documentate solo per memoria:
 
 1. ~~repo privato~~ → si sarebbe passato **`--source ' '`** (un singolo spazio): e' «vero» per Python, ma `.strip()`
    lo riduce a stringa vuota (`:817` + `:843`) → il campo parte vuoto. **[F]** meccanica letta nel codice e provata
@@ -295,8 +330,8 @@ corretta. Non esiste nessun flag di visibilita' (`--unlisted`, `--private`, `--d
 
 **Decisione U6 (05/09/2026, sera): la visibilita' si gestisce sul portale developer**, non dalla CLI. In pratica si
 segue la prima o la seconda scelta qui sopra a seconda di cosa offre la dashboard quando si pubblica; il comando di
-§4 resta identico (nessun flag di visibilita' esiste). ⚠️ Resta valido l'avviso Rebble: «once made public, an app
-cannot then be made private».
+creazione (§4; testo intero in `LISTING.md` §6) resta identico (nessun flag di visibilita' esiste). ⚠️ Resta valido
+l'avviso Rebble: «once made public, an app cannot then be made private».
 
 ---
 
@@ -380,10 +415,16 @@ Fonti web (**[F]** = citazione dalla pagina, **[I]** = interpretazione):
    mostra comunque il nome del developer collegato all'account, non questo campo **[I]**.
 4. **Limiti reali** di nome/descrizione/note nello store Core: nessun controllo nel tool, quindi si scoprono solo
    provando (o dalla dashboard). Tenere la descrizione **≤ 1600 caratteri** per sicurezza.
-5. **Icone per una watchface**: accettate dal server? (§5) — piano B: rilanciare senza `--icon-*`.
-6. Correggere `PIANO-SVILUPPO-PEBBLE.md` §13 (riga 515: «senza `--is-published` la release resta bozza») e §12
-   (riga 37 della tabella): con il tool 5.0.40 `--is-published` e' **inerte** e la release nasce **pubblica** (§8).
-   (`store/README.md` era gia' stato corretto il 05/09: cita `icon_80.png` per `--icon-small`.)
+5. **[chiuso 05/09/2026]** Icone per una watchface: il comando di creazione **ha passato**
+   `--icon-small`/`--icon-large` e il server **non ha risposto 400** (l'app e' stata creata), ma per una
+   watchface ha lasciato `icon_image`/`list_image` vuoti: le icone sono arrivate online con il `PATCH` di §0.
+   Nessun piano B da tenere pronto (§5).
+6. **[chiuso 14/09/2026]** `--is-published` inerte: `PIANO-SVILUPPO-PEBBLE.md` §12 e §13 dicono gia' che
+   con il tool 5.0.40 il flag non fa niente e la release nasce **pubblica** (§8).
+7. **Versione [decisa, D126 del 14/09/2026]**: si pubblica la **0.4.0** (`package.json` gia' a 0.4.0), non la 0.3.0,
+   **mai lanciata**: ne resta solo il testo delle note in `LISTING.md` §3.1 (il file `store/release_notes_0.3.0.txt`
+   e' uscito dal repo il 17/09/2026). Conferma finale dell'utente **dopo il gate sul telefono**
+   (`docs/design/galleria-s13-ux4-gate-telefono.md`).
 
 ---
 

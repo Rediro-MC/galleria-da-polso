@@ -16,12 +16,19 @@ Regole di inlining:
   * il contenuto inlinato non puo' contenere il marcatore che chiuderebbe il SUO tag
     (`</script` in un .js, `</style` in un .css; l'incrocio e' innocuo), ne' — nei .js — un
     `<!--` seguito da un `<script` (il parser entra in «script data double escaped»);
-  * l'ordine dei tag resta quello di page.html (atteso: pipeline -> page_core -> previews -> page);
+  * l'ordine dei tag resta quello di page.html (atteso: pipeline -> page_core -> preview ->
+    page; `preview.js` e' il motore dell'anteprima della watchface di S12, che usa GalPipeline
+    ed e' usato da page.js. Da UX-2/D95 `previews.js` — le PNG «12:34» dei font, generate da
+    tools/gen_font_previews.py — non e' piu' nella build: la pagina non le mostra piu', il tool
+    resta nel repo per lo storico);
   * passo i18n (S10, D35): nell'HTML finito il NOME di ogni chiave di traduzione diventa il suo
     INDICE in `apps/galleria/i18n/messages.json` — nelle chiamate a T dei .js e negli attributi
     `data-i18n`/`data-i18n-title` del markup — cosi' l'artefatto non porta nessun testo e nessun
-    nome di chiave; una chiave che non esiste e' un errore;
-  * oltre 64 KB (65.536 B) di HTML inlinato = errore (obiettivo: < 60 KB, avviso oltre);
+    nome di chiave; una chiave che non esiste e' un errore; le chiavi devono coincidere con quelle
+    di `src/pkjs/i18n.js` e le LINGUE (S11, D39) devono essere le stesse, e nello stesso ordine,
+    in `src/pkjs/i18n.js`, in `LANGS` di `config/page_core.js` e in `LANG_ORDER` di `index.js`;
+  * oltre 96 KB (98.304 B) di HTML inlinato = errore (obiettivo: < 84 KB, avviso oltre; il tetto
+    era 64/60 KB fino a S11, alzato con D43 per l'anteprima della watchface);
   * output riproducibile: nessuna data, nessun percorso assoluto, fine riga sempre \n.
 Gli `<script>`/`<style>` gia' inline e i commenti HTML non vengono toccati (e il loro corpo
 non viene scansionato: un `<link>` dentro un commento CSS resta dov'e').
@@ -46,9 +53,17 @@ import sys
 import tempfile
 
 ENTRY = 'page.html'
-MAX_BYTES = 64 * 1024                      # tetto duro dell'HTML inlinato: oltre = errore
-SOFT_BYTES = 60 * 1024                     # obiettivo di budget: oltre = avviso
-SCRIPT_ORDER = ('pipeline.js', 'page_core.js', 'previews.js', 'page.js')
+# S12/D43: tetto 64 -> 96 KB e obiettivo 60 -> 84 KB. La prima stesura diceva 80/72, ma
+# l'anteprima della watchface (`preview.js`) e' costata 16.283 B e la pagina misurata a fine S12
+# e' 81.028 B: con il tetto a 80 KB restavano 892 B e l'avviso soft era acceso a ogni generazione,
+# cioe' una tripwire spenta. Il vincolo che lega davvero e' la lunghezza dell'URL `data:` sul
+# telefono, non i 64 KB storici. I messaggi qui sotto ricavano le cifre in KB da queste due
+# costanti: non scriverle a mano da nessun'altra parte.
+MAX_BYTES = 96 * 1024                      # tetto duro dell'HTML inlinato: oltre = errore (98.304 B)
+SOFT_BYTES = 84 * 1024                     # obiettivo di budget: oltre = avviso (86.016 B)
+# UX-2 (D95): `previews.js` esce dalla build (U-10: via la PNG «12:34» dalla pagina). Gli script
+# NON elencati qui restano inlinabili: la lista serve solo all'avviso d'ordine di _order_check.
+SCRIPT_ORDER = ('pipeline.js', 'page_core.js', 'preview.js', 'page.js')
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DIR = os.path.normpath(os.path.join(_HERE, '..', 'apps', 'galleria', 'src', 'pkjs', 'config'))
@@ -133,18 +148,39 @@ def load_message_keys(path):
 
 
 _I18N_KEYS_RE = re.compile(r'keys:\s*\[(.*?)\]', re.S)
+# S11 (D39): lingue del modulo generato = le chiavi di primo livello di `module.exports` meno
+# `keys` (build_i18n.py le scrive sempre come «  en: [» a inizio riga; le stringhe dei testi
+# sono indentate di 4 spazi, quindi non possono somigliare a questa riga).
+_I18N_ARRAY_RE = re.compile(r'^ {2}([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\[', re.M)
+# Le altre due copie della stessa lista, scritte a mano nel PKJS: `var LANGS = ['en', …]` in
+# config/page_core.js e `var LANG_ORDER = ['en', …]` in index.js, che e' l'unica lista del file
+# (la mappa `LANGS` di langOf() viene DERIVATA da LANG_ORDER a run time: revisione S11).
+_JS_LANG_SOURCES = (
+    (('config', 'page_core.js'), 'LANGS', re.compile(r'\bvar\s+LANGS\s*=\s*\[([^\]]*)\]')),
+    (('index.js',), 'LANG_ORDER', re.compile(r'\bvar\s+LANG_ORDER\s*=\s*\[([^\]]*)\]')),
+)
+_JS_STR_RE = re.compile(r'''['"]([A-Za-z][A-Za-z0-9_]*)['"]''')
+# In page_core.js accanto a `LANGS` c'e' `LANG_NAMES` (un endonimo per lingua, letto da langName()):
+# se ne controlla solo la LUNGHEZZA, perche' i nomi non compaiono in nessun altro file. Qui serve un
+# modello di stringa generico: gli endonimi sono scritti con gli escape (`'Espa\u00f1ol'`) e non
+# passerebbero per _JS_STR_RE.
+_JS_NAMES_RE = re.compile(r'\bLANG_NAMES\s*=\s*\[([^\]]*)\]')
+_JS_ANYSTR_RE = re.compile(r'''(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")''')
 
 
 def _check_i18n_module(messages, keys, warn=None):
     """Revisione S10: l'artefatto scrive INDICI, il PKJS spedisce gli array di src/pkjs/i18n.js: se
     i due nascono da messages.json diversi (pebble build senza `make -C test pagecheck`) la pagina
     mostrerebbe testi sbagliati senza errori. Qui si pretende che l'elenco `keys` del modulo
-    generato coincida con messages.json; il rimedio e' `python3 tools/build_i18n.py`."""
-    module = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(messages))), 'src', 'pkjs', 'i18n.js')
+    generato coincida con messages.json; il rimedio e' `python3 tools/build_i18n.py`.
+    S11 (D39): poi si controllano anche le LINGUE (_check_langs)."""
+    warn = warn or _default_warn
+    pkjs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(messages))), 'src', 'pkjs')
+    module = os.path.join(pkjs, 'i18n.js')
     if not os.path.isfile(module):
         # Nessun modulo accanto (copie di prova, selftest): niente da confrontare. Nel repo il modulo c'e' sempre
         # (index.js lo richiede) e build_i18n.py --check nel pagecheck lo tiene aggiornato.
-        (warn or _default_warn)('avviso: %s assente, salto il confronto artefatto/dizionari' % _short(module))
+        warn('avviso: %s assente, salto il confronto artefatto/dizionari' % _short(module))
         return
     try:
         with io.open(module, 'r', encoding='utf-8') as fh:
@@ -156,6 +192,59 @@ def _check_i18n_module(messages, keys, warn=None):
     if found != list(keys):
         raise PageBuildError('%s non e\' allineato a %s (%d chiavi contro %d): eseguire python3 tools/build_i18n.py'
                              % (_short(module), _short(messages), len(found or []), len(keys)))
+    _check_langs(pkjs, text, module, warn)
+
+
+def _check_langs(pkjs_dir, module_text, module_path, warn):
+    """S11 (D39): le lingue della pagina stanno in TRE liste, in tre file diversi — gli array
+    generati di src/pkjs/i18n.js, `LANGS` di config/page_core.js (l'ordine e' il valore
+    dell'impostazione `lang`: 1 = la prima) e `LANG_ORDER` di index.js (ordine dei dizionari
+    nello stato dell'hash). Se divergono la pagina mostra il dizionario sbagliato — o nessuno —
+    senza nessun errore: qui si pretende stesso elenco e stesso ordine, piu' un `LANG_NAMES` della
+    stessa lunghezza in page_core.js (un endonimo per lingua). File assente (copie di prova,
+    selftest): avviso e salto, come per il modulo.
+
+    ⚠ page_core.js e index.js vengono letti ACCANTO a messages.json (`<app>/src/pkjs/`), non
+    nella cartella che si sta inlinando: con `--dir <copia>` (o `--page-dir` del dev server su una
+    copia) si controlla comunque il PKJS del repo, cioe' quello da cui nascono gli indici. Stesso
+    disaccoppiamento del controllo delle chiavi, che il selftest sfrutta per lavorare su fixture
+    proprie."""
+    langs = [n for n in _I18N_ARRAY_RE.findall(module_text) if n != 'keys']
+    if not langs:
+        raise PageBuildError('%s non ha nessun array di lingua: eseguire python3 tools/build_i18n.py'
+                             % _short(module_path))
+    for parts, name, regex in _JS_LANG_SOURCES:
+        path = os.path.join(pkjs_dir, *parts)
+        if not os.path.isfile(path):
+            warn('avviso: %s assente, salto il confronto delle lingue' % _short(path))
+            continue
+        try:
+            with io.open(path, 'r', encoding='utf-8') as fh:
+                src = fh.read()
+        except OSError as exc:
+            raise PageBuildError('%s illeggibile (%s)' % (_short(path), exc))
+        m = regex.search(src)
+        if m is None:
+            raise PageBuildError('%s: non trovo il letterale «var %s = [...]» con le lingue della '
+                                 'pagina (S11, D39)' % (_short(path), name))
+        found = _JS_STR_RE.findall(m.group(1))
+        if found != langs:
+            raise PageBuildError('%s: %s = %s, ma %s ha le lingue %s (S11/D39: stesso elenco e '
+                                 'stesso ordine in i18n.js, in LANGS di page_core.js e in '
+                                 'LANG_ORDER di index.js; se e\' i18n.js a essere indietro: '
+                                 'python3 tools/build_i18n.py)'
+                                 % (_short(path), name, found, _short(module_path), langs))
+        if name != 'LANGS':
+            continue
+        mn = _JS_NAMES_RE.search(src)
+        if mn is None:
+            raise PageBuildError('%s: non trovo il letterale «LANG_NAMES = [...]» accanto a LANGS '
+                                 '(un endonimo per lingua, S11/D39)' % _short(path))
+        names = _JS_ANYSTR_RE.findall(mn.group(1))
+        if len(names) != len(langs):
+            raise PageBuildError('%s: LANG_NAMES ha %d voci invece di %d (S11/D39: un endonimo per '
+                                 'lingua, altrimenti il select mostra il codice)'
+                                 % (_short(path), len(names), len(langs)))
 
 
 def i18n_pass(html, messages, warn=None):
@@ -363,8 +452,9 @@ def page_size_check(html):
     """None se l'HTML inlinato sta nel tetto, altrimenti il messaggio d'errore."""
     n = len(html.encode('utf-8'))
     if n > MAX_BYTES:
-        return ('pagina inlinata di %d B (%.1f KB): oltre il tetto di %d B (64 KB). Ridurre CSS/JS '
-                '(obiettivo < 60 KB) o togliere qualcosa dalle sorgenti.' % (n, n / 1024.0, MAX_BYTES))
+        return ('pagina inlinata di %d B (%.1f KB): oltre il tetto di %d B (%d KB). Ridurre CSS/JS '
+                '(obiettivo < %d KB) o togliere qualcosa dalle sorgenti.'
+                % (n, n / 1024.0, MAX_BYTES, MAX_BYTES // 1024, SOFT_BYTES // 1024))
     return None
 
 
@@ -387,7 +477,9 @@ def _page_lint(html, warn):
 
 
 def _order_check(used, warn):
-    """L'ordine degli script noti deve essere pipeline -> page_core -> previews -> page."""
+    """L'ordine degli script noti deve essere pipeline -> page_core -> preview -> page
+    (S12: `preview.js` = motore dell'anteprima della watchface, che usa GalPipeline e viene usato
+    da page.js; UX-2/D95: `previews.js`, le anteprime dei font, non e' piu' nella lista)."""
     known = [n for n in used if n in SCRIPT_ORDER]
     expected = [n for n in SCRIPT_ORDER if n in known]
     if known != expected:
@@ -509,8 +601,8 @@ def inline_page(dir_path, entry=ENTRY, warn=None, strip=True, messages=None):
         raise PageBuildError(err)
     n = len(result.encode('utf-8'))
     if n > SOFT_BYTES:
-        warn('pagina inlinata di %d B (%.1f KB): sopra l\'obiettivo di 60 KB (tetto %d B)'
-             % (n, n / 1024.0, MAX_BYTES))
+        warn('pagina inlinata di %d B (%.1f KB): sopra l\'obiettivo di %d KB (tetto %d B)'
+             % (n, n / 1024.0, SOFT_BYTES // 1024, MAX_BYTES))
     return result
 
 
@@ -647,7 +739,7 @@ _T_HTML = (
     '<p id="p">Città — prova</p>\n'
     '<script src="pipeline.js"></script>\n'
     '<script src="page_core.js"></script>\n'
-    '<script src="previews.js" data-optional="1"></script>\n'
+    '<script src="extra.js" data-optional="1"></script>\n'
     '<script src="page.js"></script>\n'
     '<script>window.INLINE = \'<script src="altro.js"><\\/script>\';</script>\n'
     '</body>\n'
@@ -726,17 +818,20 @@ def selftest():
               html.index('n: 1') < html.index('n: 2') < html.index('n: 3'))
 
         # --- 3. data-optional: file assente -> tag rimosso, riga compresa --------
-        check('previews.js assente: tag rimosso',
-              'previews.js' not in html and 'data-optional' not in html)
+        # UX-2 (D95): il file facoltativo della fixture ha un nome NEUTRO (`extra.js`), fuori da
+        # SCRIPT_ORDER: qui si prova il meccanismo `data-optional`, non un file del progetto
+        # (fino a UX-1 l'esempio era `previews.js`, uscito dalla build con U-10).
+        check('script facoltativo assente: tag rimosso',
+              'extra.js' not in html and 'data-optional' not in html)
         check('nessuna riga vuota lasciata dal tag opzionale',
               '</script>\n<script>\nvar GalPage = { n: 3 }' in html)
 
         # --- 4. data-optional: file presente -> inlinato -------------------------
-        opt = _mkpage(os.path.join(tmp, 'opt'), extra={'previews.js': 'var GalPreviews = {};\n'})
+        opt = _mkpage(os.path.join(tmp, 'opt'), extra={'extra.js': 'var GalExtra = {};\n'})
         html_opt = inline_page(opt, warn=lambda _m: None)
-        check('previews.js presente: inlinato', 'GalPreviews' in html_opt)
-        check('previews inlinato fra page_core e page',
-              html_opt.index('n: 2') < html_opt.index('GalPreviews') < html_opt.index('n: 3'))
+        check('script facoltativo presente: inlinato', 'GalExtra' in html_opt)
+        check('script facoltativo inlinato fra page_core e page',
+              html_opt.index('n: 2') < html_opt.index('GalExtra') < html_opt.index('n: 3'))
 
         # --- 5. file mancante = errore -------------------------------------------
         miss = _mkpage(os.path.join(tmp, 'miss'))
@@ -794,16 +889,18 @@ def selftest():
         except PageBuildError as exc:
             check('«<script» PRIMA di «<!--»: ammesso', False, str(exc))
 
-        # --- 7. tetto di 64 KB ----------------------------------------------------
+        # --- 7. tetto di 96 KB (S12/D43: era 64, e 80 nella prima stesura) ---------
+        # Le due cifre sono scritte a mano di proposito: se qualcuno cambia MAX_BYTES/SOFT_BYTES
+        # senza aggiornare documenti e messaggi, il selftest lo dice.
         big = _mkpage(os.path.join(tmp, 'big'),
-                      extra={'page.js': 'var big = "' + 'x' * 70000 + '";\n'})
-        fails('oltre 64 KB -> errore', big, '64 KB')
+                      extra={'page.js': 'var big = "' + 'x' * 100000 + '";\n'})
+        fails('oltre 96 KB -> errore', big, '96 KB')
         soft = _mkpage(os.path.join(tmp, 'soft'),
-                       extra={'page.js': 'var big = "' + 'x' * 62000 + '";\n'})
+                       extra={'page.js': 'var big = "' + 'x' * 88000 + '";\n'})
         w2 = []
         html_soft = inline_page(soft, warn=w2.append)
-        check('fra 60 e 64 KB: avviso ma nessun errore',
-              len(w2) == 1 and '60 KB' in w2[0] and len(html_soft.encode('utf-8')) > SOFT_BYTES,
+        check('fra 84 e 96 KB: avviso ma nessun errore',
+              len(w2) == 1 and '84 KB' in w2[0] and len(html_soft.encode('utf-8')) > SOFT_BYTES,
               repr(w2))
 
         # --- 7b. S6/A4: strip delle righe di commento (default) -------------------
@@ -951,6 +1048,48 @@ def selftest():
         check('ordine sbagliato -> avviso (non errore)',
               len(w3) == 1 and 'ordine' in w3[0], repr(w3))
 
+        # --- 10a. S12/D43 + UX-2/D95: preview.js PRIMA di page.js ---------------
+        # `preview.js` (motore dell'anteprima della watchface) definisce cio' che `page.js` usa:
+        # deve stare prima. Fino a UX-1 la coppia sotto esame era previews.js/preview.js; con D95
+        # `previews.js` esce dalla build e la coppia diventa preview.js/page.js, che sono i due
+        # vicini rimasti in SCRIPT_ORDER.
+        FOUR = ('<script src="pipeline.js"></script>\n'
+                '<script src="page_core.js"></script>\n'
+                '<script src="preview.js"></script>\n'
+                '<script src="page.js"></script>\n')
+        OPTIONAL_TAGS = ('<script src="pipeline.js"></script>\n'
+                         '<script src="page_core.js"></script>\n'
+                         '<script src="extra.js" data-optional="1"></script>\n'
+                         '<script src="page.js"></script>\n')
+        prev_files = dict(_T_FILES)
+        prev_files['preview.js'] = 'var GalPreview = { n: 5 };\n'
+        okp = _mkpage(os.path.join(tmp, 'prev_ok'),
+                      html=_T_HTML.replace(OPTIONAL_TAGS, FOUR), files=prev_files)
+        w3b = []
+        html_prev = inline_page(okp, warn=w3b.append)
+        check('pipeline -> page_core -> preview.js -> page.js: nessun avviso di ordine',
+              not [x for x in w3b if 'ordine' in x], repr(w3b))
+        check('preview.js inlinato fra page_core e page.js',
+              html_prev.index('n: 2') < html_prev.index('n: 5') < html_prev.index('n: 3'))
+        swp = _mkpage(os.path.join(tmp, 'prev_ko'),
+                      html=_T_HTML.replace(
+                          OPTIONAL_TAGS,
+                          FOUR.replace('<script src="preview.js"></script>\n'
+                                       '<script src="page.js"></script>\n',
+                                       '<script src="page.js"></script>\n'
+                                       '<script src="preview.js"></script>\n')),
+                      files=prev_files)
+        w3c = []
+        inline_page(swp, warn=w3c.append)
+        check('page.js prima di preview.js -> avviso di ordine',
+              len(w3c) == 1 and 'ordine' in w3c[0] and 'preview.js' in w3c[0], repr(w3c))
+        # D95: `previews.js` non e' piu' un nome noto — se ricomparisse in page.html verrebbe
+        # inlinato come qualunque altro script, senza vincolo d'ordine e senza avvisi.
+        check('previews.js fuori da SCRIPT_ORDER (D95)',
+              'previews.js' not in SCRIPT_ORDER
+              and SCRIPT_ORDER == ('pipeline.js', 'page_core.js', 'preview.js', 'page.js'),
+              repr(SCRIPT_ORDER))
+
         # --- 10b. avvisi non fatali: risorsa esterna, @import, storage ----------
         ext = _mkpage(os.path.join(tmp, 'ext'),
                       html=_T_HTML.replace('<p id="p">', '<img src="https://x.example/a.png"><p id="p">'),
@@ -996,6 +1135,114 @@ def selftest():
         check('pagina senza chiavi: messages.json non serve',
               isinstance(inline_page(base, warn=lambda _m: None,
                                      messages=os.path.join(tmp, 'nessun_messaggio.json')), str))
+
+        # --- 10d. S11 (D39): lingue allineate fra i18n.js, page_core.js e index.js ----
+        def _mkapp(name, mod_langs, core_langs, order_langs, keys=('uno', 'due'),
+                   names_langs=None):
+            """Finto albero dell'app (i18n/messages.json + src/pkjs/{i18n.js, index.js,
+            config/page_core.js}) e percorso del suo messages.json. Fixture propria: il
+            selftest non guarda MAI i file del repo. `names_langs` (default: `core_langs`) da'
+            la lunghezza di LANG_NAMES; index.js ha la SOLA lista LANG_ORDER, come il vero, dove
+            la mappa di langOf() e' derivata a run time."""
+            root = os.path.join(tmp, name)
+            pk = os.path.join(root, 'src', 'pkjs', 'config')
+            os.makedirs(pk)
+            os.makedirs(os.path.join(root, 'i18n'))
+            mpath = os.path.join(root, 'i18n', 'messages.json')
+            _write_text(mpath, '{\n' + ',\n'.join(
+                '  "%s": { %s }' % (k, ', '.join('"%s": "%s-%s"' % (l, k, l) for l in mod_langs))
+                for k in keys) + '\n}\n')
+            _write_text(os.path.join(root, 'src', 'pkjs', 'i18n.js'),
+                        'module.exports = {\n  keys: [\n'
+                        + ''.join('    "%s",\n' % k for k in keys) + '  ],\n'
+                        + ''.join('  %s: [\n%s  ],\n' % (l, ''.join('    "%s-%s",\n' % (k, l) for k in keys))
+                                  for l in mod_langs)
+                        + '};\n')
+            _write_text(os.path.join(pk, 'page_core.js'),
+                        '(function () {\n  var LANGS = [%s],\n      LANG_NAMES = [%s];\n})();\n'
+                        % (', '.join("'%s'" % l for l in core_langs),
+                           ', '.join("'N-%s'" % l
+                                     for l in (core_langs if names_langs is None else names_langs))))
+            _write_text(os.path.join(root, 'src', 'pkjs', 'index.js'),
+                        'var LANG_ORDER = [%s];\n'
+                        'var LANGS = (function () {\n'
+                        '  var m = {}, i;\n'
+                        '  for (i = 0; i < LANG_ORDER.length; i++) { m[LANG_ORDER[i]] = 1; }\n'
+                        '  return m;\n}());\n'
+                        % ', '.join("'%s'" % l for l in order_langs))
+            return mpath
+
+        SIX = ('en', 'it', 'de', 'fr', 'es', 'pt')
+        ok6 = _mkapp('app_ok6', SIX, SIX, SIX)
+        w_l = []
+        try:
+            hl = inline_page(i18n_dir, warn=w_l.append, messages=ok6)
+            check('sei lingue allineate nei tre file (index.js con la sola lista LANG_ORDER): '
+                  'nessun errore, nessun avviso', 'a: T(0)' in hl and w_l == [], repr(w_l))
+        except PageBuildError as exc:
+            check('sei lingue allineate nei tre file: nessun errore', False, str(exc))
+        ok4 = _mkapp('app_ok4', ('en', 'it', 'de', 'fr'), ('en', 'it', 'de', 'fr'),
+                     ('en', 'it', 'de', 'fr'))
+        try:
+            check('quattro lingue allineate (il controllo non e\' cablato a sei): nessun errore',
+                  'a: T(0)' in inline_page(i18n_dir, warn=lambda _m: None, messages=ok4))
+        except PageBuildError as exc:
+            check('quattro lingue allineate (il controllo non e\' cablato a sei): nessun errore',
+                  False, str(exc))
+        for label, m_l, c_l, o_l, needle in (
+                ('page_core.js indietro (4 su 6)', SIX, SIX[:4], SIX, 'page_core.js'),
+                ('index.js indietro (4 su 6)', SIX, SIX, SIX[:4], 'index.js'),
+                ('i18n.js indietro (4 su 6)', SIX[:4], SIX, SIX, 'page_core.js'),
+                ('ordine diverso in index.js', SIX, SIX, ('it',) + SIX[1:], 'index.js')):
+            mp = _mkapp('app_bad_%d' % len(results), m_l, c_l, o_l)
+            try:
+                inline_page(i18n_dir, warn=lambda _m: None, messages=mp)
+                check('lingue disallineate: %s -> errore' % label, False, 'nessun errore')
+            except PageBuildError as exc:
+                check('lingue disallineate: %s -> errore' % label,
+                      needle in str(exc) and 'D39' in str(exc)
+                      and 'build_i18n.py' in str(exc), str(exc))
+        names4 = _mkapp('app_names4', SIX, SIX, SIX, names_langs=SIX[:4])
+        try:
+            inline_page(i18n_dir, warn=lambda _m: None, messages=names4)
+            check('LANG_NAMES indietro (4 endonimi su 6) -> errore', False, 'nessun errore')
+        except PageBuildError as exc:
+            check('LANG_NAMES indietro (4 endonimi su 6) -> errore',
+                  'LANG_NAMES' in str(exc) and '4 voci invece di 6' in str(exc), str(exc))
+        nolang = _mkapp('app_nolang', (), SIX, SIX)
+        try:
+            inline_page(i18n_dir, warn=lambda _m: None, messages=nolang)
+            check('i18n.js senza nessun array di lingua -> errore', False, 'nessun errore')
+        except PageBuildError as exc:
+            check('i18n.js senza nessun array di lingua -> errore',
+                  'nessun array di lingua' in str(exc) and 'build_i18n.py' in str(exc), str(exc))
+        no_index = _mkapp('app_noindex', SIX, SIX, SIX)
+        os.remove(os.path.join(tmp, 'app_noindex', 'src', 'pkjs', 'index.js'))
+        w_ni = []
+        try:
+            inline_page(i18n_dir, warn=w_ni.append, messages=no_index)
+            check('index.js assente (copia di prova): avviso, non errore',
+                  len(w_ni) == 1 and 'index.js' in w_ni[0] and 'salto' in w_ni[0], repr(w_ni))
+        except PageBuildError as exc:
+            check('index.js assente: avviso, non errore', False, str(exc))
+        no_core = _mkapp('app_nocore', SIX, SIX, SIX)
+        os.remove(os.path.join(tmp, 'app_nocore', 'src', 'pkjs', 'config', 'page_core.js'))
+        w_nc = []
+        try:
+            inline_page(i18n_dir, warn=w_nc.append, messages=no_core)
+            check('page_core.js assente (copia di prova): avviso, non errore',
+                  len(w_nc) == 1 and 'page_core.js' in w_nc[0] and 'salto' in w_nc[0], repr(w_nc))
+        except PageBuildError as exc:
+            check('page_core.js assente: avviso, non errore', False, str(exc))
+        no_var = _mkapp('app_novar', SIX, SIX, SIX)
+        _write_text(os.path.join(tmp, 'app_novar', 'src', 'pkjs', 'index.js'),
+                    'var LANG_ORDER = altroModulo.lingue();\n')
+        try:
+            inline_page(i18n_dir, warn=lambda _m: None, messages=no_var)
+            check('letterale LANG_ORDER sparito -> errore', False, 'nessun errore')
+        except PageBuildError as exc:
+            check('letterale LANG_ORDER sparito -> errore',
+                  'LANG_ORDER' in str(exc) and 'non trovo' in str(exc), str(exc))
 
         # --- 11. riproducibilita' (anche con CRLF e BOM nelle sorgenti) ----------
         a = inline_page(base, warn=lambda _m: None)
@@ -1065,7 +1312,7 @@ def selftest():
         code, _msg = cli(['--dir', base, '--out', stale])
         with open(stale, 'rb') as fh:
             before = fh.read()
-        code, msg = cli(['--dir', big, '--out', stale])          # oltre 64 KB: errore
+        code, msg = cli(['--dir', big, '--out', stale])          # oltre 96 KB: errore
         with open(stale, 'rb') as fh:
             after = fh.read()
         check('CLI fallita: l\'output precedente NON viene toccato', code == 1 and before == after,

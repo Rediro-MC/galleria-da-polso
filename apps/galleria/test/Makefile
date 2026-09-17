@@ -6,10 +6,15 @@
 #      make -C apps/galleria/test run-test_luma   un solo test
 #      make -C apps/galleria/test jstest          solo i test JS del PKJS (b64, album, motore, smoke)
 #      make -C apps/galleria/test devtest         solo l'autotest del dev server
-#      make -C apps/galleria/test pagecheck       S6: config_page.js e fixture_page.js aggiornati (build_config_page.py --check, gen_page_fixture.py --check)
+#      make -C apps/galleria/test pagecheck       S6: i18n.js/fixture_i18n.js, config_page.js e fixture_page.js aggiornati (build_i18n.py --check,
+#                                                 build_config_page.py --check, gen_page_fixture.py --check); S12: anche src/pkjs/digit_masks.js
+#                                                 (gen_digits.py --check, serve PEBBLE_PY) e test/fixture_preview.js. UX-2 (D95): gen_font_previews.py fuori.
+#      make -C apps/galleria/test glosscheck      UX-4 (D132): il glossario di docs/design/galleria-s10-i18n.md §3 copre
+#                                                 TUTTE le chiavi di i18n/messages.json con gli stessi testi (galleria_gloss_check.py)
 #      make -C apps/galleria/test logstats        S8: autotest di tools/galleria_logstats.py (riepilogo dei log dell'orologio reale) + test_logstats.py
 #      make -C apps/galleria/test cards           S8: test_cards.py (tools/gen_test_cards.py --selftest e --check; salta se manca Pillow)
 #      make -C apps/galleria/test browsertest     S6: autotest del client WebDriver (Firefox headless via geckodriver; fuori da `all`)
+#      make -C apps/galleria/test mutants         S12 (D48): mutation testing di preview.js (test/mutants_preview.js: 31 mutanti su copie in build/, ~6 s; fuori da `all`)
 #      make -C apps/galleria/test clean ; EXTRA_CFLAGS="..." per flag in più
 # I test girano con cwd = questa cartella (fixture in fixtures/, generate da photo_prep.py --fixture).
 CC      = gcc
@@ -30,7 +35,7 @@ TESTS += $(if $(wildcard test_sync.c),test_sync_timing,)
 # S10 (multilingua): datefmt.c puro (data per lingua con lang forzata, separatore delle migliaia) entra in `all` solo se il test esiste.
 TESTS += $(if $(wildcard test_datefmt.c),test_datefmt,)
 
-all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck logstats cards
+all: $(addprefix run-,$(TESTS)) pyselftest jstest devtest dumbtest pagecheck glosscheck logstats cards
 
 # run-<test>: ricompila se serve ed esegue (FORCE: un target .PHONY non attiverebbe la regola a pattern).
 run-%: $(OUT)/% FORCE
@@ -90,13 +95,17 @@ $(OUT)/test_sync_timing: test_sync.c shim/pebble.h shim/pebble_shim.c shim/ui_fa
 # Autotest del tool Python (pack6/pack1/CRC32 contro i vettori noti; nessuna foto necessaria).
 pyselftest:
 	$(PYTHON) $(PHOTO_PREP) --selftest
+	@if [ -f $(BUILD_I18N) ]; then $(PYTHON) $(BUILD_I18N) --selftest; else echo "pyselftest: $(BUILD_I18N) assente, saltato"; fi
+	@if [ -f $(GLOSS_CHECK) ]; then $(PYTHON) $(GLOSS_CHECK) --selftest; else echo "pyselftest: $(GLOSS_CHECK) assente, saltato"; fi
 
 # Test node del PKJS: base64url (src/pkjs/b64.js + fixture test/fixture_photo.js generata da
 # ./gen_sync_fixture.py), album (S5b: src/pkjs/album.js + crc.js), motore di sync (S5b:
 # src/pkjs/sync.js con l'orologio finto shim/fakewatch.js) e smoke test end-to-end di index.js.
 # NODE_PATH=shim risolve require('message_keys') (chiavi generate dall'SDK) e gli shim.
 # Node non è una dipendenza dell'SDK: se manca, avvisa e non fa fallire il make.
-JSTESTS = test_b64.js test_album.js test_sync_engine.js smoke_s5b.js test_index_retry.js test_devstorage.js test_devpage.js test_pipeline.js test_page.js
+# S12: test_preview.js (anteprima della config page) sta nella lista come gli altri: il ciclo qui
+# sotto salta i file assenti, quindi finche' V1 non lo scrive il target resta verde.
+JSTESTS = test_b64.js test_album.js test_sync_engine.js smoke_s5b.js test_index_retry.js test_devstorage.js test_devpage.js test_pipeline.js test_preview.js test_page.js
 jstest:
 	@if command -v $(NODE) >/dev/null 2>&1; then \
 	  for t in $(JSTESTS); do \
@@ -126,12 +135,40 @@ clean:
 BUILD_PAGE = ../../../tools/build_config_page.py
 BUILD_I18N = ../../../tools/build_i18n.py   # S10: messages.json -> src/pkjs/i18n.js + test/fixture_i18n.js (--check)
 BROWSER_TOOL = ../../../tools/galleria_browser.py
-FONT_PREVIEWS = ../../../tools/gen_font_previews.py
+# UX-2 (D95): `gen_font_previews.py` non e' piu' nella build (la pagina non mostra piu' la PNG
+# «12:34»: previews.js cancellato, tag fuori da page.html, nome fuori da SCRIPT_ORDER), quindi
+# il suo --check e' uscito da pagecheck. Il tool resta in tools/ (vedi tools/README.md Sec.14).
+# S12 (D45/D48): le maschere delle cifre (src/pkjs/digit_masks.js) e la fixture dell'anteprima sono
+# generate. gen_digits.py rasterizza i TTF, quindi vuole l'interprete del pebble-tool (freetype-py):
+# se manca, il controllo viene saltato con un avviso (il python3 di sistema basta invece alla fixture,
+# che rilegge le maschere dal .js). La tabella delle metriche finisce in $(OUT)/gen_digits_check.log:
+# a video vanno solo le ultime righe, tutto il log se il controllo fallisce.
+GEN_DIGITS = ../../../tools/gen_digits.py
+GEN_PREVIEW_FIXTURE = gen_preview_fixture.py
+PEBBLE_PY ?= $(HOME)/.local/share/uv/tools/pebble-tool/bin/python
+DIGITS_ARGS = --fonts-dir ../resources/fonts --out ../resources/digits \
+              --header ../src/c/digit_metrics.h --masks-js ../src/pkjs/digit_masks.js \
+              --fit-width --no-colon-b --pack
+
 pagecheck:
 	@if [ -f $(BUILD_I18N) ]; then $(PYTHON) $(BUILD_I18N) --check; else echo "pagecheck: $(BUILD_I18N) assente, saltato"; fi
 	@if [ -f $(BUILD_PAGE) ]; then $(PYTHON) $(BUILD_PAGE) --check; else echo "pagecheck: $(BUILD_PAGE) assente, saltato"; fi
 	@if [ -f gen_page_fixture.py ]; then $(PYTHON) gen_page_fixture.py --check; else echo "pagecheck: gen_page_fixture.py assente, saltato"; fi
-	@if [ -f $(FONT_PREVIEWS) ]; then $(PYTHON) $(FONT_PREVIEWS) --check; else echo "pagecheck: $(FONT_PREVIEWS) assente, saltato"; fi
+	@mkdir -p $(OUT); if [ -x $(PEBBLE_PY) ] && [ -f $(GEN_DIGITS) ]; then \
+	  if $(PEBBLE_PY) $(GEN_DIGITS) --check $(DIGITS_ARGS) > $(OUT)/gen_digits_check.log 2>&1; then \
+	    tail -n 2 $(OUT)/gen_digits_check.log; \
+	  else cat $(OUT)/gen_digits_check.log; exit 1; fi; \
+	else echo "pagecheck: $(PEBBLE_PY) assente, gen_digits.py --check saltato (maschere non verificate)"; fi
+	@if [ -f $(GEN_PREVIEW_FIXTURE) ]; then $(PYTHON) $(GEN_PREVIEW_FIXTURE) --check; else echo "pagecheck: $(GEN_PREVIEW_FIXTURE) assente, saltato"; fi
+
+# UX-4 (D132): tripwire del glossario. La tabella «viva» di docs/design/galleria-s10-i18n.md §3 deve
+# coprire TUTTE le 135 chiavi di i18n/messages.json con gli stessi testi, parola per parola: il tool
+# (solo stdlib) esce 1 elencando le chiavi mancanti o in piu', le righe che non si allineano alle
+# chiavi e le celle con parole diverse; le differenze di sola forma le stampa e basta. Il suo
+# --selftest sta in `pyselftest`. Uso e formato della tabella: tools/README.md §19.
+GLOSS_CHECK = ../../../tools/galleria_gloss_check.py
+glosscheck:
+	@if [ -f $(GLOSS_CHECK) ]; then $(PYTHON) $(GLOSS_CHECK); else echo "glosscheck: $(GLOSS_CHECK) assente, saltato"; fi
 
 # S8: riepilogo dei log catturati sull'orologio reale (tools/galleria_logstats.py): autotest del tool
 # (--selftest, solo stdlib) + test_logstats.py sulle fixture in fixtures/logs/. Saltato se i file mancano.
@@ -148,4 +185,10 @@ cards:
 browsertest:
 	@if [ -f $(BROWSER_TOOL) ]; then $(PYTHON) $(BROWSER_TOOL) --selftest; else echo "browsertest: $(BROWSER_TOOL) assente, saltato"; fi
 
-.PHONY: all clean pyselftest jstest devtest dumbtest pagecheck logstats cards browsertest FORCE
+# S12 (D48, revisione rv): mutation testing di src/pkjs/config/preview.js. Ogni mutante di
+# mutants_preview.js viene applicato a una copia in $(OUT) e test_preview.js deve diventare rosso
+# (GAL_PREVIEW=copia); esce 1 se un mutante sopravvive. Non fa parte di `all` (come browsertest).
+mutants:
+	@mkdir -p $(OUT); if command -v $(NODE) >/dev/null 2>&1; then GAL_MUT_OUT=$(OUT) $(NODE) mutants_preview.js; else echo "mutants: $(NODE) non trovato, saltato"; fi
+
+.PHONY: all clean pyselftest jstest devtest dumbtest pagecheck glosscheck logstats cards browsertest mutants FORCE

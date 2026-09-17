@@ -75,7 +75,7 @@ var SETTINGS_FIELDS = [
   ['shake_next', 0, 1, 1],
   ['info_row', 0, 15, 15],
   ['digit_style', 0, 3, 0],       /* S8: byte 12 del blob (ex primo `reserved`); l'ordine dell'array non e' quello dei byte */
-  ['lang', 0, 4, 0]               /* S10/D31: byte 13 (ex secondo `reserved`); 0 = auto, 1 en, 2 it, 3 de, 4 fr */
+  ['lang', 0, 6, 0]               /* S10/D31, S11/D39: byte 13 (ex secondo `reserved`); 0 = auto, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt */
 ];
 
 /* ---- helper puri ---- */

@@ -24,8 +24,8 @@ Endpoint (JSON UTF-8, `Cache-Control: no-store`, CORS `*`):
                                 (v1.9, --open-ms) fa forzare al PKJS HELLO.openMs prima del
                                 piano: serve a PROVARE l'avviso di avvio lento della config
                                 page, che in emulatore non scatterebbe mai; `hooks.lang`
-                                (S10, --lang) gli fa forzare la lingua AUTOMATICA della
-                                pagina, che in emulatore sarebbe sempre en_US
+                                (S10, --lang; S11: sei lingue) gli fa forzare la lingua
+                                AUTOMATICA della pagina, che in emulatore sarebbe sempre en_US
     GET  /save.json             payload dell'ultimo Save della config page vera (senza
                                 `full`); prima di quello, alias di /state.json
     GET  /pool.json             foto disponibili (--album) con anteprime
@@ -68,6 +68,10 @@ Uso:
     # S10: pagina in tedesco "automatico" (lingua dell'orologio finta) e impostazione lang = fr
     python3 tools/galleria_devserver.py --album a.jpg --lang de
     python3 tools/galleria_devserver.py --album a.jpg --settings '{"lang": 4}'
+
+    # S11 (D39): le due lingue nuove, come hook (pagina in spagnolo) o come impostazione (pt = 6)
+    python3 tools/galleria_devserver.py --album a.jpg --lang es
+    python3 tools/galleria_devserver.py --album a.jpg --settings '{"lang": 6}'
 
     # autotest completo (nessuna rete esterna, immagini sintetiche)
     python3 tools/galleria_devserver.py --selftest
@@ -113,7 +117,9 @@ FMT_RAW6 = 1                # gal_types.h: GAL_FMT_RAW6
 FMT_RAW1 = 2                # gal_types.h: GAL_FMT_RAW1
 
 SCENARIOS = ('photo', 'seq', 'dup', 'crc', 'interrupt', 'none')
-PAGE_LANGS = ('en', 'it', 'de', 'fr')       # S10 (D33): lingue della config page (hook --lang)
+# S10 (D33) + S11 (D39: es e pt in coda): lingue della config page (hook --lang), nello
+# stesso ordine di LANG_ORDER in src/pkjs/index.js e di LANGS in config/page_core.js.
+PAGE_LANGS = ('en', 'it', 'de', 'fr', 'es', 'pt')
 
 # Campi ammessi nel corpo di POST /save. La validazione e' severa allo stesso modo dentro
 # `settings` e al livello superiore: un campo sconosciuto (refuso della pagina) e' un 400,
@@ -137,7 +143,8 @@ FMT_LEN = {FMT_RAW6: RAW6_BYTES, FMT_RAW1: RAW1_BYTES}
 # di settings_set_defaults(). L'ordine è quello dei campi di GalSettings (design §4.1).
 # S8 (D21/D22): `font` arriva a 5 (3 = LECO, 4 Francois One, 5 Staatliches) e `digit_style` 0..3
 # (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D) occupa il byte 12 del blob.
-# S10 (D31): `lang` 0..4 (0 automatica, 1 en, 2 it, 3 de, 4 fr) occupa il byte 13.
+# S10 (D31) + S11 (D39): `lang` 0..6 (0 automatica, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt)
+# occupa il byte 13; stesso intervallo di settings_validate() in src/c/settings.c.
 SETTINGS_SPEC = (
     ('layout',       tuple(range(0, 2)),                     '0..1',    0),
     ('font',         tuple(range(0, 6)),                     '0..5',    0),
@@ -150,7 +157,7 @@ SETTINGS_SPEC = (
     ('shake_next',   tuple(range(0, 2)),                     '0..1',    1),
     ('info_row',     tuple(range(0, 16)),                    '0..15',  15),
     ('digit_style',  tuple(range(0, 4)),                     '0..3',    0),
-    ('lang',         tuple(range(0, 5)),                     '0..4',    0),
+    ('lang',         tuple(range(0, 7)),                     '0..6',    0),
 )
 SETTINGS_ALLOWED = {name: values for name, values, _d, _v in SETTINGS_SPEC}
 SETTINGS_RANGE_TEXT = {name: desc for name, _values, desc, _v in SETTINGS_SPEC}
@@ -949,7 +956,8 @@ var SETTINGS_FIELDS = [
     opts: [[0, "pieno"], [1, "trasparente (solo contorno)"], [2, "trasparente 3D (contorno + ombra)"],
            [3, "pieno 3D (con ombra)"]] },
   { key: "lang", label: "Lingua",
-    opts: [[0, "automatica (orologio)"], [1, "English"], [2, "Italiano"], [3, "Deutsch"], [4, "Français"]] }
+    opts: [[0, "automatica (orologio)"], [1, "English"], [2, "Italiano"], [3, "Deutsch"], [4, "Français"],
+           [5, "Español"], [6, "Português"]] }
 ];
 var SCENARIOS = ["photo", "seq", "dup", "crc", "interrupt", "none"];
 var MAX_SLOTS = 12;
@@ -1974,6 +1982,10 @@ def selftest():
               str(st2['settings']))
         check('dopo il save: impostazione lang = 3 (tedesco, S10/D31)',
               st2['settings']['lang'] == 3, str(st2['settings'].get('lang')))
+        check('impostazione `lang` 0..6 (S11/D39: 5 es, 6 pt)',
+              SETTINGS_ALLOWED['lang'] == tuple(range(0, 7)), str(SETTINGS_ALLOWED['lang']))
+        check('pagina di prova: le sei lingue nel select `lang` (S11/D39)',
+              '[5, "Español"]' in PAGE_HTML and '[6, "Português"]' in PAGE_HTML)
         check('dopo il save: scenario aggiornato', st2['hooks']['scenario'] == 'crc')
         check('dopo il save: la foto 2 del pool è nello slot 5',
               [p['crc'] for p in st2['photos'] if p['slot'] == 5] == [pool[2]['crc6'], pool[2]['crc1']])
@@ -1990,7 +2002,7 @@ def selftest():
             ('settings fuori intervallo', json.dumps({'settings': {'layout': 7}})),
             ('interval_min non ammesso', json.dumps({'settings': {'interval_min': 7}})),
             ('settings campo ignoto', json.dumps({'settings': {'pippo': 1}})),
-            ('lang fuori intervallo (S10: 0..4)', json.dumps({'settings': {'lang': 5}})),
+            ('lang fuori intervallo (S10/S11: 0..6)', json.dumps({'settings': {'lang': 7}})),
             ('scenario ignoto', json.dumps({'scenario': 'boh'})),
             ('campo top-level ignoto', json.dumps({'pippo': 1})),
             ('v sconosciuta', json.dumps({'v': 2})),
@@ -2258,7 +2270,11 @@ def selftest():
                        '<link rel="stylesheet" href="page.css">\n</head><body>\n'
                        '<p>config page (finta) per il selftest\n'
                        '<script src="pipeline.js"></script>\n'
-                       '<script src="previews.js" data-optional="1"></script>\n'
+                       # UX-3 (G34/D123): il file facoltativo della fixture ha un nome NEUTRO
+                       # (`extra.js`), fuori da SCRIPT_ORDER di build_config_page.py: qui si prova
+                       # il meccanismo `data-optional`, non un file del progetto (fino a UX-2
+                       # l'esempio era `previews.js`, uscito dalla build con UX-2/D95).
+                       '<script src="extra.js" data-optional="1"></script>\n'
                        '</body></html>\n')
         write_page_src('page.css', 'body { color: #123456; }\n')
         write_page_src('pipeline.js', 'var GalPipeline = { marchio: "PIPELINE-UNO" };\n')
@@ -2384,8 +2400,25 @@ def selftest():
             check('senza --lang: nessun hook `lang` (il PKJS usa la lingua dell\'orologio)',
                   rc == 0 and dj is not None and 'lang' not in dj.get('hooks', {}),
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
+            # S11 (D39): es e pt sono lingue della pagina; `ru` no.
             rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'es'])
-            check('--lang non fra le quattro: errore di argparse, niente traceback',
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--lang es (S11): hooks = {scenario, lang: es}',
+                  rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'lang': 'es'}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'pt'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--lang pt (S11): hooks = {scenario, lang: pt}',
+                  rc == 0 and dj == {'v': 1, 'seq': 1, 'hooks': {'scenario': 'photo', 'lang': 'pt'}},
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--lang', 'ru'])
+            check('--lang non fra le sei: errore di argparse, niente traceback',
                   rc != 0 and 'Traceback' not in err and 'invalid choice' in err,
                   'rc=%s err=%s' % (rc, err.strip()[-90:]))
             rc, out, err = run_cli(['--dump-json', 'state', '--album', paths[1], '--slots', '4',
@@ -2398,7 +2431,7 @@ def selftest():
                   rc == 0 and dj is not None and dj.get('full') is True
                   and dj['hooks'] == {'scenario': 'photo', 'lang': 'fr'},
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
-            # impostazione `lang` (D31): 0..4 come SETTINGS_SPEC, 5 e' fuori intervallo
+            # impostazione `lang` (D31/D39): 0..6 come SETTINGS_SPEC, 7 e' fuori intervallo
             rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 4}'])
             try:
                 dj = json.loads(out)
@@ -2408,9 +2441,18 @@ def selftest():
                   rc == 0 and dj is not None and dj.get('settings', {}).get('lang') == 4
                   and 'lang' not in dj.get('hooks', {}),
                   'rc=%s out=%s' % (rc, out.strip()[:90]))
-            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 5}'])
-            check('--settings \'{"lang": 5}\': fuori intervallo, errore senza traceback',
-                  rc != 0 and 'Traceback' not in err and '0..4' in err,
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 6}'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--settings \'{"lang": 6}\': impostazione lang = 6 (portoghese, S11)',
+                  rc == 0 and dj is not None and dj.get('settings', {}).get('lang') == 6
+                  and 'lang' not in dj.get('hooks', {}),
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 7}'])
+            check('--settings \'{"lang": 7}\': fuori intervallo, errore senza traceback',
+                  rc != 0 and 'Traceback' not in err and '0..6' in err,
                   'rc=%s err=%s' % (rc, err.strip()[-90:]))
             rc, out, err = run_cli(['--dump-json', 'state', '--page-dir', page_dir])
             try:
@@ -2442,15 +2484,15 @@ def selftest():
             check('--page-dir: niente più <script src>/<link rel=stylesheet> nella pagina servita',
                   '<script src=' not in page6 and 'href="page.css"' not in page6, page6[:80])
             check('--page-dir: <script data-optional> senza file → tag rimosso',
-                  'previews.js' not in page6)
+                  'extra.js' not in page6)
             write_page_src('pipeline.js', 'var GalPipeline = { marchio: "PIPELINE-DUE" };\n')
             _c, _h, blob = rreq('GET', '/config.html')
             check('--page-dir: sorgente modificata → pagina rigenerata senza riavviare il server',
                   b'PIPELINE-DUE' in blob and b'PIPELINE-UNO' not in blob, str(blob[:40]))
-            write_page_src('previews.js', 'var GalPreviews = { a: "ANTEPRIME-OK" };\n')
+            write_page_src('extra.js', 'var GalExtra = { a: "EXTRA-OK" };\n')
             _c, _h, blob = rreq('GET', '/config.html')
             check('--page-dir: data-optional con il file presente → inlinato',
-                  b'ANTEPRIME-OK' in blob)
+                  b'EXTRA-OK' in blob)
             os.remove(os.path.join(page_dir, 'pipeline.js'))
             errbuf = io.StringIO()
             with contextlib.redirect_stderr(errbuf):
@@ -2970,7 +3012,7 @@ def build_parser():
                "  %(prog)s --album a.jpg b.jpg c.jpg --slots 3,7,11 --order 11,3,7 --scenario crc\n"
                "  %(prog)s --album a.jpg --photo-prep-args=\"--sunlight\"\n"
                "  %(prog)s --page-dir apps/galleria/src/pkjs/config      (S6: config page vera, relay)\n"
-               "  %(prog)s --album a.jpg --lang de                       (S10: pagina in tedesco automatico)\n"
+               "  %(prog)s --album a.jpg --lang es                       (S10/S11: pagina in spagnolo automatico)\n"
                "  %(prog)s --selftest\n"
                "Poi, da un altro terminale: pebble emu-app-config --emulator emery\n"
                "Documentazione: tools/README.md §11 · specifica: docs/design/galleria.md §5.1 e §6.",
@@ -2995,10 +3037,11 @@ def build_parser():
                     help='hook dev: HELLO.OPEN_MS finto (0..65535 ms) per provare l\'avviso di avvio '
                          'lento della config page (il riquadro #slow scatta oltre una soglia '
                          'proporzionale al numero di foto sull\'orologio; 0 = nessun avviso)')
-    ap.add_argument('--lang', choices=PAGE_LANGS, metavar='en|it|de|fr',
-                    help='hook dev: lingua AUTOMATICA finta della config page (S10/D33), al posto '
-                         'di quella dell\'orologio, che in emulatore e\' sempre en_US; non tocca '
-                         'l\'impostazione `lang` (quella si sceglie con --settings \'{"lang": 3}\')')
+    ap.add_argument('--lang', choices=PAGE_LANGS, metavar='|'.join(PAGE_LANGS),
+                    help='hook dev: lingua AUTOMATICA finta della config page (S10/D33, S11/D39: '
+                         'sei lingue), al posto di quella dell\'orologio, che in emulatore e\' '
+                         'sempre en_US; non tocca l\'impostazione `lang` (quella si sceglie con '
+                         '--settings \'{"lang": 3}\')')
     ap.add_argument('--work', metavar='DIR',
                     help='cartella dei raw e delle anteprime (default: temporanea, rimossa in '
                          'uscita sia con Ctrl-C sia con SIGTERM)')

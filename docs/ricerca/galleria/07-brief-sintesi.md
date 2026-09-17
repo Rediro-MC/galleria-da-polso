@@ -1,5 +1,13 @@
 # Design brief — watchface **Galleria** (`apps/galleria`) — v1.1
 
+> **Stato (17/09/2026).** Brief del 26/08/2026, base di `docs/design/galleria.md` (`README.md` della
+> cartella). **D3 e D4 sono superate**: inbox unica da 4.153 B e chunk 4.096 B (`app_message_close()` non
+> esiste nell'SDK 4.33.1), persist schema 2 con manifest unico da 234 B. Di §7 «Non verificate — da
+> misurare» restano aperte la lunghezza dell'URL su iPhone oltre 138.249 caratteri (prova P15 del gate sul
+> telefono), la LUT «sunlight» sul vetro, **il consumo in 48 h (O7: misurata solo la lettura a 0 h del
+> 30/08)**, il Pebble 2 Duo e Gadgetbridge: il resto è misurato in S8
+> (`docs/design/galleria-s8-risultati.md`).
+
 > Base per `docs/design/galleria.md`. 26/08/2026. Integra la ricerca multi-agente (`docs/ricerca/galleria/01…05`, citati come **R1–R5** + numero di finding) e le 8 verifiche adversariali (**V1–V8**; due parzialmente **confutate**: V4 e V6). Legenda: ✅ verificato su fonte primaria (sorgente/doc/emulatore) · ⚠️ stima/inferenza · ❓ da misurare su orologio/telefono reale · ✖ affermazione confutata, **non** usata.
 > Vincoli invariati: `CLAUDE.md` (14 regole C), `PIANO-SVILUPPO-PEBBLE.md` §3/§7–§10, UUID `6f2dd646-a76a-44ff-8719-b012d04c79a4`, `capabilities ["configurable","health"]`, `MINUTE_UNIT`, mai secondi.
 

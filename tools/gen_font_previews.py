@@ -2,6 +2,28 @@
 r"""gen_font_previews.py — v3 (S6 compito B1; S8-stile: i due font nuovi): anteprime dei
 font per la config page.
 
+⚠ **Dal 13/09/2026 (UX-2, U-10/D95) questo tool NON e' piu' nella build.** La config page non
+mostra piu' la PNG «12:34» sotto la select dei font (il nome del font si prova con l'anteprima
+vera della watchface, `preview.js`): `previews.js` e' stato cancellato da
+`apps/galleria/src/pkjs/config/`, il suo `<script src="previews.js" data-optional="1">` e'
+uscito da `page.html`, `previews.js` e' uscito da `SCRIPT_ORDER` di `tools/build_config_page.py`
+e `--check` non e' piu' in `make -C apps/galleria/test pagecheck`. Il tool resta qui per lo
+storico e nel caso le anteprime tornassero utili, e **con il file di uscita assente non si
+lamenta** (G33): `--check` e il controllo omologo del `--selftest` rileggono `previews.js` sul
+disco (`--out`, default `apps/galleria/src/pkjs/config/previews.js`), che da D95 non esiste
+piu', quindi stampano «previews.js non e' piu' nella build (UX-2/D95): niente da controllare»
+e **escono 0** (`--check`) o **saltano quell'unico controllo** (`--selftest`: 40 ok, 0 falliti,
+rc 0). Per provare anche la scrittura si esce dal repo, e i controlli tornano 41:
+
+    python3 tools/gen_font_previews.py --out /tmp/prev.js
+    python3 tools/gen_font_previews.py --selftest --out /tmp/prev.js   # 41 ok, 0 falliti, rc 0
+
+(2.500 B con i cinque font, misurati il 13/09/2026). Rimettere le anteprime in pagina vuol dire
+rigenerare `previews.js` **e** rimettere: `PREV_KEYS`/`GalPreviews` in `page.js`,
+`<img id="fontPreview">` in `page.html`, `.fontprev` in `page.css`, il tag
+`<script src="previews.js" data-optional="1">` in `page.html`, il nome in `SCRIPT_ORDER` e
+`--check` in `pagecheck`. Vedi `tools/README.md` §14 e il contratto UX-2 D95.
+
 Rasterizza la stringa "12:34" con i cinque TTF dell'app (Anton, Bebas Neue, Barlow Condensed
 Bold, Francois One, Staatliches) in **bianco su nero**, la riduce a **1 bit**, la ritaglia
 sull'inchiostro e la salva come PNG ottimizzato; i PNG finiscono come data-URL dentro
@@ -9,8 +31,9 @@ sull'inchiostro e la salva come PNG ottimizzato; i PNG finiscono come data-URL d
     apps/galleria/src/pkjs/config/previews.js
 
 nello schema UMD della specifica S6 §1 (nel browser `window.GalPreviews = {anton, bebas,
-barlow, francois, staatliches}`, in node `module.exports`): le chiavi sono quelle di
-`PREV_KEYS` in `apps/galleria/src/pkjs/config/page.js` e di `FONTS` in `tools/gen_digits.py`.
+barlow, francois, staatliches}`, in node `module.exports`): le chiavi sono quelle di `FONTS` in
+`tools/gen_digits.py`; erano anche quelle di `PREV_KEYS` in
+`apps/galleria/src/pkjs/config/page.js`, **tolto da UX-2/D95** (riferimento storico).
 Il file viene inlinato nella config page (`tools/build_config_page.py`), quindi:
 
   * ES5 puro, nessun template literal (il file finisce dentro una stringa JSON);
@@ -44,7 +67,7 @@ possono confrontare a occhio nella pagina.
 Uso:
 
     python3 tools/gen_font_previews.py                 # rigenera previews.js
-    python3 tools/gen_font_previews.py --check         # verifica che sia aggiornato (exit 1 se no)
+    python3 tools/gen_font_previews.py --check         # aggiornato? (assente: exit 0, vedi D95)
     python3 tools/gen_font_previews.py --png-dir /tmp/prev   # salva anche i PNG su disco
     python3 tools/gen_font_previews.py --selftest      # prova il generatore (qualità dei glifi)
 
@@ -90,6 +113,11 @@ MIN_HEIGHT = 12
 SUPERSAMPLE = 4          # rasterizzazione a 4x, poi LANCZOS: vedi il commento in testa
 THRESHOLD = 100          # copertura ~40% (a 128 i tratti restano al minimo e si spezzano)
 LEGACY_THRESHOLD = 128   # la soglia della v1 (serve solo al --selftest, per il confronto)
+
+# UX-2/D95 (G33): previews.js e' uscito dalla build e dal repo. Con il file di uscita assente
+# non c'e' niente da confrontare: --check esce 0 e il --selftest salta quel solo controllo
+# (40 ok invece di 41), invece di far inseguire un falso allarme a chi rilancia i selftest.
+GONE_MSG = "previews.js non e' piu' nella build (UX-2/D95): niente da controllare"
 
 
 class GenError(Exception):
@@ -335,9 +363,11 @@ def selftest(fonts_dir, out_path, text=TEXT, height=HEIGHT, max_bytes=MAX_BYTES,
         check("previews.js espone le %d chiavi dei font (%s)"
               % (len(FONTS), ", ".join(k for k, _f in FONTS)),
               all(("\n    %s: 'data:image/png;base64," % key) in js for key, _f in FONTS))
-        check("previews.js sul disco è aggiornato (come `--check`)",
-              os.path.isfile(out_path) and io.open(out_path, "rb").read() == blob,
-              out_path)
+        if os.path.isfile(out_path):
+            check("previews.js sul disco è aggiornato (come `--check`)",
+                  io.open(out_path, "rb").read() == blob, out_path)
+        else:
+            print(GONE_MSG)                             # G33: un controllo in meno, non un rosso
 
         stretto = len(blob) - 40
         small_js, small_h, _i = generate(fonts_dir, text, height, stretto)
@@ -396,7 +426,8 @@ def main(argv=None):
     ap.add_argument("--height", type=int, default=HEIGHT, help="altezza dell'inchiostro in px (default: %d)" % HEIGHT)
     ap.add_argument("--max-bytes", type=int, default=MAX_BYTES, help="tetto del file generato (default: %d)" % MAX_BYTES)
     ap.add_argument("--png-dir", default=None, help="salva anche i PNG in questa cartella")
-    ap.add_argument("--check", action="store_true", help="verifica che --out sia aggiornato (exit 1 se no)")
+    ap.add_argument("--check", action="store_true",
+                    help="verifica che --out sia aggiornato (assente: niente da controllare, exit 0)")
     ap.add_argument("--selftest", action="store_true",
                     help="prova il generatore (determinismo, qualità dei glifi, forma del file)")
     ap.add_argument("-v", "--verbose", action="store_true", help="--selftest: stampa anche i passati")
@@ -418,8 +449,8 @@ def main(argv=None):
     size = len(js.encode("utf-8"))
     if args.check:
         if not os.path.isfile(args.out):
-            sys.stderr.write("previews.js assente (%s): esegui tools/gen_font_previews.py\n" % args.out)
-            return 1
+            print(GONE_MSG)                             # G33: niente da confrontare, non un errore
+            return 0
         with open(args.out, "rb") as fh:
             cur = fh.read()
         if cur != js.encode("utf-8"):

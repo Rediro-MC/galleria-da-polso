@@ -14,24 +14,25 @@ ImageMagick **non** è installato.
 
 | Percorso | Cos'è |
 |---|---|
-| `pebble-watchface-agent-skill/` | Skill ufficiale Claude Code per generare watchface/watchapp Pebble (clone git) |
-| `sdk-docs/` | Sorgenti di developer.repebble.com: guide, changelog, API C (clone git) |
-| `svg2pdc.py` | Convertitore SVG → PDC (Pebble Draw Command), **portato a Python 3** |
-| `pebble_image_routines.py` | Routine colore Pebble (palette a 64 colori), **portate a Python 3** |
+| `pebble-watchface-agent-skill/` | Skill ufficiale Claude Code per generare watchface/watchapp Pebble (clone git, **non versionato**) — §1 |
+| `sdk-docs/` | Sorgenti di developer.repebble.com: guide, changelog, API C (clone git, **non versionato**) — §2 |
+| `svg2pdc.py` | Convertitore SVG → PDC (Pebble Draw Command), **portato a Python 3** — §3 |
+| `pebble_image_routines.py` | Routine colore Pebble (palette a 64 colori), **portate a Python 3** — §4 |
+| `upstream-py2/` | Originali Python 2 non modificati, tenuti solo come riferimento — §5 |
+| `palette/` | Palette ufficiale a 64 colori Pebble (`.gif`, `.act`, `.pal`) — §6 |
+| `test/` | SVG di prova e output PDC generato — §7 |
+| `setup-env.sh`, `pebble-env.sh`, `qemu-pebble-wrapper` | Installazione e caricamento dell'ambiente SDK Pebble in user space — §8 |
 | `photo_prep.py` | Foto → `raw6`/`raw1` per la watchface Galleria (Pillow, dithering FS/Bayer/Atkinson) — §9 |
-| `gen_digits.py` | Cifre grandi come **strip PNG** (sprite) + `src/c/digit_metrics.h` per Galleria (freetype-py + Pillow) — §10 |
+| `gen_digits.py` | Cifre grandi come **strip PNG** (sprite) + `src/c/digit_metrics.h` (+ le **maschere** `src/pkjs/digit_masks.js` per l'anteprima della config page, S12) per Galleria (freetype-py + Pillow) — §10 |
 | `galleria_devserver.py` | **Dev server** di Galleria: in emulatore fa le veci della config page del telefono (solo stdlib) — §11 |
 | `galleria_browser.py` | **Firefox headless** via WebDriver (solo stdlib): pilota la config page di Galleria per il gate S6 — §12 |
 | `build_config_page.py` | Inlina le sorgenti della **config page** di Galleria in un unico HTML + `src/pkjs/config_page.js` (S6) — §13 |
-| `gen_font_previews.py` | Anteprime «12:34» a 1 bit dei tre font per la config page (`previews.js`, S6) — §14 |
-| `build_i18n.py` | **Dizionari** della config page: `apps/galleria/i18n/messages.json` → `src/pkjs/i18n.js` + fixture dei test (S10) — §18 |
+| `gen_font_previews.py` | Anteprime «12:34» a 1 bit dei font per la config page (`previews.js`, S6) — **fuori dalla build dal 13/09/2026** (UX-2, D95) — §14 |
 | `setup-adb.sh` | **adb** (Android platform-tools) in user space, per `pebble … --adb` sull'orologio reale (S8) — §15 |
 | `galleria_logstats.py` | **Riepilogo dei log** catturati sull'orologio reale di Galleria (solo stdlib) — §16 |
 | `gen_test_cards.py` | **Test card** dai numeri noti per soglie luma e LUT «vetro» di Galleria (Pillow) — §17 |
-| `upstream-py2/` | Originali Python 2 non modificati, tenuti solo come riferimento |
-| `palette/` | Palette ufficiale a 64 colori Pebble (`.gif`, `.act`, `.pal`) |
-| `test/` | SVG di prova e output PDC generato |
-| `setup-env.sh`, `pebble-env.sh`, `qemu-pebble-wrapper` | Installazione e caricamento dell'ambiente SDK Pebble in user space (vedi §8) |
+| `build_i18n.py` | **Dizionari** della config page: `apps/galleria/i18n/messages.json` → `src/pkjs/i18n.js` + fixture dei test (S10; sei lingue da S11; tripwire di lunghezza da UX-1) — §18 |
+| `galleria_gloss_check.py` | **Tripwire del glossario** di Galleria: la tabella di `docs/design/galleria-s10-i18n.md` §3 contro `apps/galleria/i18n/messages.json` (solo stdlib, UX-4/D132) — §19 |
 
 ---
 
@@ -39,37 +40,27 @@ ImageMagick **non** è installato.
 
 Clone di <https://github.com/coredevices/pebble-watchface-agent-skill> (`--depth 1`, ~2.7 MB).
 È la skill ufficiale di Core Devices per Claude Code: genera watchface e watchapp completi,
-compila il `.pbw` e li testa nell'emulatore QEMU.
+compila il `.pbw` e li testa nell'emulatore QEMU. La cartella **non è versionata** in questo repo
+(`.gitignore`): su un clone pulito va riscaricata.
+
+```bash
+git clone --depth 1 https://github.com/coredevices/pebble-watchface-agent-skill \
+    ~/ProgettiClaude/Pebble/tools/pebble-watchface-agent-skill
+```
 
 ### Struttura principale
 
 ```
 .claude/skills/pebble-watchface/
-├── SKILL.md              # workflow completo in 8 fasi (816 righe): scelta tipo progetto,
-│                         # design, implementazione, build PBW, test QEMU, asset, publish
-├── reference/            # documentazione di approfondimento caricata su richiesta
-│   ├── pebble-api-reference.md   # API C principali (Window, Layer, GContext, servizi)
-│   ├── drawing-guide.md          # coordinate schermo, disegno, GPath, colori
-│   ├── animation-patterns.md     # pattern di animazione e loop di refresh
-│   ├── watchapp-guide.md         # differenze watchapp vs watchface (bottoni, stack finestre)
-│   └── alloy-guide.md            # framework Alloy: JavaScript eseguito sul watch (Moddable XS)
-├── templates/            # file di partenza da copiare e adattare
-│   ├── static-watchface.c        # watchface statico/analogico
-│   ├── animated-watchface.c      # watchface animato
-│   ├── weather-watchface.c       # watchface con meteo (lato C)
-│   ├── pkjs-weather.js           # lato PebbleKit JS per il meteo
-│   ├── alloy-watchface.js        # watchface minimale in Alloy (Poco/commodetto)
-│   ├── alloy-mdbl.c              # stub C per progetti Alloy
-│   ├── alloy-manifest.json       # manifest Moddable
-│   ├── alloy-package.json.template
-│   ├── package.json.template     # manifest progetto Pebble (con segnaposto)
-│   └── wscript.template          # script di build waf
-├── scripts/              # utility Python 3
-│   ├── create_project.py         # crea lo scheletro del progetto
-│   ├── validate_project.py       # valida struttura/configurazione prima della build
-│   ├── generate_uuid.py          # genera lo UUID dell'app
-│   ├── create_app_icons.py       # ricava le icone (80x80, 144x144) da uno screenshot
-│   └── create_preview_gif.py     # crea GIF di anteprima catturando più frame
+├── SKILL.md      # workflow completo in 8 fasi (816 righe): scelta del tipo di progetto,
+│                 # design, implementazione, build PBW, test QEMU, asset, publish
+├── reference/    # approfondimenti caricati su richiesta: pebble-api-reference.md (API C),
+│                 # drawing-guide.md, animation-patterns.md, watchapp-guide.md,
+│                 # alloy-guide.md (JavaScript eseguito sul watch, Moddable XS)
+├── templates/    # file di partenza: static/animated/weather-watchface.c, pkjs-weather.js,
+│                 # alloy-watchface.js, alloy-mdbl.c, i tre manifest e wscript.template
+├── scripts/      # utility Python 3: create_project.py, validate_project.py, generate_uuid.py,
+│                 # create_app_icons.py, create_preview_gif.py
 └── samples/aqua-pbw/     # vuota nel clone (artefatti .pbw esclusi dal .gitignore)
 ```
 
@@ -83,7 +74,7 @@ Copiare o collegare la cartella della skill dentro il progetto in cui si lavora:
 
 ```bash
 mkdir -p <progetto>/.claude/skills
-ln -s /home/claudecode/ProgettiClaude/Pebble/tools/pebble-watchface-agent-skill/.claude/skills/pebble-watchface \
+ln -s ~/ProgettiClaude/Pebble/tools/pebble-watchface-agent-skill/.claude/skills/pebble-watchface \
       <progetto>/.claude/skills/pebble-watchface
 ```
 
@@ -95,7 +86,12 @@ in user space, vedi §8.
 ## 2. `sdk-docs/`
 
 Clone di <https://github.com/coredevices/sdk-docs> (`--depth 1`, ~215 MB di cui 84 MB di `.git`
-e 107 MB di asset immagini/video). È il sito Jekyll che genera developer.repebble.com.
+e 107 MB di asset immagini/video). È il sito Jekyll che genera developer.repebble.com. Come la
+skill di §1, **non è versionata** in questo repo (`.gitignore`): è un clone locale, fuori dal repo.
+
+```bash
+git clone --depth 1 https://github.com/coredevices/sdk-docs ~/ProgettiClaude/Pebble/tools/sdk-docs
+```
 
 ### Dove si trova cosa
 
@@ -307,31 +303,20 @@ Testato: l'immagine risultante usa solo colori appartenenti alla palette Pebble.
   supportati dal convertitore), colori dichiarati con attributi di presentazione.
 - `test/icon.pdc` – output di `svg2pdc.py`, 75 byte, 3 comandi di disegno.
 
-Comando usato e risultato:
+Comando usato e risultato (accorciato qui il solo percorso assoluto che il tool stampa):
 
 ```
 $ cd test && python3 ../svg2pdc.py icon.svg -v -o icon.pdc
 Path parser: built-in (vendored)
-/home/claudecode/ProgettiClaude/Pebble/tools/test/icon.svg:
+…/tools/test/icon.svg:
 Circle: [fill color:203; stroke color:192; stroke width:1] (12.0, 12.0) 10.0
-Path: [fill color:240; stroke color:255; stroke width:1] [(4.0, 4.0), (10.0, 4.0), (10.0, 10.0), (4.0, 10.0)] False 
-Path: [fill color:204; stroke color:192; stroke width:2] [(4.0, 20.0), (12.0, 14.0), (20.0, 20.0)] False 
+Path: [fill color:240; stroke color:255; stroke width:1] [(4.0, 4.0), (10.0, 4.0), (10.0, 10.0), (4.0, 10.0)] False
+Path: [fill color:204; stroke color:192; stroke width:2] [(4.0, 20.0), (12.0, 14.0), (20.0, 20.0)] False
 ```
 
-Rilettura dell'header con `struct`:
-
-```
-total file size : 75 bytes
-magic           : b'PDCI' -> PDC image
-payload size    : 67 (header+payload = 75 == file size: True)
-version         : 1
-viewbox size    : 24x24
-command count   : 3
-  cmd 1: type=2(CIRCLE)  stroke=0xC0 width=1 fill=0xCB radius=10 points=1 [(12, 12)]
-  cmd 2: type=1(PATH)    stroke=0xFF width=1 fill=0xF0 open=0     points=4 [(4, 4), (10, 4), (10, 10), (4, 10)]
-  cmd 3: type=1(PATH)    stroke=0xC0 width=2 fill=0xCC open=0     points=3 [(4, 20), (12, 14), (20, 20)]
-bytes consumed  : 75 / 75 -> OK, fully parsed
-```
+Rileggendo l'header con `struct`: magic `PDCI` (immagine), versione 1, viewbox 24×24, payload 67 B
+(+ 8 B di header = i 75 del file), 3 comandi — un `CIRCLE` di raggio 10 e due `PATH` da 4 e 3 punti —
+e 75/75 byte consumati, cioè file interamente interpretato.
 
 ### Nota sugli attributi `style`
 
@@ -420,16 +405,8 @@ Stampa sempre, per ogni foto: rettangoli di crop, dimensioni dei raw, **CRC32** 
 numero di colori usati; con `--stats` anche `bad_white`/`bad_black`/Y medio e il colore di testo
 previsto sulla fascia dell'ora (campionamento 1 px su 2). Senza opzioni la fascia è **solo** quella
 del layout A: `y 0..105` su emery, `y 0..75` su flint — le altre si chiedono con
-`--band-h EMERY[,FLINT]`, che sostituisce le due costanti sia nel conteggio sia nella riga stampata
-(`fascia y 0..N`):
-
-| caso | `--band-h` |
-|---|---|
-| layout A (default) | `106,76` |
-| layout B a tutto schermo | `228,168` |
-| riga singola sotto Quick View | `78,52` |
-| layout A con content size ExtraLarge | `110` (solo emery; flint resta 76) |
-
+`--band-h EMERY[,FLINT]` (i quattro casi sono nella tabella delle opzioni qui sopra), che
+sostituisce le due costanti sia nel conteggio sia nella riga stampata (`fascia y 0..N`).
 `--band-h` tocca **solo** le statistiche: i `.raw6`/`.raw1` e i loro CRC32 non cambiano.
 
 ### Pipeline
@@ -520,7 +497,8 @@ Genera da TTF le **strip** delle cifre grandi della watchface **Galleria** (desi
 `src/c/ui_digits.c` include.
 
 Interprete: **`~/.local/share/uv/tools/pebble-tool/bin/python`** (freetype-py 2.5.1 su libfreetype 2.13.2 + Pillow 12.3).
-Il Python di sistema **non** ha freetype-py: con `python3` il tool non parte.
+Il Python di sistema **non** ha freetype-py: con `python3` il tool non parte, tranne `--selftest`,
+che non legge i TTF (gli import di freetype/Pillow sono pigri da S12).
 
 ### Novità della v2 (S8-stile)
 
@@ -531,19 +509,12 @@ palette**, senza una risorsa per stile: 0 Pieno, 1 Trasparente (riempimento `GCo
 2 Trasparente 3D, 3 Pieno 3D. Il generatore sa anche calcolare le righe peggiori del layout e si
 ferma se non entrano nello schermo (§ "Controlli di riga").
 
-Su **flint** (`~bw`) l'ombra **non esiste** (`S = 0`, **D26**) e la strip ha tre colori: nel `.pbi`
-di una piattaforma B/N la SDK riduce ogni pixel con `nearest_color_to_pebble2_palette` (luma →
-0/255, alpha → 0/255), quindi esistono solo `0x00`, `0xC0` e `0xFF`: il rosso dell'ombra
-diventerebbe nero e finirebbe **nello stesso indice dell'anello** (verificato in emulatore il
-04/09/2026: ombra e anello non più separabili a runtime, l'ombra usciva del colore dell'alone).
-Con `R = 1` e `S = 0` le strip `~bw` tornano **identiche byte per byte a quelle della v1**; sull'orologio
-gli stili 3D valgono come i corrispondenti stili piatti (2 → 1, 3 → 0).
-
-I **pixel del riempimento non cambiano** rispetto alla v1 (D24): stessa `px`, stesso `digit_h`,
-stesse larghezze del riempimento per Anton/Bebas/Barlow. Su emery cambiano `strip_h` (+2R+S),
-`strip_w` (ogni inchiostro cresce di 2R+S−2 = 4 px) e la posizione verticale (il riempimento parte
-dalla riga `R` invece che dalla riga 1); su flint `R = 1` e `S = 0` danno esattamente la geometria
-della v1 (`strip_h = rows_h + 2`, inchiostro = riempimento + 2).
+Su **flint** (`~bw`) l'ombra **non esiste** (`S = 0`, **D26**: il perché sta in «Palette»), quindi
+con `R = 1` e `S = 0` le strip `~bw` restano **identiche byte per byte a quelle della v1** e
+sull'orologio gli stili 3D valgono come i corrispondenti stili piatti (2 → 1, 3 → 0). Anche i
+**pixel del riempimento** non cambiano rispetto alla v1 (D24): stessa `px`, stesso `digit_h`, stesse
+larghezze del riempimento per Anton/Bebas/Barlow; su emery cambiano `strip_h` (+2R+S), `strip_w`
+(ogni inchiostro cresce di 2R+S−2 = 4 px) e la riga da cui parte il riempimento (`R`, non 1).
 
 La v2 porta anche i **due font nuovi** di D22 — **Francois One** (chiave `francois`, risorse
 `DIGITS_FRANCOIS_A/B`) e **Staatliches** (chiave `staatliches`, `DIGITS_STAATLICHES_A/B`) — quindi
@@ -556,19 +527,23 @@ risorse nuove vanno dichiarate in `apps/galleria/package.json` (`2BitPalette`,
 ```bash
 PY=~/.local/share/uv/tools/pebble-tool/bin/python
 
-# generazione completa (20 PNG + header + foglio di contatto per il controllo visivo)
-# --fit-width --no-colon-b --pack = comando CANONICO di Galleria (lo cita anche digit_metrics.h)
+# generazione completa (20 PNG + header + maschere JS + foglio di contatto per il controllo visivo)
+# --fit-width --no-colon-b --pack --masks-js = comando CANONICO di Galleria: `--masks-js` NE FA PARTE
+# (senza, le strip e l'header si rigenerano e `digit_masks.js` resta indietro). Lo cita per intero anche
+# la riga «Rigenerare con» di digit_metrics.h (da S12: prima si fermava a --pack)
 $PY tools/gen_digits.py \
     --fonts-dir apps/galleria/resources/fonts \
     --out       apps/galleria/resources/digits \
     --header    apps/galleria/src/c/digit_metrics.h \
+    --masks-js  apps/galleria/src/pkjs/digit_masks.js \
     --preview   /tmp/digits --fit-width --no-colon-b --pack
 
-# solo la tabella delle metriche, nessun file scritto
-$PY tools/gen_digits.py --check --fit-width --no-colon-b --pack
+# solo la tabella delle metriche, nessun file scritto (con --masks-js confronta anche il modulo)
+$PY tools/gen_digits.py --check --fit-width --no-colon-b --pack \
+    --masks-js apps/galleria/src/pkjs/digit_masks.js
 
 # autotest del contratto (§3.4, D25, D26): non legge i TTF e non scrive nulla
-$PY tools/gen_digits.py --selftest        # -> "selftest: 46 controlli, 0 falliti"
+$PY tools/gen_digits.py --selftest        # -> "selftest: 63 controlli, 0 falliti" (erano 46 fino a S11)
 
 # una sola combinazione (font,taglia,piattaforma; campi vuoti o `*` = tutti)
 $PY tools/gen_digits.py --only barlow,a,color --out /tmp/d --preview /tmp/d
@@ -586,6 +561,7 @@ $PY tools/gen_digits.py --only barlow,a,color --out /tmp/d --preview /tmp/d
 | `--fit-width` | se il **riempimento** di un glifo non entra nella sua cella — il passo del layout, o la cella del `':'` nel layout A — abbassa la pixel size invece di uscire con errore (vedi sotto). Anello e ombra **non** entrano nel vincolo (D24) |
 | `--no-colon-b` | la taglia **B** viene generata **senza il `':'`**: 10 glifi invece di 11, e nell'header `ink[DIGITS_GLYPH_COLON] = { 0, 0 }`. Il layout B non disegna mai i due punti (S3/S7 D16). La taglia A non cambia |
 | `--pack` | strip **compatta**: i glifi vengono accostati e `strip_w` scende alla somma degli inchiostri (arrotondata a 4 px), invece delle celle di lavoro. Stessi pixel, stessa `px`, stesso `digit_h`; `cell_w` nell'header resta il passo della griglia del layout (vedi sotto) |
+| `--masks-js FILE` | **S12/D45**: scrive anche il modulo delle **maschere** per l'anteprima della config page (vedi sotto). Con `--check` il file non viene scritto ma **confrontato**, come l'header |
 | `--allow-row-overflow` | **fuori contratto**: declassa ad AVVISO il controllo di riga (§ "Controlli di riga"). La riga sforata viene tagliata a destra da `ui_time.c`, che porta `x0` a 0. Serve solo per esplorare geometrie R/S diverse (`GEOM`); **non va usato per lo stato del repo**, e se usato finisce nella riga «Rigenerare con» dell'header |
 
 Il tool è **deterministico**: nessuna data, nessun percorso assoluto e nessun timestamp finisce
@@ -599,7 +575,52 @@ for f in /tmp/d1/*.png; do cmp "$f" "/tmp/d2/$(basename "$f")"; done; cmp /tmp/d
 ```
 
 Il comando canonico qui sopra è **lo stesso** che citano `digit_metrics.h` («Rigenerare con») e
-`apps/galleria/CLAUDE.md`: rieseguendolo si riottengono i 20 PNG e l'header in repo, byte per byte.
+`apps/galleria/CLAUDE.md`, **`--masks-js` compreso**: rieseguendolo si riottengono i 20 PNG,
+l'header e il modulo delle maschere in repo, byte per byte. (Fino alla prima stesura di S12 la riga
+dell'header si fermava a `--pack`: chi la copiava lasciava indietro `src/pkjs/digit_masks.js`, e se
+ne accorgeva solo il `--check` di `pagecheck`, dopo il giro sbagliato.)
+
+### `--masks-js`: maschere delle cifre per l'anteprima della config page (S12/D45)
+
+`--masks-js apps/galleria/src/pkjs/digit_masks.js` scrive, accanto alle strip e all'header, un
+modulo **ES5/CommonJS e solo ASCII** con la maschera a **1 bit del solo riempimento** di ogni glifo,
+per piattaforma (`emery`, `flint`), font (`anton`, `bebas`, `barlow`, `francois`, `staatliches`) e
+taglia (`a`, `b`):
+
+```js
+module.exports = { v: 1, emery: { anton: { a: { strip_h, digit_h, ring, shadow, cell_w,
+                                               glyphs: { '0': { w, bits }, …, ':': { w, bits } } },
+                                          b: { … } }, … }, flint: { … } };
+```
+
+`bits` è il **base64url senza padding** delle righe della colonna d'inchiostro del glifo: larghezza
+`w` = `ink[k].w`, `strip_h` righe, `ceil(w/8)` byte per riga, MSB-first, 1 = riempimento (l'origine
+`x` nella strip non serve a chi disegna da capo). Anello e ombra **non** vengono salvati: si
+ricostruiscono esattamente con la regola di § "I tre strati", ed è quello che fa
+`src/pkjs/config/preview.js`.
+
+Serve alla config page per disegnare l'ora campione «12:34» con gli stessi pixel dell'orologio: il
+PKJS (`index.js`) non manda però tutto il modulo nell'hash dell'URL, ma **solo la piattaforma
+collegata e solo i glifi di `state.preview_time`** (in taglia B senza il `':'`, che la strip B non
+ha) **più il solo `w` degli altri digit** (la griglia D25 misura la cifra più larga fra le dieci).
+
+**Misure** (comando canonico, 5 font × 2 taglie × 2 piattaforme, 11 glifi): `digit_masks.js` pesa
+**121.107 B** in 1.086 righe, di cui **105.121 caratteri** (86,8 %) sono il base64 delle maschere;
+ogni font (le sue due taglie sulle due piattaforme) vale 20,6–23,8 kB di JSON. ⚠️ La spec D45
+stimava «≈ 26 KB»: quella cifra vale per **un** font. Il modulo entra tutto nel bundle PKJS del
+`.pbw` (`build/pebble-js-app.js`: **367.747 B** il 14/09/2026, era 359.644 dopo S12), mentre
+nell'URL viaggia molto meno — **43.276 caratteri** di hash su emery, **19.610** su flint, misurati
+in `docs/design/galleria-s6-config-page.md` §2.
+
+Il tool stampa il conteggio a ogni generazione e, **prima di scrivere**, verifica su tutte e 20 le
+strip che anello e ombra si ricostruiscano esattamente dalla maschera: se una ricostruzione non
+torna, esce con errore.
+
+`make -C apps/galleria/test pagecheck` esegue `gen_digits.py --check` con le opzioni canoniche,
+`--masks-js` compreso: strip, header e modulo restano allineati o il gate si ferma (+2,9 s; il passo
+ha bisogno dell'interprete del pebble-tool, con freetype-py — variabile `PEBBLE_PY` —, altrimenti
+viene **saltato con un avviso**). Poi tocca a `test/gen_preview_fixture.py --check` (+0,2 s), che
+rilegge `digit_masks.js` e rigenera `test/fixture_preview.js`: quella non ha bisogno di freetype.
 
 ### Geometria: `GEOM`, `strip_h` e le celle di lavoro
 
@@ -613,10 +634,9 @@ Il comando canonico qui sopra è **lo stesso** che citano `digit_metrics.h` («R
 | `flint` (`~bw`) | B | 48 | 62 | 1 | **0** (D26) | **64** | 52 |
 
 Il **riempimento** occupa le righe `R .. R + digit_h − 1`: sopra restano `R` righe per l'anello,
-sotto `R` righe di anello più `S` righe di ombra, e la strip torna esatta (`2R + S` righe in più
-delle `rows_h` della v1, che erano `strip_h − 2`; su flint `2R + S = 2`, cioè la strip della v1).
-Il `':'` resta dove lo mette il font rispetto alla baseline; se il suo anello+ombra uscirebbe dalla
-strip viene alzato (o abbassato) del minimo necessario, con segnalazione.
+sotto `R` righe di anello più `S` righe di ombra. Il `':'` resta dove lo mette il font rispetto alla
+baseline; se il suo anello+ombra uscirebbe dalla strip viene alzato (o abbassato) del minimo
+necessario, con segnalazione.
 
 Ogni glifo si disegna in una **cella di lavoro** larga `cell_w + 2R + S + 2`, con il riempimento
 centrato nella sottocella da `cell_w`: restano almeno `R+2` colonne libere a sinistra e `R+S+2` a
@@ -712,41 +732,35 @@ FT_LOAD_MONOCHROME)`, bitmap monocromatica (`pixel_mode == 1`, MSB-first, `pitch
   con almeno 1 px libero per lato **oltre** ad anello e ombra. Se `riempimento + 2 > cell_w` il
   glifo non ci sta ed è un **errore** (uscita 1), a meno di `--fit-width`. **D24**: il vincolo
   misura il **riempimento**, non `riempimento + 2R + S` — anello e ombra possono sporgere dal
-  passo della cella, perché `ui_time.c` (`prv_grid_steps`) allarga il passo della **griglia** — uguale
-  per tutte le cifre — al nucleo (`riempimento + 2R`) della cifra **più larga** del font più uno spazio
-  fra gli anelli di 2, 1 o 0 px, e in riserva a `max(cella, riempimento più largo + R)` (**D25, terza
-  versione**: il `+ R` tiene l'anello del glifo successivo fuori dal riempimento del precedente).
-  Con `--fit-width` la
-  ricerca aggiunge, nella sola taglia A, anche il vincolo `riempimento(':') + 2 ≤ colon_cell`
-  (16 su emery, 12 su flint).
+  passo della cella, perché è la **griglia** di `ui_time.c` ad assorbirli (D25, § "Controlli di
+  riga"). Con `--fit-width` la ricerca aggiunge, nella sola taglia A, anche il vincolo
+  `riempimento(':') + 2 ≤ colon_cell` (16 su emery, 12 su flint).
 
 ### Controlli di riga (spec S8-stile §3.4)
 
-Il generatore rifà il conto di `ui_time.c:prv_grid_steps` + `prv_place_row_fit` — **D25, terza
-versione** (05/09/2026, segnalazione dell'utente: con Francois One in stile trasparente le cifre si
-toccavano). La griglia resta **uniforme** — un solo passo per tutte le cifre e uno per il `':'`,
-come in D3/S3, così le cifre non si spostano al cambio di minuto — ma si **adatta al font**:
+Il generatore rifà il conto di `ui_time.c:prv_grid_steps` + `prv_place_row_fit`. La **derivazione**
+della regola — **D25, terza versione**, con la storia delle tre stesure e il motivo di ciascuna — sta
+nella tabella delle decisioni di `docs/design/galleria-s8-stile.md`, voce «D25 v3» (attenzione: §3.4
+di quel documento descrive ancora la seconda stesura, per glifo). Qui resta solo quello che il tool
+deve rispettare, perché `RING_GAPS` e `FIT_MARGIN` vanno tenuti uguali a quelli di `ui_time.c`:
 
-- passo delle cifre = `max(cell_w, nucleo della cifra PIÙ LARGA + gap)`;
-- passo del `':'` = `max(colon_cell, nucleo del ':' + gap)`;
+- griglia **uniforme** (un passo per tutte le cifre, uno per il `':'`: le cifre non si spostano al
+  cambio di minuto), ma **adattata al font**: passo delle cifre = `max(cell_w, nucleo della cifra
+  PIÙ LARGA + gap)`, passo del `':'` = `max(colon_cell, nucleo del ':' + gap)`;
 - **nucleo** = `riempimento + 2R`, con riempimento = `ink[k].w − 2R − S`, cioè esattamente
-  `ui_digits_fill_width()` di `ui_digits.c`; il `gap` è lo spazio minimo che resta fra gli anelli di
-  due glifi adiacenti.
+  `ui_digits_fill_width()` di `ui_digits.c`; il `gap` è lo spazio minimo fra gli anelli di due
+  glifi adiacenti;
+- il `gap` si prova nell'ordine **2, 1, 0** px (`RING_GAPS`) e si tiene il primo per cui la riga
+  intera (più `4 + PM 18` in 12 h) sta in `larghezza schermo − 2 × FIT_MARGIN`, con
+  **`FIT_MARGIN = 2`**; se non basta nemmeno 0 si passa alla **regola di riserva**,
+  `max(cella, riempimento più largo + R)`, che vale **sempre** (nessun margine richiesto);
+- la riserva è l'**unica** regola che il generatore garantisce: è quella su cui si ferma con errore
+  (uscita 1, nessun file scritto) se la riga non entra nello schermo (200 px su emery, 144 su
+  flint). L'ombra può sporgere di 1 px nel margine interno del vicino (solo negli stili 3D).
 
-Il `gap` viene provato **in quest'ordine** — 2, 1, 0 px (`RING_GAPS`) — e si tiene il primo per cui
-la riga intera (più `4 + PM 18` in 12 h) sta in `larghezza schermo − 2 × FIT_MARGIN`, con
-**`FIT_MARGIN = 2`** px liberi per lato. Se non basta nemmeno 0 si passa alla **regola di riserva**,
-`max(cella, riempimento più largo + R)`, che vale **sempre** (nessun margine richiesto): lascia gli
-anelli adiacenti o sovrapposti di 1 px, ma tiene comunque l'anello fuori dal riempimento del vicino.
-La riserva è l'**unica** regola che il generatore deve garantire: è quella su cui si ferma con errore
-(uscita 1, nessun file scritto) se la riga non entra nella larghezza dello schermo (200 px su emery,
-144 su flint). L'ombra può sporgere di 1 px nel margine interno del vicino (solo negli stili 3D).
-
-La griglia dipende **solo** da font, taglia e numero di glifi della riga, quindi è la stessa per
-tutti i minuti dell'ora (la versione con i passi proporzionali al singolo glifo è stata scartata:
-spostava le ore di ±4 px al cambio di minuto). Nell'etichetta di ogni riga (avvisi, errori e commento
-in testa a `digit_metrics.h`) il gap scelto compare come `[gap 2]` … `[gap 0]` oppure
-`[gap riserva]`. Il conto si fa sulle righe peggiori:
+Il gap scelto compare come `[gap 2]` … `[gap 0]` oppure `[gap riserva]` **in ogni segnalazione di
+riga** (avvisi ed errori, che il tool ricopia nel commento in testa a `digit_metrics.h`: oggi non
+ce n'è nessuna, perché tutte le righe entrano). Il conto si fa sulle righe peggiori:
 
 | Riga | Passi | Limite |
 |---|---|---|
@@ -763,15 +777,14 @@ misura i **margini** fra i pixel disegnati e i bordi dello schermo. Un margine n
 qualche pixel di anello o ombra tagliato dal layer al bordo: si segnala (nell'header e nella
 tabella), non si blocca.
 
-Nella tabella stampata le colonne `riga 1` / `riga 2` mostrano
+**Come si legge la tabella di `--check`.** Le colonne `riga 1` / `riga 2` mostrano
 `larghezza/limite(inchiostro) margine_sx/margine_dx`, con `!` sulla larghezza quando sfora e sui
 margini quando sono negativi; il numero fra parentesi è la stessa riga misurata con l'**inchiostro
-intero**, cioè quanto misurerebbe con il passo su `max(passo, inchiostro)`. Le colonne stampate sono
-**due**: `riga 2` è la 12 h «10:44»; la 12 h «09:44» viene controllata lo stesso (errore, avvisi ed
-etichetta `[gap …]` compresi) ma non ha una colonna sua — con la griglia uniforme è larga **quanto
-«10:44»** per tutti e cinque i font, e cambiano solo i margini, più stretti (fino a 0 px con
-Staatliches su emery: lo `0` iniziale ha l'inchiostro più largo dell'`1`, ed è per questo che la riga
-viene controllata).
+intero**, cioè `Σ max(cella, inchiostro)` — la regola che D25 **non** usa, tenuta come diagnostica.
+Le colonne sono **due**: `riga 2` è la 12 h «10:44»; la 12 h «09:44» viene controllata lo stesso
+(errore, avvisi ed etichetta `[gap …]` compresi) ma non ha una colonna sua, perché con la griglia
+uniforme è larga **quanto «10:44»** per tutti e cinque i font e cambiano solo i margini, più stretti
+(fino a 0 px con Staatliches su emery).
 
 Con la geometria di D20/D26 e i cinque font **tutte le righe entrano** e il comando canonico esce 0
 (nessun `--allow-row-overflow` nello stato del repo):
@@ -784,37 +797,15 @@ Con la geometria di D20/D26 e i cinque font **tutte le righe entrano** e il coma
 | flint A, 12 h + PM | 138 Bebas `[gap 2]` · 138 Anton `[gap 0]` · 138 Staatliches · **142 Barlow, Francois One** (`[gap riserva]`) | 144 | 1 (Francois One in «09:44») / 1 (Barlow, Francois One) |
 | taglia B (2 glifi + gap 8) | 136 Anton, Bebas, Staatliches · 138 Barlow · **140 Francois One** su emery; 104 su flint (tutti i font) | 200 / 144 | ≥ 29 emery, ≥ 23 flint |
 
-In **24 h** la riga sta larga e il gap scelto è sempre 2, quindi la larghezza **dipende dal font**
-anche a griglia piena — ma di un passo solo, quello della cifra più larga, ripetuto quattro volte. Su emery
-`nucleo + 2 = riempimento + 2R + 2` è **esattamente l'inchiostro** (`S = 2`), quindi la riga vale
-`4 × max(40, inchiostro della cifra più larga) + max(16, inchiostro del ':')`: 180 Bebas
-(`4 × 41 + 16`), 183 Anton (`4 × 41 + 19`, il `:` è largo 19), 192 Staatliches (`4 × 44 + 16`),
-193 Francois One (`4 × 44 + 17`), 195 Barlow (`4 × 44 + 19`) — la base della griglia nominale,
-`4 × 40 + 16 = 176`, resta solo dove nessun inchiostro la supera. Su flint `S = 0`, il gap 2 vale
-`inchiostro + 2`: 124 Anton e Bebas (griglia nominale `4 × 28 + 12`), 128 Staatliches, 132 Francois
-One, 134 Barlow (`4 × 30 + 14`).
-
-In **12 h** le celle scendono a 38 (26 su flint) e alla riga vanno tolti anche `4 + PM 18` e i
-`2 × FIT_MARGIN = 4` px di margine: sui 200 px di emery restano **174** px per i cinque glifi
-(**118** sui 144 di flint). Su emery il primo gap che ci sta è **0** per Bebas (`4 × 39 + 16 = 172`
-→ riga 194) e per Anton (`4 × 39 + 17 = 173` → 195); Barlow, Francois One e Staatliches, che hanno il
-riempimento più largo a 38 px, sforano anche con gap 0 (184–185 px di soli glifi contro i 174
-disponibili) e ricadono sulla **riserva** `riempimento più largo + R = 40`, cioè
-`4 × 40 + 16 + 22 = 198` per tutti e tre — solo lì gli anelli di due cifre larghe tornano a toccarsi,
-e solo in 12 h. Su flint: gap 2 per Bebas (138),
-gap 0 per Anton (138), riserva per Staatliches (138, la sua cifra più larga sta nella cella nominale)
-e per Barlow e Francois One (`4 × 27 + 12 + 22 = 142`). Il resto della sporgenza (anello e ombra) sta
-nei margini.
-
-⚠️ La colonna diagnostica fra parentesi è la stessa riga misurata **glifo per glifo** con
-l'inchiostro intero (`Σ max(cella, inchiostro)`), cioè la regola che D25 **non** usa: in 24 h la
-griglia uniforme sta sopra (195 contro 187 con Barlow, perché il passo del `4` vale anche per le
-altre cifre), in 12 h sta sotto (198 contro 206–208, perché nessuna riga entrerebbe: 201 Anton /
-206 Barlow / 207 Francois One / 208 Staatliches contro 200, solo Bebas resterebbe dentro con 196).
-Su flint l'inchiostro intero starebbe dentro per tutti (138–143 su 144), ma solo perché lì
-`2R + S = 2` (D26). Se cambiassero l'ordine dei gap, `FIT_MARGIN`, la regola di riserva o la
-geometria `R`/`S`, questo controllo va rifatto — e `RING_GAPS`/`FIT_MARGIN` del tool vanno tenuti
-uguali a quelli di `ui_time.c`.
+In **24 h** la riga sta larga, il gap scelto è sempre 2 e la larghezza dipende dal solo passo della
+cifra più larga ripetuto quattro volte. In **12 h** le celle scendono a 38 (26 su flint) e alla riga
+vanno tolti anche `4 + PM 18` e i `2 × FIT_MARGIN = 4` px: restano 174 px per i cinque glifi su
+emery (118 su flint), quindi Bebas e Anton passano a `[gap 0]` mentre Barlow, Francois One e
+Staatliches — con il riempimento più largo — ricadono sulla **riserva**, ed è l'unico caso in cui
+gli anelli di due cifre larghe tornano a toccarsi. Con l'inchiostro intero, in 12 h su emery
+entrerebbe **solo Bebas** (196 su 200): Anton 201, Barlow 206, Francois One 207, Staatliches 208 —
+sono i numeri fra parentesi della colonna `riga 2` di `--check`. Se cambiassero l'ordine dei gap,
+`FIT_MARGIN`, la regola di riserva o la geometria `R`/`S`, questo controllo va rifatto.
 
 ### Metriche generate (`digit_metrics.h`)
 
@@ -857,46 +848,19 @@ Vale `rows_h` ovunque **tranne** dove `--fit-width` ha dovuto abbassare la `px`:
 (emery) e 40 (flint) e Barlow B 93 (emery); Francois One A 61 (emery) e 41 (flint) e Francois One B
 61 (flint); Staatliches A 65 (emery).
 
-Valori misurati (05/09/2026, dopo la **terza versione** di D25 — griglia uniforme adattata al font —
-con `--check --fit-width --no-colon-b --pack`, cioè il comando canonico; larghezze **anello e ombra
-compresi**; `—` = glifo non generato; fra parentesi i margini in px fra i pixel disegnati e i bordi
-dello schermo, sinistro/destro, poi il gap scelto fra gli anelli; la colonna «riga 12 h» è
-«10:44 PM» con `PM` = 18 px — «09:44 PM» misura uguale per tutti i font (stessa griglia) e cambia
-solo nei margini; le righe della taglia B stanno nella colonna «riga 24 h»). Per Anton/Bebas/Barlow `px`, `digit_h` e
-le larghezze del **riempimento** sono gli stessi di S3/S7: la v2 non tocca la rasterizzazione, e le
-sei strip `~bw` dei font vecchi sono **identiche byte per byte** a quelle della v1 (`R = 1`, `S = 0`).
+⚠️ **I valori delle 20 strip non stanno qui**: sono un dato **generato** e si leggono da
+`$PY tools/gen_digits.py --check --fit-width --no-colon-b --pack` (le stesse opzioni del comando
+canonico), che stampa una riga per (font, piattaforma, taglia) con le colonne `cella`
+(`cell_w × strip_h`), `strip` (`strip_w × strip_h`), `px`, `h ink` (`digit_h`/`rows_h`), `R/S`,
+`w max` e `w ':'`, le due righe di controllo `riga 1` / `riga 2` e l'elenco delle larghezze
+d'inchiostro di `'0'..'9'` e del `':'`. Gli stessi valori stanno nell'array `DIGITS_METRICS[][]` di `digit_metrics.h`
+(e le note di `--fit-width` e di layout nel suo commento in testa), e `pagecheck` verifica a ogni
+giro che tool, strip e header restino allineati: ricopiarli qui vorrebbe dire lasciarli invecchiare
+in un terzo posto.
 
-| font | piatt. | taglia | px | `digit_h` / `rows_h` | R/S | w max cifre | w `':'` | Σ ink | `strip_w × strip_h` | riga 24 h (margini, gap) | riga 12 h (margini, gap) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| anton | emery | A | 74 | 66 / 66 | 2/2 | 41 | 19 | 403 | **404 × 72** | 183 (9/8), gap 2 | 195 (9/3), gap 0 |
-| anton | emery | B | 107 | 94 / 94 | 2/2 | 57 | — | 529 | **532 × 100** | 136 (36/35), gap 2 | — |
-| anton | flint | A | 49 | 42 / 42 | 1/0 | 26 | 10 | 246 | **248 × 44** | 124 (11/11), gap 2 | 138 (8/3), gap 0 |
-| anton | flint | B | 70 | 62 / 62 | 1/0 | 35 | — | 326 | **328 × 64** | 104 (26/27), gap 2 | — |
-| bebas | emery | A | 92 | 66 / 66 | 2/2 | 41 | 16 | 376 | **376 × 72** | 180 (13/9), gap 2 | 194 (10/3), gap 0 |
-| bebas | emery | B | 131 | 94 / 94 | 2/2 | 55 | — | 488 | **488 × 100** | 136 (37/36), gap 2 | — |
-| bebas | flint | A | 58 | 42 / 42 | 1/0 | 23 | 9 | 216 | **216 × 44** | 124 (13/13), gap 2 | 138 (8/3), gap 2 |
-| bebas | flint | B | 86 | 62 / 62 | 1/0 | 34 | — | 300 | **300 × 64** | 104 (27/27), gap 2 | — |
-| barlow | emery | A | 84 | **61** / 66 | 2/2 | 44 | 19 | 394 | **396 × 72** | 195 (5/2), gap 2 | 198 (9/1), riserva |
-| barlow | emery | B | 130 | 93 / 94 | 2/2 | 65 | — | 552 | **552 × 100** | 138 (32/30), gap 2 | — |
-| barlow | flint | A | 58 | **40** / 42 | 1/0 | 28 | 12 | 249 | **252 × 44** | 134 (7/6), gap 2 | 142 (7/1), riserva |
-| barlow | flint | B | 86 | 62 / 62 | 1/0 | 41 | — | 343 | **344 × 64** | 104 (23/24), gap 2 | — |
-| francois | emery | A | 79 | **61** / 66 | 2/2 | 44 | 17 | 416 | **416 × 72** | 193 (5/3), gap 2 | 198 (6/1), riserva |
-| francois | emery | B | 123 | 94 / 94 | 2/2 | 66 | — | 595 | **596 × 100** | 140 (31/29), gap 2 | — |
-| francois | flint | A | 53 | **41** / 42 | 1/0 | 28 | 9 | 259 | **260 × 44** | 132 (8/7), gap 2 | 142 (4/1), riserva |
-| francois | flint | B | 79 | **61** / 62 | 1/0 | 40 | — | 359 | **360 × 64** | 104 (24/24), gap 2 | — |
-| staatliches | emery | A | 90 | **65** / 66 | 2/2 | 44 | 16 | 408 | **408 × 72** | 192 (6/3), gap 2 | 198 (13/1), riserva |
-| staatliches | emery | B | 132 | 94 / 94 | 2/2 | 63 | — | 552 | **552 × 100** | 136 (33/32), gap 2 | — |
-| staatliches | flint | A | 58 | 42 / 42 | 1/0 | 27 | 9 | 245 | **248 × 44** | 128 (10/10), gap 2 | 138 (11/3), riserva |
-| staatliches | flint | B | 86 | 62 / 62 | 1/0 | 40 | — | 343 | **344 × 64** | 104 (24/24), gap 2 | — |
-
-(`strip_w = ceil(Σ ink / 4) × 4`; nessuna riga sfora: il limite è 200 px su emery e 144 su flint.)
-Le colonne di riempimento delle 12 strip dei tre font vecchi sono state confrontate **pixel per
-pixel** con quelle della v1 (Pillow, normalizzando su `ink[k].x + R` e sulla riga `R`): identiche in
-tutte e 12 le combinazioni, con `px` e `digit_h` invariati — e le 6 `~bw` sono anche `cmp`-identiche
-al file in `HEAD`. Su tutte e 20 le strip l'anello (Chebyshev 1..R ricalcolato a forza bruta) e
-l'ombra (spostamenti diagonali) corrispondono alla definizione in ogni glifo, il riempimento parte
-esattamente `R` colonne dopo `ink[k].x`, i PNG hanno le dimensioni dell'header e solo i colori
-ammessi (4 su emery, 3 su flint: nessun pixel d'ombra).
+Per Anton/Bebas/Barlow `px`, `digit_h` e le larghezze del **riempimento** sono rimasti quelli di
+S3/S7 (la v2 non tocca la rasterizzazione) e le sei strip `~bw` dei font vecchi sono **identiche
+byte per byte** alla v1.
 
 ### `--fit-width`: il `'4'` di Barlow Condensed Bold
 
@@ -929,14 +893,11 @@ shrink), perché a 14/10 px il `':'` di Anton e Barlow non ci starebbe.
 Il tool confronta ogni glifo con la **sua** cella nei due layout e segnala chi sfora. Su emery
 sforano molti più glifi che nella v1 — in 12 h quasi tutte le cifre — perché `ink[k].w` è cresciuto
 di 4 px, mentre su flint gli avvisi sono gli stessi della v1 (`2R + S = 2`). Non è un errore: è la
-sporgenza prevista da D24, e con **D25** è la **griglia** ad assorbirla: `prv_grid_steps` misura il
-nucleo (`riempimento + 2R`) della cifra **più larga** del font, gli aggiunge 2, 1 o 0 px di spazio fra
-gli anelli — il primo gap che fa stare la riga — e in riserva usa `riempimento più largo + R`, dove
-gli anelli si toccano ma nessuno morde il riempimento del vicino. Il passo così calcolato vale per
-**tutte** le cifre: in 24 h su emery il `4` di Barlow (nucleo 42, gap 2 → 44) porta la griglia da 40
-a 44 px, in 12 h la riserva la porta a 40; il `':'` ha il suo passo, calcolato allo stesso modo (in
-24 h su emery: 19 px con Anton e Barlow, 17 con Francois One, 16 con Bebas e Staatliches). Il
-controllo che conta davvero è quello **di riga**, qui sopra.
+sporgenza prevista da D24, e con **D25** è la **griglia** ad assorbirla (§ "Controlli di riga"). In
+24 h su emery il `4` di Barlow (nucleo 42, gap 2 → 44) porta la griglia da 40 a 44 px, in 12 h la
+riserva la porta a 40; il `':'` ha il suo passo, calcolato allo stesso modo (in 24 h su emery:
+19 px con Anton e Barlow, 17 con Francois One, 16 con Bebas e Staatliches). Il controllo che conta
+davvero è quello **di riga**.
 
 ### Costo delle strip
 
@@ -948,35 +909,35 @@ byte in heap                =              ceil(strip_w / 4) × strip_h (pixel) 
                                                                    (la strip + le 11 sub-bitmap)
 ```
 
-Tutte le colonne sono **calcolate** con la formula (le misure su `app_resources.pbpack` sono di S3)
-e vanno confermate alla prima build.
+Valori **calcolati** con la formula sulle strip della v2 (le misure dirette su
+`app_resources.pbpack` sono di S3 e riguardano la v1):
 
-| voce nel pbpack | v1 `--pack` (S7) | **v2** (anello + ombra) | Δ |
-|---|---|---|---|
-| emery, anton A / B | 6.136 / 11.824 | **7.288 / 13.316** | +1.152 / +1.492 |
-| emery, bebas A / B | 5.660 / 10.768 | **6.784 / 12.216** | +1.124 / +1.448 |
-| emery, barlow A / B | 6.000 / 12.304 | **7.144 / 13.816** | +1.144 / +1.512 |
-| emery, francois A / B | — | **7.504 / 14.916** | font nuovo |
-| emery, staatliches A / B | — | **7.360 / 13.816** | font nuovo |
-| flint, anton A / B | 2.744 / 5.264 | **2.744 / 5.264** | **0** (D26: `R = 1`, `S = 0` = v1) |
-| flint, bebas A / B | 2.392 / 4.816 | **2.392 / 4.816** | **0** |
-| flint, barlow A / B | 2.788 / 5.520 | **2.788 / 5.520** | **0** |
-| flint, francois A / B | — | **2.876 / 5.776** | font nuovo |
-| flint, staatliches A / B | — | **2.744 / 5.520** | font nuovo |
+| voce nel pbpack | A | B |
+|---|---|---|
+| emery, anton | 7.288 | 13.316 |
+| emery, bebas | 6.784 | 12.216 |
+| emery, barlow | 7.144 | 13.816 |
+| emery, francois | 7.504 | 14.916 |
+| emery, staatliches | 7.360 | 13.816 |
+| flint, anton | 2.744 | 5.264 |
+| flint, bebas | 2.392 | 4.816 |
+| flint, barlow | 2.788 | 5.520 |
+| flint, francois | 2.876 | 5.776 |
+| flint, staatliches | 2.744 | 5.520 |
 
-**pbpack**: le sei risorse dei tre font vecchi passano da 52.692 a **60.564 B** su emery
-(**+7.872 B**) e restano **23.524 B** su flint (le strip `~bw` non cambiano). Con **dieci** risorse
-(cinque font) il totale calcolato è **104.160 B** (101,7 KiB) su emery e **40.440 B** (39,5 KiB) su
-flint: dentro il budget risorse (≤ 256 KB) ma da confermare alla prima build.
+I valori **v1** per strip (prima dell'anello e dell'ombra) stanno nella storia git:
+`git show 81dbcca:tools/README.md`, §10 «Costo delle strip».
 
-**Heap**: in RAM è residente **una sola** strip per taglia caricata (quella del font attivo), e il
-numero di `GBitmap` (strip + 11 sub-bitmap) non cambia. Su emery i pixel crescono di `+1.152 B`
-(taglia A, Anton) e `+1.492 B` (taglia B, Anton) rispetto alla v1; **su flint non crescono affatto**.
-Il caso peggiore è **Francois One in taglia B su emery**: 14.900 B di pixel, cioè 3.092 B in più
-della strip B di Anton della v1. Il gate S7 lasciava ≈ 43.472 B liberi nel layout B su emery
-(calcolato): con la v2 ci si attende ≈ 41.980 B con Anton e ≈ 40.380 B con Francois One, appena
-sopra l'obiettivo dei 40 KB — **da confermare in emulatore** (rischio §8 della spec S8-stile: se
-non basta, `S = 1` nella taglia B).
+Le sei risorse dei tre font vecchi passano da 52.692 (v1) a **60.564 B** su emery (**+7.872 B**) e
+restano **23.524 B** su flint (le strip `~bw` non cambiano, `R = 1` e `S = 0` come la v1). Con
+**dieci** risorse il totale è **104.160 B** (101,7 KiB) su emery e **40.440 B** (39,5 KiB) su flint:
+dentro il budget risorse (≤ 256 KB).
+
+**Heap**: in RAM è residente **una sola** strip per taglia (quella del font attivo) e il numero di
+`GBitmap` (strip + 11 sub-bitmap) non cambia; su emery i pixel crescono di +1.152 B (taglia A,
+Anton) e +1.492 B (taglia B, Anton) rispetto alla v1, **su flint per niente**. Il caso peggiore è
+**Francois One in taglia B su emery** (14.900 B di pixel). I numeri di heap misurati davvero in
+emulatore stanno in `docs/design/galleria-s8-stile.md`.
 
 I 20 PNG pesano 57.507 B in tutto, ma è la dimensione del sorgente: quello che conta è il PBI
 generato dall'SDK.
@@ -986,7 +947,7 @@ generato dall'SDK.
 ## 11. `galleria_devserver.py` – dev server di Galleria (S5b + S6)
 
 Sul telefono le foto e le impostazioni arrivano dalla **config page** (`Pebble.openURL` di un URL
-`data:`); in **emulatore** quella strada non esiste — `pebble emu-app-config` 5.0.39 non apre pagine
+`data:`); in **emulatore** quella strada non esiste — `pebble emu-app-config` 5.0.40 non apre pagine
 `data:` — quindi il PKJS in modalità dev (`Pebble.platform === 'pypkjs'`) le chiede a questo server
 locale. Specifica: `docs/design/galleria.md` §5.1 ("Modalità dev") e §6 ("Emulatore").
 
@@ -1041,8 +1002,8 @@ pebble emu-app-config --emulator emery      # apre http://localhost:8765/config.
 | `--open-ms N` | **v1.9**: mette `open_ms: N` (intero **0..65535**, come `HELLO.OPEN_MS` u16) in `hooks` di `/state.json`; `apps/galleria/src/pkjs/index.js` in modalità dev forza `hello.openMs = N` **prima del piano**, così la config page mostra l'avviso «Galleria si avvia lentamente» (riquadro `#slow`) anche in emulatore, dove l'apertura del file persist è istantanea. Senza l'opzione `hooks` non cambia (nessuna chiave `open_ms`). La soglia della pagina cresce con le **foto valide sull'orologio** (400 + 100 × n ms, n dallo snapshot dell'HELLO): con l'orologio vuoto basta `N > 400`, con 4 foto sincronizzate serve `N > 800` |
 | `--work DIR` | cartella dei `.raw6`/`.raw1`/anteprime (default: temporanea, **rimossa** all'uscita — sia con Ctrl-C sia con SIGTERM, cioè `kill`/`timeout`/`pkill`); una cartella non scrivibile è un errore che nomina `--work`, non la porta |
 | `--page FILE` | serve questo HTML su `/config.html` al posto della pagina incorporata (è così che S6 proverà la config page vera); file mancante o illeggibile all'avvio = errore con messaggio. Il file viene **riletto a ogni `GET /config.html`**: in S6 basta salvare e ricaricare il browser, senza riavviare il server (cioè senza riconvertire l'album, ~300 ms per foto). Se sparisce o diventa illeggibile a server acceso si continua a servire l'ultima copia buona, con un avviso su stderr |
-| `--page-dir DIR` | **config page vera (S6)**, esclusivo con `--page`: a ogni `GET /config.html` la pagina viene inlinata da `DIR` con `tools/build_config_page.py` (§13: `inline_page()`, importato pigramente dal `tools/` accanto), così si salva un file delle sorgenti e si ricarica il browser senza riavviare il server. Un errore di inlining (file mancante, `</script>` nel contenuto, pagina oltre 64 KB) è un **500** con il messaggio in chiaro nel corpo e una riga su stderr a **ogni** GET — niente «ultima copia buona», che nasconderebbe una pagina rotta proprio mentre la si scrive; gli avvisi non fatali del tool (attributi persi, ordine degli script, > 60 KB, `localStorage`) escono invece **una volta sola** per messaggio. La cartella viene riletta a ogni richiesta, ma `build_config_page.py` è importato una volta sola: modificare il **tool** richiede il riavvio del server. `DIR` inesistente o non una cartella = errore di argparse (uscita 2); `--dump-page` lo rispetta. Senza `--album` accende anche la modalità relay |
-| `--lang en\|it\|de\|fr` | **S10 (D33)**: mette `lang: "<codice>"` in `hooks` di `/state.json`; `apps/galleria/src/pkjs/index.js` in modalità dev lo usa come **lingua automatica** della config page al posto di `Pebble.getActiveWatchInfo().language`, che in emulatore è sempre `en_US`. È un hook come `--open-ms`: uno stato con `hooks` e **senza** `lang` azzera l'hook (dev server riavviato senza il flag). ⚠️ Da non confondere con l'**impostazione** `lang` (byte 13 del blob), che è una voce di `--settings` (`--settings '{"lang": 3}'` = pagina e orologio forzati in tedesco) |
+| `--page-dir DIR` | **config page vera (S6)**, esclusivo con `--page`: a ogni `GET /config.html` la pagina viene inlinata da `DIR` con `tools/build_config_page.py` (§13: `inline_page()`, importato pigramente dal `tools/` accanto), così si salva un file delle sorgenti e si ricarica il browser senza riavviare il server. Un errore di inlining (file mancante, `</script>` nel contenuto, pagina oltre 96 KB) è un **500** con il messaggio in chiaro nel corpo e una riga su stderr a **ogni** GET — niente «ultima copia buona», che nasconderebbe una pagina rotta proprio mentre la si scrive; gli avvisi non fatali del tool (attributi persi, ordine degli script, > 84 KB, `localStorage`) escono invece **una volta sola** per messaggio. La cartella viene riletta a ogni richiesta, ma `build_config_page.py` è importato una volta sola: modificare il **tool** richiede il riavvio del server. `DIR` inesistente o non una cartella = errore di argparse (uscita 2); `--dump-page` lo rispetta. Senza `--album` accende anche la modalità relay |
+| `--lang en\|it\|de\|fr\|es\|pt` | **S10 (D33)**, sei lingue da **S11 (D39)**: mette `lang: "<codice>"` in `hooks` di `/state.json`; `apps/galleria/src/pkjs/index.js` in modalità dev lo usa come **lingua automatica** della config page al posto di `Pebble.getActiveWatchInfo().language`, che in emulatore è sempre `en_US`. È un hook come `--open-ms`: uno stato con `hooks` e **senza** `lang` azzera l'hook (dev server riavviato senza il flag). L'elenco `PAGE_LANGS` è lo stesso — e nello stesso ordine — di `LANG_ORDER` in `index.js` e di `LANGS` in `config/page_core.js`; una lingua fuori elenco (`--lang ru`) è un errore di argparse. ⚠️ Da non confondere con l'**impostazione** `lang` (byte 13 del blob, 0..6), che è una voce di `--settings` (`--settings '{"lang": 3}'` = pagina e orologio forzati in tedesco, `6` = portoghese) |
 | `--relay` | **modalità relay (S6)**: nessun album sul server — `/state.json` diventa `{v:1, seq, settings?, hooks:{scenario, open_ms?}}`, **senza `full`**, che il PKJS applica come delta vuoto e quindi non cancella nulla. Le foto arrivano dalla config page con `POST /save` e restano nel `localStorage` del PKJS. Si accende da sé con `--page-dir` senza `--album`; **con `--album` è un errore** di riga di comando |
 | `--photo-prep-args "…"` | opzioni extra per `photo_prep.py`. **Serve la forma con l'uguale** (`--photo-prep-args="--sunlight"`): senza `=`, argparse scambierebbe `--sunlight` per una propria opzione |
 | `--selftest` | autotest di tutti gli endpoint, poi esce (0/1) |
@@ -1055,8 +1016,9 @@ un valore fuori intervallo è un **errore**, non viene sostituito in silenzio da
 **4 Francois One**, **5 Staatliches**: D22, S8-stile), `clock_mode` 0..2, `leading_zero` 0..2,
 `text_color` 0..4, `outline` 0..2, `interval_min` ∈ {0, 5, 15, 30, 60, 180, 1440}, `order` 0..1,
 `shake_next` 0..1, `info_row` 0..15, `digit_style` **0..3** (0 pieno, 1 trasparente, 2 trasparente
-3D, 3 pieno 3D: D21, S8-stile). Default: `30` per `interval_min`, `1` per `shake_next`, `15` per
-`info_row`, `0` per tutto il resto (`digit_style` compreso).
+3D, 3 pieno 3D: D21, S8-stile), `lang` **0..6** (0 automatica = lingua dell'orologio, 1 en, 2 it,
+3 de, 4 fr, **5 es**, **6 pt**: D31 e S11/D39). Default: `30` per `interval_min`, `1` per
+`shake_next`, `15` per `info_row`, `0` per tutto il resto (`digit_style` e `lang` compresi).
 
 ⚠️ Il server accetta `digit_style` 2 e 3 anche per uno scenario flint: la normalizzazione di D26
 (2 → 1, 3 → 0, dove l'ombra non esiste) sta nella **config page**, non nel dev server.
@@ -1097,7 +1059,7 @@ stdout: `14:31:14.118  GET     /photo/0.raw6 -> 200  34200 B  0.2 ms`; anche que
 | `GET /config.html` | pagina di prova (o il file di `--page`), `text/html; charset=utf-8` |
 | `GET /state.json` | **pool** (`--album`, o server nudo): payload **completo** `{v:1, full:true, seq, settings?, order, deleted:[], photos:[…], hooks:{scenario, open_ms?}}` — `settings` compare solo dopo `--settings` o un Save: senza, il PKJS (`album.settingsSet`) non sovrascrive le impostazioni dell'orologio. **Relay** (`--relay`, o `--page-dir` senza `--album`): `{v:1, seq, settings?, hooks:{scenario, open_ms?}}`, **senza `full`** e senza `photos`/`order`/`deleted`, così il PKJS lo applica come delta vuoto e non elimina nessuno slot |
 | `GET /save.json` | quello che il PKJS legge dopo un Save. Prima di ogni Save — e in modalità pool — è l'**alias** di `/state.json`, come in S5b; dopo un Save della **config page vera** è il payload che la pagina ha mandato, con `seq` e `hooks` aggiunti e **senza `full`** (il PKJS lo applica come delta). Un Save della pagina di prova azzera il payload tenuto da parte e riporta `/save.json` allo stato del server |
-| `GET /pool.json` | `{pool:[{i, name, photo_id, crc6, crc1, preview, preview_flint}…], slots_max:12, settings_defaults:{layout:0, …, interval_min:30, shake_next:1, info_row:15}}` — `settings_defaults` sono gli 11 default di `settings_set_defaults()` (unica fonte: `SETTINGS_SPEC`): la pagina li usa quando `state.json` non porta `settings` |
+| `GET /pool.json` | `{pool:[{i, name, photo_id, crc6, crc1, preview, preview_flint}…], slots_max:12, settings_defaults:{layout:0, …, interval_min:30, shake_next:1, info_row:15}}` — `settings_defaults` sono i **12** default di `settings_set_defaults()` (`digit_style` e `lang` compresi; unica fonte: `SETTINGS_SPEC`): la pagina li usa quando `state.json` non porta `settings` |
 | `GET /photo/<k>.raw6` \| `.raw1` | byte dello slot `k` (`application/octet-stream`); con `?b64=1` → **base64url senza padding** come testo. 404 se lo slot è vuoto |
 | `GET /preview/<i>.png` | anteprima ×2 (resa "come sul vetro") della foto `i` del **pool**; `?flint=1` = versione 1 bit |
 | `POST /save` = `POST /state.json` | due corpi possibili, distinti dal campo **`deleted`** (vedi «Payload della config page vera» più sotto). **Pagina di prova**: corpo `{v?: 1, settings?, order?, photos?: [{slot, src}], scenario?}` → stato sostituito nei campi presenti, `seq + 1`, risposta `{"ok":true,"seq":N}`; errore → 400 `{"ok":false,"error":"…"}`. La validazione è severa allo stesso modo a **tutti e tre** i livelli: un campo sconosciuto in cima, dentro `settings` e dentro una voce di `photos` (che vuole esattamente `slot` e `src`) danno tutti e tre 400 (un refuso della pagina non deve diventare un save a metà); `{"v": true}` è 400 come `{"v": 2}`. Corpo senza `Content-Length` (`Transfer-Encoding: chunked`) → 411; `Content-Length` più grande del corpo davvero inviato → **408** dopo 15 s (`DevHandler.timeout`), senza lasciare il thread appeso; `Content-Length` assente, non numerico, negativo o oltre 8 MiB → **400**. In tutti e tre i casi (411, 408, 400) la risposta porta `Connection: close` e la connessione **si chiude**: il corpo non letto non deve diventare la "richiesta" successiva della keep-alive (prima, `{}` + `GET` sullo stesso socket dava un `501 Unsupported method ('{}GET')` e la `GET` non veniva mai servita); un client keep-alive (`http.client`, `curl`) riapre da sé alla richiesta dopo |
@@ -1112,12 +1074,6 @@ In `photos` c'è **una voce per formato**: lo stesso slot compare due volte, `fm
 proprio formato; l'elenco è ordinato per slot crescente. `photo_id` = `crc32(raw6) & 0x7FFFFFFF`,
 mai 0 (resta sotto 2³¹ perché il JS maneggia gli interi come int32): è la stessa convenzione di
 `newPhotoId()` in `apps/galleria/src/pkjs/album.js` (che genera id già `& 0x7FFFFFFF`).
-⚠️ **TODO prima di S6** (non è una libertà del tool: è una riga di specifica rimasta indietro):
-`docs/design/galleria.md` §6 riporta ancora `photo_id = crc32(raw6) | 1`, che per ~metà delle foto
-(bit 31 acceso) dà un id **diverso** da quello del dev server. Se la config page vera di S6 seguisse
-la riga del design, la stessa foto avrebbe due id e l'orologio non la riconoscerebbe più
-(`sync_proto.c`: ripresa e "già committato" confrontano `photo_id`) → 34 KB ritrasmessi. Va allineata
-la riga del design a `crc32(raw6) & 0x7FFFFFFF` (o cambiate insieme tool, `album.js` e design).
 Al posto di `data` c'è `url`, **relativo** alla base del server (`/photo/<slot>.<fmt>?b64=1`): il
 PKJS lo ricostruisce da `slot` + `fmt`, un altro consumatore deve premettere `http://<host>:<porta>`.
 Il payload si scarica **una foto per volta** con `GET …?b64=1` e si salva in `localStorage`, da lì in
@@ -1146,7 +1102,7 @@ sempre —; `photos` è l'unico facoltativo e non è ammesso nient'altro.
 |---|---|
 | `v` | l'**intero** `1`: `2`, `true` e `1.0` sono tutti 400 |
 | `deleted`, `order` | liste di interi 0..11, senza doppioni |
-| `settings` | **tutti e 11** i campi (`digit_style` compreso da S8-stile), negli intervalli di `settings_validate()` |
+| `settings` | **tutti e 12** i campi (`digit_style` da S8-stile, `lang` da S10), negli intervalli di `settings_validate()` |
 | `photos` | al più **12** voci, ognuna con **tutti** i campi `slot`, `photo_id`, `fmt`, `len`, `crc`, `data`, `name` (più `thumb`, facoltativo) |
 | `photos.slot` | 0..11, **unico** dentro `photos`; può però comparire anche in `deleted` (una foto nuova su uno slot appena eliminato nello stesso Save) |
 | `photos.photo_id` | intero 1..2³¹−1 |
@@ -1176,16 +1132,10 @@ pebble-tool                        →  Pebble.webviewclosed con quel testo
 PKJS (dev)                         →  GET /save.json  →  album.applyPayload(payload, {full:true})  →  sync.resync()
 ```
 
-Con la **config page vera** (`--page-dir` + relay) cambiano i due estremi: la pagina manda le foto
-per intero e il PKJS applica un **delta**.
-
-```
-pebble emu-app-config              →  browser:  /config.html?return_to=http://localhost:<porta>/close?#<stato base64url>
-pagina (foto, ordine, impostazioni)→  POST /save  (corpo con `deleted`, fino a ~600 KB)  →  {"ok":true,"seq":N}
-pagina                             →  location.href = return_to + encodeURIComponent('{"v":1,"dev":true,"seq":N}')
-pebble-tool                        →  Pebble.webviewclosed con quel testo
-PKJS (dev)                         →  GET /save.json  →  album.applyPayload(payload, {full:false})  →  sync.resync()
-```
+Con la **config page vera** (`--page-dir` + relay) il giro è lo stesso, ma cambiano i due estremi:
+l'URL porta anche `#<stato base64url>` dopo il `return_to`, il `POST /save` manda le foto per intero
+(corpo con `deleted`, fino a ~600 KB) e il PKJS applica un **delta** (`{full:false}`) invece di uno
+stato completo.
 
 Lo **stato** che il PKJS mette nel frammento è `album.state()` più `{v, platform, fmt, cap_kb, dev}`,
 serializzato in base64url senza padding (spec S6 §2); il `return_to` resta **prima** del `#`, com'è
@@ -1199,7 +1149,7 @@ ignora. La pagina non usa `localStorage` (sul telefono girerebbe da un'origine o
 
 Senza `--settings` `state.json` non porta `settings` e la pagina parte dai **default del server**
 (`pool.json.settings_defaults`), dicendolo in testa («impostazioni: default (non ancora salvate)»).
-Il primo **Salva** manda tutti e 11 i campi: da lì `settings` compare in `state.json` (`settings_set`)
+Il primo **Salva** manda tutti e 12 i campi: da lì `settings` compare in `state.json` (`settings_set`)
 e il dev server diventa l'**autorità** delle impostazioni, come il telefono dopo il primo Save
 (design §5.1) — quelle eventualmente scritte sull'orologio (p.es. con `GALLERIA_DEBUG_SETTINGS_SAVE`)
 vengono sovrascritte al `HELLO` successivo. «Annulla» non le tocca. La pagina costruisce i campi una
@@ -1207,60 +1157,26 @@ volta sola (`dataset.built`, marcato **a costruzione finita**: un errore a metà
 re-render né lascia campi doppi) e ha un fallback per campo sui default. Elementi con `id` (per i
 test): `head`, `err`, `msg`, `pool`, `order`, `settings` (i campi sono `s_<chiave>`: `s_layout`,
 `s_font`, `s_clock_mode`, `s_leading_zero`, `s_text_color`, `s_outline`, `s_interval_min`,
-`s_order`, `s_shake_next`, `s_info_row`, `s_digit_style`), `scenario`, `save`, `cancel`.
+`s_order`, `s_shake_next`, `s_info_row`, `s_digit_style`, `s_lang`), `scenario`, `save`, `cancel`.
 
 ### Autotest (`--selftest`)
 
-Genera tre PNG sintetici 400×456 (Pillow, colori diversi), li converte con `photo_prep.py`, avvia il
-server su una porta effimera in un thread e con `http.client` esercita **ogni** endpoint: struttura di
-`state.json` (due voci per slot, CRC senza segno, `url` coerenti), `pool.json`, foto grezze e
-`?b64=1` (decodifica → stessa lunghezza e stesso CRC32), anteprime PNG (firma `\x89PNG`), 404 per
-slot vuoto/percorso ignoto, `OPTIONS` (204 senza `Content-Length`), `POST` validi (riordino,
-rimozione di una foto, impostazioni parziali, scenario → `seq` cresce e `state.json` riflette tutto)
-e `POST` non validi (slot doppio, `src` fuori pool, impostazioni fuori intervallo, campo
-sconosciuto in cima / in `settings` / in una voce di `photos`, `v` sbagliata o `true`, corpo non
-JSON, `chunked` → 400/411 e **stato invariato**), il corpo troncato (`Content-Length` > byte
-inviati → 408 e server ancora vivo), la 501 di un metodo non gestito **con la sua riga di log** e la
-rilettura di `--page` a ogni richiesta (file modificato → nuovo contenuto; file rimosso → ultima
-copia buona + avviso). Copre anche gli errori di riga di comando (`--page` su una directory,
-`--slots 0,,1`, `--order 0,0`, `--port` fuori intervallo o non numerica, `--work` non scrivibile,
-`--dump-json` con un valore ignoto: messaggio, mai un traceback) e, con un sottoprocesso vero, che
-**SIGTERM** rimuova la cartella temporanea.
-
-Casi aggiunti con i fix F13/F15 del code review (29/08/2026): `pool.json.settings_defaults` (= gli 11
-default di `SETTINGS_SPEC`) e il primo Save senza `--settings` che fa comparire `settings` in
-`state.json`; la **keep-alive** — su un socket grezzo, `POST /save` con `Content-Length`
-`9000000`/`abc`/`-1` e `POST /nope` seguiti da una `GET` nello stesso invio → una sola risposta
-400/404 con `Connection: close` e socket chiuso (mai un 501 dal corpo residuo); con `http.client`
-riusato la `GET` dopo il 400 è servita (200 su un socket nuovo); 411 e 408 dichiarano
-`Connection: close`; `--dump-page` (anche con `--page`) e `--dump-json pool|state` in un
-sottoprocesso (solo JSON su stdout, anche con `--album`); e — se `node` è nel `PATH` — la **pagina
-incorporata eseguita davvero** (script della pagina sotto `vm` con un DOM finto) in tre varianti:
-`state.json` senza `settings`, con `settings`, senza `return_to`. Per ognuna: nessuna eccezione al
-caricamento, 10 campi con i default o con i valori di `state.json`, 6 scenari, secondo `render()`
-senza doppioni e con il valore modificato conservato, Salva → **un solo** `POST /save` con 10
-impostazioni + `order` + `photos` + `scenario` e redirect a `return_to` + token
-`{"v":1,"dev":true,"seq":N}` (o «salvato (seq N)» senza `return_to`), Annulla → `return_to` senza
-query / `location.reload()`. `node` **non** è una dipendenza dell'SDK: se manca lo dice e salta
-(27 casi in meno); la stessa verifica, più estesa, sta in `apps/galleria/test/test_devpage.js`.
-Casi **S6**, su un *secondo* server in modalità relay (così quello di S5b resta com'è):
-`/state.json` = `{v, seq, hooks}` senza `full`/`photos`/`order`/`deleted` e `/save.json` che gli fa
-da alias finché non arriva un Save; `--dump-json state --relay` (anche con `--settings`) e
-`--page-dir` senza `--album` che accende la relay; gli errori di riga di comando `--relay` con
-`--album`, `--page` con `--page-dir`, `--page-dir` su una cartella inesistente o su un file (uscita
-2); `--page-dir` che inlina davvero il CSS e i JS di una cartella temporanea, il tag
-`data-optional` che sparisce, il **500** con il messaggio quando un file delle sorgenti viene
-rimosso, e `--dump-page --page-dir`; il `POST` della config page vera valido (una foto, poi dodici)
-con `/save.json` che lo rende senza `full`, e **una regola per volta** violata (CRC dichiarato
-diverso da quello calcolato, `len` sbagliato, `data` troppo corta / fuori alfabeto / con padding,
-`thumb` di 6.001 caratteri, `name` di 65, slot ripetuto, `deleted` con lo slot 12, `v` `2`/`true`/
-`1.0`, campo sconosciuto in cima o in una voce) con `/save.json` **invariato**; il corpo con
-`{v, settings, order}` e senza `deleted` respinto con 400; il Save della pagina di prova che riporta
-`/save.json` allo stato del pool; e l'avviso in due righe del server nudo.
-
-Stampa `devserver selftest: N ok, M falliti` (oggi **252** con `node`; M7: +6 casi sui surrogati spaiati e su `ensure_ascii`; S10: casi su `--lang` e sull'impostazione `lang` 0..4) ed esce 0/1; gira in
-circa 2,6 s. Lo esegue anche `make -C apps/galleria/test` (target `devtest`), come `pyselftest` per
-`photo_prep.py` (§9).
+Genera tre PNG sintetici 400×456 (Pillow), li converte con `photo_prep.py`, avvia il server su una
+porta effimera in un thread e con `http.client` esercita **ogni** endpoint e **ogni** regola di
+validazione: struttura di `state.json`, `pool.json` e `save.json` nelle due modalità (pool e relay),
+foto grezze e `?b64=1`, anteprime PNG, 404/411/408/501 con la **keep-alive** che non si sporca
+(il corpo non letto non deve diventare la richiesta successiva), `POST` della pagina di prova e della
+config page vera con **una regola violata per volta** (CRC, `len`, `data`, `thumb`, `name`, slot
+ripetuto, `deleted`, `v`, campo sconosciuto in cima o dentro una voce) e `/save.json` invariato, gli
+errori di riga di comando (`--page`, `--slots`, `--order`, `--port`, `--work`, `--dump-json`,
+`--relay` con `--album`, `--page-dir` inesistente), `--dump-page`/`--dump-json` in un sottoprocesso,
+la rilettura di `--page` e `--page-dir` a ogni richiesta (con il **500** in chiaro quando una
+sorgente sparisce) e la rimozione della temporanea su **SIGTERM**. Se `node` è nel `PATH` esegue
+anche la pagina incorporata sotto `vm` con un DOM finto, in tre varianti di `state.json`; senza
+`node` salta 27 casi, dicendolo (la stessa verifica, più estesa, sta in
+`apps/galleria/test/test_devpage.js`). Stampa `devserver selftest: N ok, M falliti` — oggi **257**
+con `node`, in circa 2,6 s — ed esce 0/1. Lo esegue anche `make -C apps/galleria/test` (target
+`devtest`), come `pyselftest` per `photo_prep.py` (§9).
 
 ---
 
@@ -1422,12 +1338,31 @@ inlinato, il **nome** di ogni chiave di traduzione con il suo **indice** in
 `apps/galleria/i18n/messages.json`: `T('chiave'` → `T(12`, `data-i18n="chiave"` e
 `data-i18n-title="chiave"` → `data-i18n="12"`. Così l'artefatto non porta né i testi né i nomi delle
 chiavi (i dizionari viaggiano nell'hash dell'URL, §18). Il file dei messaggi si cerca accanto alle
-sorgenti (`--dir/../../../i18n/messages.json`) e si può forzare con l'API (`messages=`); se nella
-pagina non c'è nessuna chiave non viene nemmeno aperto. Una chiave che **non esiste** è un errore
-con il numero di riga: rigenerare prima i dizionari (`build_i18n.py`), che è quello che fa
-`make -C apps/galleria/test pagecheck` eseguendo `build_i18n.py --check` **prima** di questo.
+sorgenti (`--dir/../../../i18n/messages.json`) e si può forzare con `--messages` (o, dall'API, con
+l'argomento `messages=`); se nella pagina non c'è nessuna chiave non viene nemmeno aperto. Una
+chiave che **non esiste** è un errore con il numero di riga: rigenerare prima i dizionari
+(`build_i18n.py`), che è quello che fa `make -C apps/galleria/test pagecheck` eseguendo
+`build_i18n.py --check` **prima** di questo.
 ⚠️ La sostituzione guarda tutto l'HTML, **commenti a fine riga compresi** (lo strip toglie solo le
 righe di commento intere): non scrivere `T('nome')` in un commento in coda a una riga di codice.
+
+**Controllo incrociato dei dizionari (S10, esteso in S11/D39).** L'artefatto contiene solo indici, i
+testi arrivano dagli array di `src/pkjs/i18n.js`: se i due nascessero da `messages.json` diversi la
+pagina mostrerebbe i testi sbagliati **senza nessun errore**. Perciò, quando la pagina usa chiavi, il
+tool pretende che (1) l'elenco `keys` di `src/pkjs/i18n.js` coincida con `messages.json` e (2) le
+**lingue** siano le stesse, e nello stesso ordine, in tre punti: gli array di `src/pkjs/i18n.js`, la
+lista `LANGS` di `src/pkjs/config/page_core.js` (l'indice è il valore dell'impostazione `lang`: 1 = la
+prima) e `LANG_ORDER` di `src/pkjs/index.js` (ordine dei dizionari nello stato dell'hash; è l'unica
+lista del file, la mappa di `langOf()` ne è derivata a run time). In più `LANG_NAMES` di `page_core.js`
+deve avere **tante voci quante le lingue** — un endonimo per lingua, altrimenti il select mostra il
+codice. Le tre liste stanno in tre file diversi — una generata (`i18n.js`) e due scritte a mano —:
+aggiungere una lingua in due su tre è l'errore tipico, e qui diventa un messaggio che nomina il file
+rimasto indietro (e, quando quello indietro può essere `i18n.js`, anche il rimedio:
+`python3 tools/build_i18n.py`). Un file assente (copie di prova, selftest) è un **avviso** con salto
+del confronto, non un errore.
+⚠️ `page_core.js` e `index.js` si leggono **accanto a `messages.json`** (`<app>/src/pkjs/`), non nella
+cartella passata a `--dir`: su una copia di prova si controlla comunque il PKJS del repo, che è quello
+da cui nascono gli indici.
 
 ```bash
 python3 tools/build_config_page.py                            # rigenera src/pkjs/config_page.js
@@ -1442,6 +1377,7 @@ python3 tools/build_config_page.py --selftest
 | `--dir DIR` | cartella delle sorgenti, con `page.html` (default `apps/galleria/src/pkjs/config`, **relativo alla posizione del tool**) |
 | `--out FILE` | modulo JS da scrivere (default `apps/galleria/src/pkjs/config_page.js`) |
 | `--html-out FILE` | scrive **anche** l'HTML inlinato: per aprirlo nel browser o darlo a `--page` del dev server |
+| `--messages FILE` | `messages.json` del passo i18n (default: quello accanto alle sorgenti) |
 | `--check` | non scrive nulla: uscita 0 se `--out` coincide con la rigenerazione, 1 se manca o differisce (dicendo l'offset della prima differenza) |
 | `--no-strip` | non toglie commenti, righe vuote e indentazione dagli asset: pagina leggibile nel debugger |
 | `--selftest` | autotest su una cartella temporanea, poi esce |
@@ -1456,8 +1392,10 @@ python3 tools/build_config_page.py --selftest
 
 `X` è **solo un nome di file nella stessa cartella**: un URL (`http://…`, `//…`, qualunque
 `schema:`), una sottocartella, una query o un fragment sono errori. Oggi `page.html` inlina
-`page.css` e, in quest'ordine, `pipeline.js`, `page_core.js`, `previews.js` (con
-`data-optional="1"`, §14) e `page.js`.
+`page.css` e, in quest'ordine, `pipeline.js`, `page_core.js`, `preview.js` (S12: motore
+dell'anteprima della watchface) e `page.js`. Fino a UX-1 c'era anche `previews.js` (le PNG dei
+font, con `data-optional="1"`): **UX-2/D95 l'ha tolto** dalla pagina e da `SCRIPT_ORDER` (§14).
+Il meccanismo `data-optional="1"` resta, e oggi non lo usa nessun tag.
 
 **Errori** (uscita 1, messaggio in italiano, mai un traceback): cartella o `page.html` mancanti; file
 inlinato mancante — a meno di `data-optional="1"`, e allora il tag sparisce insieme alla sua riga;
@@ -1465,12 +1403,15 @@ contenuto che chiuderebbe il **suo** tag (`</script` in un `.js`, `</style` in u
 riconosciuti anche scritti `</ SCRIPT >`); in un `.js`, un `<!--` seguito da un `<script` (il parser
 HTML entra in «script data double escaped» e il `</script>` di chiusura non chiude più il tag); un
 tag di apertura con una virgoletta non chiusa; una sorgente che non è UTF-8; HTML inlinato oltre
-**65.536 B**. L'incrocio invece è **innocuo e ammesso**: un `</style>` dentro un `.js` e un
+**98.304 B** (96 KB; era 65.536 fino a S11: l'ha alzato S12/D43 per l'anteprima della watchface).
+L'incrocio invece è **innocuo e ammesso**: un `</style>` dentro un `.js` e un
 `</script>` dentro un `.css` in HTML non chiudono niente.
 
 **Avvisi** non fatali (su stderr, la generazione prosegue): attributi persi; ordine degli script
-diverso da `pipeline → page_core → previews → page`; HTML oltre l'obiettivo di 60 KB; riferimenti a
-risorse esterne rimasti nella pagina; `@import` nel CSS; uso di `localStorage`/`sessionStorage`/
+diverso da `pipeline → page_core → preview → page` (`preview.js` è il motore dell'anteprima della
+watchface, S12: usa `GalPipeline` ed è usato da `page.js`; `previews.js` è uscito dalla lista con
+UX-2/D95); uno script **fuori** da questa lista non ha vincoli d'ordine; HTML oltre l'obiettivo di 84 KB;
+riferimenti a risorse esterne rimasti nella pagina; `@import` nel CSS; uso di `localStorage`/`sessionStorage`/
 `document.cookie` (nella pagina `data:` l'origine è opaca e l'accesso lancia `SecurityError`).
 
 ⚠️ **Gli attributi del tag sostituito vengono scartati.** `defer`, `async`, `type="module"`,
@@ -1485,21 +1426,32 @@ Per default il tool toglie dagli asset le **righe di commento intere** (`//…`,
 che continuano sotto), le **righe vuote** e l'**indentazione**; dall'HTML toglie solo le righe vuote
 (commenti e indentazione restano). Non è un minificatore, ed è sicuro per costruzione: in ES5 una
 stringa non attraversa una riga, quindi una riga che *inizia* con `//` o `/*` è un commento, mentre
-un commento aperto a metà riga non viene toccato. Con le sorgenti del 30/08/2026:
+un commento aperto a metà riga non viene toccato.
 
-| | HTML inlinato | `config_page.js` |
-|---|---|---|
-| default (strip) | **58.659 B** (57,3 KB, S7: 5 migliorie della pagina; 58.141 B dopo la revisione S6) | 60.515 B |
-| `--no-strip` | 65.385 B (63,9 KB, con l'avviso dei 60 KB) | 67.349 B |
+Lo **strip è obbligatorio**: misurato sulle sorgenti del 30/08/2026 (fine S6) dava **HTML 58.659 B**
+e modulo `config_page.js` 60.515 B, contro **65.385 / 67.349 B** con `--no-strip` — quasi 7 KB di
+differenza, che già allora facevano la differenza fra stare e non stare nel tetto.
 
-Il tetto duro è 65.536 B (64 KB): senza lo strip la pagina del 30/08 (S6) ci stava per 151 B; con le migliorie di S7 non ci starebbe più (lo strip è obbligatorio).
+**Misura corrente** (`python3 tools/build_config_page.py --check`, 14/09/2026): **HTML inlinato
+85.476 B**, **modulo `config_page.js` 88.284 B**, cioè **540 B** sotto l'avviso soft (86.016 B =
+84 KB) e **12.828 B** sotto il tetto duro (98.304 B = 96 KB). **Il numero vero si legge sempre da
+`--check`**: è quello — non una stima — da riportare qui e nei documenti dopo ogni modifica alla
+pagina.
 
-Con le sorgenti del **05/09/2026** (S8-stile + avviso di avvio lento della v1.9) lo strip dava
-**HTML 63.424 B** e **modulo 65.437 B**; dopo gli aiuti di S9-prep 64.222 / 66.268 e dopo il
-multilingua di **S10** (che aggiunge `T`, il select «Lingua» e `applyLang`, ma toglie ogni testo
-dall'artefatto) **HTML 64.699 B** e **modulo 66.597 B**: restano **837 B** di margine sul tetto
-(che vale sull'HTML) e l'avviso dell'obiettivo soft (60 KB) esce a ogni generazione. Il numero
-corrente si legge sempre da `python3 tools/build_config_page.py --check`.
+I due tetti sono `MAX_BYTES` e `SOFT_BYTES` in `build_config_page.py`: valevano 64/60 KB fino a S11 e
+li ha alzati **S12/D43**, perché l'anteprima della watchface (`src/pkjs/config/preview.js`, 12.216 B
+inlinati) non ci stava nei 64 KB. ⚠️ La prima stesura di D43 diceva 80/72, ma a 80/72 restavano
+892 B e l'avviso soft si accendeva a **ogni** generazione — cioè una tripwire spenta —, quindi la
+revisione S12 li ha portati a **96/84**: il vincolo che lega davvero non è il tetto ma la
+**lunghezza dell'URL `data:`** sul telefono (`docs/design/galleria-s6-config-page.md` §2). I messaggi
+d'errore e d'avviso ricavano le cifre in KB dalle due costanti (una sola verità), mentre il selftest
+le scrive a mano di proposito: chi cambia un tetto senza aggiornare README e specifica se lo trova
+detto.
+
+La **storia delle misure** — 63.424 B (05/09, S8-stile), 64.222 (S9-prep), 64.699 (S10), 64.745
+(S11), 81.028 (S12, `+16.283 B` per l'anteprima), 83.865 (UX-2), 85.446 (UX-3) — sta in
+`docs/design/galleria-s6-config-page.md` (riga «Budget» di §1 e i blocchi «Revisione S12 / UX-2 /
+UX-3 / UX-4»), con il motivo di ogni salto.
 
 ### Il modulo generato, e la riproducibilità
 
@@ -1513,75 +1465,68 @@ riga è sempre `\n`, quindi due esecuzioni danno gli **stessi byte**. È ciò ch
 `--check`.
 
 ⚠️ **`make -C apps/galleria/test pagecheck` prima di ogni `pebble build`: non è facoltativo.** Se
-l'inlining fallisce (per esempio perché la pagina supera i 64 KB) il tool esce 1 ma **non tocca** il
+l'inlining fallisce (per esempio perché la pagina supera i 96 KB) il tool esce 1 ma **non tocca** il
 `config_page.js` già sul disco, e lo dice a voce alta: un `pebble build` lanciato da solo
 imbarcherebbe in silenzio la config page **precedente**. Il target `pagecheck` (dentro `make all`)
-esegue `build_config_page.py --check`, `test/gen_page_fixture.py --check` e
-`gen_font_previews.py --check` (§14).
+esegue `build_i18n.py --check` (§18, **per primo**: gli indici della pagina vengono da lì),
+`build_config_page.py --check` e `test/gen_page_fixture.py --check`; da **S12** anche
+`gen_digits.py --check` con le opzioni canoniche e `--masks-js` (§10) e
+`test/gen_preview_fixture.py --check`. Da **UX-2** (D95) `gen_font_previews.py --check` **non**
+è più in `pagecheck`: quel tool non è più nella build (§14).
 
 ### Autotest (`--selftest`)
 
 Su una cartella temporanea: CSS e JS inlinati davvero, `<link>` non-stylesheet e `<script>` già
-inline lasciati com'erano, commenti HTML intatti, ordine dei tre script, `data-optional` (tag e riga
+inline lasciati com'erano, commenti HTML intatti, ordine dei quattro script di `SCRIPT_ORDER`, `data-optional` (tag e riga
 rimossi, oppure file inlinato), `</script>` nel contenuto e cartella inesistente = errori,
-avvisi di lint e di attributi persi, il tetto di 64 KB e l'avviso a 60, strip (righe di commento
+avvisi di lint e di attributi persi, il tetto di 96 KB e l'avviso a 84, strip (righe di commento
 via, stringhe e commenti a metà riga intatti, idempotenza, `--no-strip` che non tocca niente),
 riproducibilità (due esecuzioni identiche, CRLF+BOM = LF), il modulo (solo ASCII, round trip JSON,
 nessuna data) e la CLI: `--check` nei tre casi, e soprattutto che dopo un fallimento il file
 precedente **resti intatto** con l'avviso. Stampa `build_config_page selftest: N ok, M falliti` —
-oggi **91** controlli in meno di 0,1 s (S10: passo i18n, chiave inesistente, `data-i18n` con indice) — ed esce 0/1.
+oggi **106** controlli in meno di 0,1 s (UX-2/D95: `preview.js` prima di `page.js` senza avviso,
+`preview.js` inlinato fra `page_core.js` e `page.js`, ordine invertito ⇒ avviso, `previews.js` fuori da
+`SCRIPT_ORDER`; l'esempio di script facoltativo è un nome neutro, `extra.js`; S10: passo i18n, chiave inesistente, `data-i18n` con indice;
+S11: lingue allineate a 4 e a 6, ogni file rimasto indietro, ordine diverso, `LANG_NAMES` più corto
+della lista, `i18n.js` senza nessun array di lingua, `page_core.js`/`index.js` assenti = avviso,
+letterale `LANG_ORDER` sparito) — ed esce 0/1.
 
 ---
 
-## 14. `gen_font_previews.py` – anteprime dei font per la config page (S6)
+## 14. `gen_font_previews.py` – anteprime dei font per la config page (S6, **fuori dalla build da UX-2**)
 
-Rasterizza `12:34` con i tre TTF di `apps/galleria/resources/fonts/` (Anton Regular, Bebas Neue
-Regular, Barlow Condensed Bold) e scrive `apps/galleria/src/pkjs/config/previews.js`, che
-`build_config_page.py` (§13) inlina nella pagina: nel browser `window.GalPreviews = {anton, bebas,
-barlow}`, in node `module.exports`. Le chiavi sono gli **indici del campo `font`** delle
-impostazioni — `anton` = 0, `bebas` = 1, `barlow` = 2; il font **3** (LECO, di sistema) non ha
-anteprima, perché esiste solo nel layout A.
+> ⚠️ **Dal 13/09/2026 (UX-2, voce U-10, decisione D95) questo tool non è più nella build.** La
+> config page non mostra più la PNG «12:34» sotto la select dei font: il nome del font si prova con
+> l'**anteprima vera della watchface** (`preview.js`, §13). `apps/galleria/src/pkjs/config/previews.js`
+> è stato cancellato, il suo `<script data-optional="1">` tolto da `page.html`, il nome tolto da
+> `SCRIPT_ORDER` e `--check` tolto da `make -C apps/galleria/test pagecheck`. Il tool **resta qui**
+> nel caso le anteprime tornassero utili.
 
-Dipendenza: **Pillow** sul Python di sistema (niente freetype-py, a differenza di `gen_digits.py`,
-§10).
+Rasterizza `12:34` con i **cinque** TTF di `apps/galleria/resources/fonts/` (Anton, Bebas Neue,
+Barlow Condensed Bold e, da S8-stile, Francois One e Staatliches) e scrive un modulo ES5 con un PNG
+**1 bit** per font, ritagliato sull'inchiostro e inlinato come data-URL: nel browser
+`window.GalPreviews`, in node `module.exports`. Chiavi = i cinque font sprite di `gen_digits.py`
+(§10); gli indici del campo `font` delle impostazioni sono invece 0/1/2/**4**/**5**, perché il font 3
+(LECO, di sistema) non ha né strip né anteprima. Dipendenza: **Pillow** (niente freetype-py).
+Opzioni: `--fonts-dir`, `--out`, `--text` (default `12:34`), `--height` (altezza dell'inchiostro,
+default 28), `--max-bytes` (default 4096), `--png-dir`, `--check`, `--selftest`, `-v`.
 
-Ogni campione è un PNG **1 bit** bianco su nero (soglia 128, nessun dithering), ritagliato
-sull'inchiostro e inlinato come data-URL. Per ogni font si cerca la pixel size **più grande** la cui
-altezza d'inchiostro sta nei `--height` px (default 28) — stessa logica di `gen_digits.py` — così i
-tre campioni si confrontano a occhio nella pagina. Se il file sfora `--max-bytes` l'altezza scende
-di 2 px per volta e la cosa viene stampata; a 28 px non è servito.
+Poiché il file di uscita non esiste più, si lavora **fuori dal repo**:
 
 ```bash
-python3 tools/gen_font_previews.py                        # rigenera previews.js
-python3 tools/gen_font_previews.py --check                # 0 se è aggiornato (è in `make pagecheck`)
-python3 tools/gen_font_previews.py --png-dir /tmp/prev    # salva anche i tre PNG
+python3 tools/gen_font_previews.py --out /tmp/prev.js               # 2.500 B con cinque font (tetto 4.096)
+python3 tools/gen_font_previews.py --selftest --out /tmp/prev.js    # 41 ok, 0 falliti
+python3 tools/gen_font_previews.py --png-dir /tmp/prev --out /tmp/prev.js   # salva anche i cinque PNG
 ```
 
-| Opzione | Effetto |
-|---|---|
-| `--fonts-dir DIR` | cartella dei TTF (default `apps/galleria/resources/fonts`) |
-| `--out FILE` | `previews.js` da scrivere (default `apps/galleria/src/pkjs/config/previews.js`) |
-| `--text T` | stringa da rasterizzare (default `12:34`) |
-| `--height N` | altezza dell'**inchiostro** in px (default 28) |
-| `--max-bytes N` | tetto del file generato (default 4096) |
-| `--png-dir DIR` | salva anche i tre PNG in questa cartella |
-| `--check` | verifica che `--out` sia aggiornato (uscita 1 se no) |
-
-Misure del 30/08/2026 (`--height 28`):
-
-| chiave | font (indice `font`) | px | PNG | byte | base64 |
-|---|---|---|---|---|---|
-| `anton` | Anton Regular (0) | 32 | 66×28 | 213 | 284 car. |
-| `bebas` | Bebas Neue Regular (1) | 39 | 66×28 | 217 | 292 car. |
-| `barlow` | Barlow Condensed Bold (2) | 40 | 76×28 | 236 | 316 car. |
-
-`previews.js` pesa **1.722 B** sui 4.096 ammessi (v2: rasterizzazione a 4× + LANCZOS + soglia 100, `--selftest` 29 controlli; in pagina l'immagine va mostrata a dimensione naturale — `.fontprev` con `box-sizing: content-box` — altrimenti il ridimensionamento nearest la sgrana). È **generato**, e la prima riga lo dice («GENERATO
-da tools/gen_font_previews.py (S6): non modificare a mano»): si rigenera, non si corregge a mano.
-Deterministico — nessuna data e nessun percorso finiscono nell'output (Pillow non scrive il chunk
-`tIME`) — quindi due esecuzioni danno gli stessi byte, ed è ciò che rende affidabile `--check`
-dentro `make -C apps/galleria/test pagecheck`. In `page.html` il tag è
-`<script src="previews.js" data-optional="1">`: se il file manca l'inlining non fallisce e la pagina
-si costruisce lo stesso, senza anteprime.
+Senza `--out`, `--check` e `--selftest` non falliscono: stampano «previews.js non e' piu' nella
+build (UX-2/D95): niente da controllare» ed escono **0** (il selftest si ferma a 40 controlli, il
+41° è quello sul file su disco). Il tool è deterministico (nessuna data, nessun percorso, Pillow non
+scrive il chunk `tIME`), ed è ciò che rendeva affidabile `--check` dentro `pagecheck`. Rimettere le
+anteprime in pagina vuol dire rigenerare `previews.js` **e** rimettere `PREV_KEYS`/`GalPreviews` in
+`page.js`, `<img id="fontPreview">` in `page.html`, `.fontprev` in `page.css` (a dimensione
+naturale, `box-sizing: content-box`), il tag in `page.html`, il nome in `SCRIPT_ORDER` e `--check`
+in `pagecheck`.
 
 ---
 
@@ -1773,15 +1718,17 @@ Galleria — riepilogo dei log
 ### Test
 
 `make -C apps/galleria/test logstats` (dentro `make all`) esegue `galleria_logstats.py --selftest`
-— **113** controlli sui campioni incorporati (orologio, pypkjs con prefisso
+— **123** controlli sui campioni incorporati (orologio, pypkjs con prefisso
 `./src/pkjs/index.js:97:0`, app Android con prefisso `Galleria:97`, PKJS senza prefisso, righe
 estranee, ANSI, un riavvio spontaneo, un `App fault!`, le righe `init:`/`deinit:` e la migrazione
-del manifest) — e poi `apps/galleria/test/test_logstats.py`, **260** controlli che lanciano il tool
-sulle 13 fixture di `apps/galleria/test/fixtures/logs/` e confrontano i numeri con quelli contati a
-mano. Le due fixture della build M del 04/09/2026 sono `run_s8_emu_m_init_emery.log` (riga `init:`
+del manifest) — e poi `apps/galleria/test/test_logstats.py`, **295** controlli che lanciano il tool
+sulle **14** fixture di `apps/galleria/test/fixtures/logs/` e confrontano i numeri con quelli contati
+a mano. Le due fixture della build M del 04/09/2026 sono `run_s8_emu_m_init_emery.log` (riga `init:`
 e migrazione dello schema 1 → 2) e `run_s8_emu_m_deinit_restart.log` (il `deinit:` di un avvio e
-l'`init:` di quello dopo); sulle altre 11 la sezione 13 deve restare vuota e tutti gli altri numeri
-identici a prima. In tutto ~3 s.
+l'`init:` di quello dopo); sulle altre la sezione 13 deve restare vuota e tutti gli altri numeri
+identici a prima (le 11 elencate in `SENZA_BUILD_M`, fra cui **`run_tool540_emery.log`** — avvio in
+emulatore con l'album già in persist e il dev server spento, cioè il PKJS che riparte dall'album
+locale — più `run_s8_phone_fresh.log`, l'estratto dall'orologio reale). In tutto ~3 s.
 
 ---
 
@@ -1850,34 +1797,35 @@ inviano dalla config page **una per volta**. Perché i numeri attesi valgano, ne
 
 - **dithering «Nessuno»**, **gamma 1**, **schiarisci le ombre (lift) 0**;
 - **«Ottimizza per il vetro» SPENTO** (com'è oggi di default);
-- **nessuno zoom né spostamento**: la card è già 200×228, basta il pulsante **«Adatta»**.
+- **nessuno zoom né spostamento**: la card è già 200×228, basta il pulsante **«Riparti da capo»**
+  (`btn_fit`, `#fit` nell'editor: fino a UX-3 si chiamava «Adatta»).
 
 Con «Ottimizza per il vetro» acceso `palette64` perde 41 tasselli su 64 (43 colori invece di 64) e
 l'esperimento O6 verrebbe fatto su una card corrotta; con uno zoom o un ritaglio anche di 1 px la
 pagina ricampiona con LANCZOS e **tutte** le percentuali cambiano. Se la riga `luma(photo)` sul vetro
 non coincide con la tabella di `--check`, è successa una di queste due cose: riaprire l'editor con la
-cornice più larga possibile e premere «Adatta» (l'orientamento del telefono non conta: la cornice è
-comunque limitata a 300 px). Lo stesso avviso lo stampa
-il tool a ogni esecuzione.
+cornice più larga possibile e premere «Riparti da capo» (l'orientamento del telefono non conta: la
+cornice è comunque limitata a 300 px). Lo stesso avviso lo stampa il tool a ogni esecuzione, dove
+però il pulsante si chiama ancora «Adatta» (`gen_test_cards.py:106,112`, da allineare).
 
 ---
 
-## 18. `build_i18n.py` – dizionari della config page di Galleria (S10)
+## 18. `build_i18n.py` – dizionari della config page di Galleria (S10, sei lingue da S11)
 
 Genera i **dizionari** della config page dalla loro sorgente unica,
 `apps/galleria/i18n/messages.json`: la pagina non contiene più testi, solo chiavi che
-`build_config_page.py` (§13) trasforma in **indici**, e i quattro dizionari viaggiano nell'hash
+`build_config_page.py` (§13) trasforma in **indici**, e i sei dizionari viaggiano nell'hash
 dell'URL. Solo stdlib (Python 3.8+). Spec: `docs/design/galleria-s10-i18n.md` §1 (D35) e
-`apps/galleria/i18n/README.md`.
+`docs/design/galleria-s11-lingue-es-pt.md` (D39: es e pt in coda), `apps/galleria/i18n/README.md`.
 
 ```bash
 python3 tools/build_i18n.py             # rigenera i due file
 python3 tools/build_i18n.py --check     # 0 se sono aggiornati, 1 altrimenti (dentro `pagecheck`)
-python3 tools/build_i18n.py --selftest  # 20 controlli su una cartella temporanea
+python3 tools/build_i18n.py --selftest  # 32 controlli su una cartella temporanea
 ```
 
-**Sorgente** (`{ "chiave": { "it": …, "en": …, "de": …, "fr": … } }`, i campi che iniziano con `_`
-sono commenti) → **due file identici**:
+**Sorgente** (`{ "chiave": { "it": …, "en": …, "de": …, "fr": …, "es": …, "pt": … } }`, i campi che
+iniziano con `_` sono commenti) → **due file identici**:
 
 | File | A che serve |
 |---|---|
@@ -1885,23 +1833,182 @@ sono commenti) → **due file identici**:
 | `apps/galleria/test/fixture_i18n.js` | gli stessi dati per i test node (`test_page.js` risolve i nomi delle chiavi) |
 
 ```js
-module.exports = { keys: [...], en: [...], it: [...], de: [...], fr: [...] };
+module.exports = { keys: [...], en: [...], it: [...], de: [...], fr: [...], es: [...], pt: [...] };
 ```
 
 ES5 e **ASCII** (accenti come `\uXXXX`), array **nell'ordine del file**: l'indice di una chiave è la
-sua posizione. Oggi **121 chiavi × 4 lingue**, `messages.json` 23.089 B, `i18n.js` 20.731 B
-(05/09/2026), ≈ 19,9 k caratteri una volta in base64url dentro l'hash.
+sua posizione.
+
+**Misura corrente** (14/09/2026, fine UX-4): **135 chiavi × 6 lingue**, `i18n/messages.json`
+**39.834 B**, `src/pkjs/i18n.js` e `test/fixture_i18n.js` **36.500 B**, **27.700 B** di JSON UTF-8
+per i soli sei array (senza `keys`: è quello che manda `index.js`) = **36.934 caratteri** di
+base64url dentro l'hash dell'URL. ⚠️ **I byte veri si leggono dalla riga che il tool stampa alla
+rigenerazione** — `build_i18n: 135 chiavi × 6 lingue (36500 B) -> src/pkjs/i18n.js,
+test/fixture_i18n.js`, e con `--check` `build_i18n --check: 135 chiavi × 6 lingue aggiornate (…)` —:
+è quel numero, non una simulazione del patch, che va riportato qui e in
+`apps/galleria/i18n/README.md` dopo ogni fusione del dizionario.
+
+La **storia del conteggio** — 121 chiavi × 4 lingue a S10, 121 × 6 con lo spagnolo e il portoghese
+di S11, 135 con l'anteprima di S12, 126 dopo la potatura di UX-1 (D72), 132 con UX-2, di nuovo 135
+con UX-3 (D116) e le stesse 135 con UX-4, che tocca **una sola stringa** (`preview_stale` in
+francese, D133, +14 B) — sta nella tabella di `apps/galleria/i18n/README.md` (sessione → chiavi →
+byte di `messages.json`; S10 e S11 nella riga in testa, le altre cinque nella tabella); le chiavi
+entrate e uscite passaggio per passaggio e le riallineature delle traduzioni stanno in
+`docs/design/galleria-s10-i18n.md` §3 «Storia del dizionario», che però non ha una riga per S10 né
+per S12 e non porta i byte di S11 e UX-1. Il JSON UTF-8 dei soli sei array — quello che `index.js`
+mette nell'hash — era **25.263 B** a fine UX-1 e **27.686 B** a fine UX-3, contro i 27.700 di oggi.
+Il tool non cambia da UX-3 (D123: nessuna chiave nuova è una `<option>` o una `.rlab`) e
+`--selftest` resta a **32**.
 
 ⚠️ **Aggiungere una chiave in mezzo cambia gli indici**: si rigenera sempre tutto insieme, e
 `make -C apps/galleria/test pagecheck` esegue questo `--check` **prima** di quello della pagina.
 
 **Controlli** (a ogni generazione e con `--check`, uscita 1 con un messaggio, mai un traceback):
 JSON valido con un oggetto in cima e nessuna chiave doppia; nomi in `snake_case`; ogni voce con
-**esattamente** le 4 lingue nell'ordine `it, en, de, fr`; testi non vuoti, senza backtick (la pagina
-viene inlinata in una stringa) né CR; segnaposto solo `{0}`/`{1}` e lo **stesso insieme** in tutte le
-lingue della voce; i due file generati identici alla rigenerazione.
+**esattamente** le 6 lingue nell'ordine `it, en, de, fr, es, pt` (`LANGS`; gli array generati seguono
+invece `OUT_LANGS` = `en, it, de, fr, es, pt`, cioè l'ordine dell'impostazione `lang`); testi non vuoti,
+senza backtick (la pagina viene inlinata in una stringa) né CR; segnaposto solo `{0}`/`{1}` e lo **stesso insieme** in tutte le
+lingue della voce; **tripwire di lunghezza** (qui sotto); i due file generati identici alla rigenerazione.
 
-**Autotest** (`--selftest`): su una cartella temporanea, generazione e round trip, `--check` nei casi
-aggiornato/non aggiornato/mancante, lingua mancante, segnaposto diversi fra lingue, backtick, chiave
-doppia, file assente o non JSON, output ASCII e riproducibile. Stampa
-`build_i18n --selftest: N ok` — oggi **20** — ed esce 0/1.
+**Tripwire di lunghezza** (UX-1, D70; spec `docs/design/galleria-s13-ux-casual.md` §4 U-01 e
+§6): nella config page due posti non vanno a capo ma si rompono — le `<option>` delle select e le
+`lbl_*` della colonna delle etichette, larga 9,5 em. In testa al tool ci sono due **liste esplicite**
+(non un prefisso del nome: le etichette delle caselle `opt_sunlight`, `opt_shake_next`, `opt_info_*`
+stanno in un `<label>` a tutta larghezza e **non** sono in lista):
+
+| Lista | Chiavi | Limite |
+|---|---|---|
+| `OPTIONS` | 26 delle 29 chiavi che finiscono in una `<option>` (`opt_*` + `dither_none`) | **28** caratteri |
+| `OPTIONS` (tre eccezioni) | `opt_font_leco`, `opt_lang_auto`, `opt_style_no_flint` | **36** caratteri |
+| `LABELS` | le 16 `lbl_*` della colonna da 9,5 em | **22** caratteri |
+
+Si misurano i **caratteri** (code point, non byte) del testo **renderizzato**, lingua per lingua:
+i segnaposto vengono sostituiti con il valore più lungo che `page.js` ci mette davvero —
+`RENDER_ARGS` per i valori fissi (`opt_minutes` → «60», `opt_hours` → «3», `opt_lang_auto` →
+«Português») e `RENDER_LONGEST` per quelli che vengono da un'altra chiave (`opt_style_no_flint`
+→ la più lunga, **della stessa lingua**, fra le quattro `opt_style_*` e — da UX-2/D86, che porta
+il suffisso «(non sul Duo)» anche sulla select dei colori — `opt_color_yellow`/`opt_color_blue`). Un segnaposto senza regola di
+rendering è un errore (la misura sarebbe falsa), e così un **nome sbagliato** in lista: una chiave
+elencata che non esiste in `messages.json` esce con «lista da aggiornare» invece di sparire in
+silenzio. Gli sforamenti vengono raccolti **tutti insieme** (chiave, lingua, lunghezza, limite e
+testo, nell'ordine del file), così chi riscrive i testi li vede in un colpo solo. Nessuna tripwire
+sul francese (D67: «KB» e spazio semplice restano come sono); nessuna eccezione per lingua.
+
+**Autotest** (`--selftest`): su una cartella temporanea e con **fixture proprie a sei lingue** (mai i
+file del repo), generazione e round trip, `--check` nei casi aggiornato/non aggiornato/mancante, lingua
+mancante (5 su 6), lingue fuori ordine, segnaposto diversi fra lingue, backtick, chiave doppia, file
+assente o non JSON, output ASCII e riproducibile, `LANGS`/`OUT_LANGS` con le stesse sei lingue; per la
+tripwire (D70) una fixture con i testi **esattamente ai limiti** (28/36/22 renderizzati) che deve passare,
+più option oltre il limite, etichetta oltre il limite, chiave in lista assente dal dizionario, segnaposto
+senza regola di rendering, la scelta della `opt_style_*` più lunga nella stessa lingua, uno sforamento in **una sola lingua** (il messaggio nomina «/ de:», così una misura fatta sulla sola colonna italiana resterebbe verde) e un testo accentato entro il limite in **code point** ma oltre in byte UTF-8, che deve passare. Un controllo
+in più guarda **le liste vere**, non la fixture: `OPTION_LIMIT`/`OPTION_LIMIT_WIDE`/`LABEL_LIMIT` a
+28/36/22, 29 chiavi in `OPTIONS` (di cui le tre a 36 sono esattamente `opt_font_leco`, `opt_lang_auto`,
+`opt_style_no_flint`) e 16 in `LABELS` — così alzare un limite o togliere una chiave dalla lista non
+spegne la tripwire in silenzio (D70: «non ci sono eccezioni»), ma diventa una modifica da fare anche
+qui e nel selftest. Da **UX-2** due pin in più: le quattro «automatico» di U-11
+(`opt_clock_auto`, `opt_leading_zero_auto`, `opt_color_auto`, `opt_outline_auto`) sono in `OPTIONS`
+e `opt_auto` non c'è più; `RENDER_LONGEST['opt_style_no_flint']` elenca **sei** chiavi (i quattro
+stili e i due colori, D86). Stampa `build_i18n --selftest: N ok` — oggi **32** — ed esce 0/1.
+
+---
+
+## 19. `galleria_gloss_check.py` – tripwire del glossario di Galleria (UX-4, D132)
+
+Il glossario di `docs/design/galleria-s10-i18n.md` §3 è una **tabella scritta a mano**: le sei colonne
+di lingua di ogni riga ripetono testi che vivono davvero in `apps/galleria/i18n/messages.json`
+(135 chiavi × 6 lingue, §18). Finché la copia si controllava a occhio, la tabella poteva restare
+indietro senza che nessuno se ne accorgesse — e restare **parziale** senza dirlo: a inizio UX-4
+copriva 100 chiavi su 135, e una traduzione francese corretta nel dizionario (`preview_stale`, D133)
+era rimasta nella versione vecchia nel glossario. Questo tool confronta i due file e **fallisce quando
+divergono**. Solo stdlib (Python 3.8+), nessuna rete, niente SDK; deriva dallo script di ricognizione
+di UX-4 (rapporto R2) e la decisione che lo mette nella build è **D132**.
+
+```bash
+python3 tools/galleria_gloss_check.py              # 0 = allineato, 1 = da correggere
+python3 tools/galleria_gloss_check.py --verbose    # + le differenze di sola forma, con le due stringhe
+python3 tools/galleria_gloss_check.py --doc D --json J   # altri percorsi (copie di prova, gate)
+python3 tools/galleria_gloss_check.py --selftest   # autotest su una fixture sintetica -> "45 ok"
+make -C apps/galleria/test glosscheck              # il bersaglio (il --selftest sta in `pyselftest`)
+```
+
+I percorsi di default sono **relativi alla radice del repo**, calcolata da `__file__` (il tool sta in
+`tools/`): funziona da qualunque cartella, anche da `apps/galleria/test/`. Dura ~0,04 s, quindi sta
+nella catena di `make -C apps/galleria/test` accanto a `pagecheck` senza pesare.
+
+### Formato della tabella «viva» (il contratto che il tool legge)
+
+```markdown
+| it (riferimento) | en | de («du») | fr («vous») | es («tú») | pt («você») | chiavi |
+|---|---|---|---|---|---|---|
+| Salva · Esci senza salvare | Save · Leave without saving | Speichern · Ohne Speichern verlassen | Enregistrer · Quitter sans enregistrer | Guardar · Salir sin guardar | Salvar · Sair sem salvar | `btn_save`, `btn_cancel` |
+| Pebble 2 Duo · bianco e nero | Pebble 2 Duo · black and white | Pebble 2 Duo · Schwarz-Weiß | Pebble 2 Duo · noir et blanc | Pebble 2 Duo · blanco y negro | Pebble 2 Duo · preto e branco | `watch_flint` |
+```
+
+- **Dove**: la sola §3, cioè da `## 3.` al `## ` successivo. Tutto il resto del documento è fuori.
+- **Quale tabella**: l'unica con quell'intestazione — prima colonna `it (riferimento)`, ultima
+  `chiavi`, **sette** colonne in tutto. Un'intestazione con un numero di colonne diverso è un errore
+  esplicito, non una tabella ignorata in silenzio — e dev'essere l'unica tabella di §3 **dopo**
+  l'intestazione: una seconda tabella lì fa uscire 1 con «riga N con X colonne invece di 7», mentre
+  una tabella che sta **prima** dell'intestazione viene ignorata in silenzio.
+- **Storia**: i blocchi «🔁 … riallineata il …» sono **blockquote** (`>` a inizio riga) e restano
+  fuori per costruzione, prima o dopo la tabella che siano; non c'è nessuna lista di eccezioni.
+- **Chiavi**: ultima colonna, **fra backtick**, una o più per riga (`` `sec_look`, `sec_rotation` ``);
+  il resto della cella è commento libero ma **senza backtick** (`(**UX-3/D109**)` va bene; un
+  identificatore fra backtick verrebbe letto come una chiave). Una riga senza nessuna chiave fra
+  backtick è un errore. La stessa chiave può comparire in due righe (`opt_never` serve due select):
+  **ogni occorrenza** viene confrontata.
+- **Testi**: quando la riga tiene N chiavi, le sei celle di lingua tengono gli N testi separati da
+  **« · »** (spazio, U+00B7, spazio), nell'ordine delle chiavi.
+- **Testi che contengono essi stessi un « · »** (`watch_flint`, `preview_auto`): lo split darebbe più
+  parti che chiavi, quindi il tool riassegna **gruppi contigui di parti alle chiavi** con una
+  programmazione dinamica che massimizza la somiglianza (`difflib`) con il testo JSON di quella
+  chiave. La cella viene **segnalata come riallineata** ma non fa fallire: se il riallineamento fosse
+  sbagliato, i testi assegnati non coinciderebbero e la differenza uscirebbe al punto 3 del rapporto.
+
+### Che cosa confronta, e che cosa fa uscire 1
+
+Il confronto è a **tre livelli**, cella per cella: identico byte per byte → identico dopo
+**normalizzazione di forma** (caporali e virgolette curve, apostrofi U+2019, spazi unificatori,
+«…» → «...», trattini lunghi, `**` e backtick di markdown, spazi multipli — e, in coda, qualunque
+differenza di sole maiuscole/minuscole o di sola punteggiatura) → **parole diverse** (token
+alfanumerici minuscoli, senza punteggiatura). La normalizzazione **non tocca mai le parole**, quindi
+non può nascondere una traduzione diversa.
+
+| Condizione | Esito |
+|---|---|
+| una chiave del JSON non ha nessuna riga nel glossario | **1**, con l'elenco delle chiavi e il testo italiano |
+| una chiave della tabella non esiste più nel JSON (residuo di una chiave eliminata) | **1** |
+| una riga senza chiavi, o una cella con meno parti che chiavi | **1**, con riga e lingua |
+| una cella con **parole diverse** | **1**, con le due stringhe e le parole che stanno solo da una parte |
+| differenza di **sola forma** | **0**: elencata (`--verbose` mostra anche le due stringhe) |
+| cella **riallineata** perché il testo contiene « · » | **0**: elencata con riga e lingua |
+| file mancante, JSON non valido, §3 o intestazione assenti, lingua mancante | **1**, un messaggio di una riga, **mai** un traceback |
+
+Un controllo in più, **informativo** (non cambia l'esito perché è una regola del dizionario, non del
+glossario): i segnaposto `{0}`/`{1}` devono formare lo stesso insieme nelle sei lingue di ogni voce —
+lo stesso controllo lo fa `build_i18n.py` (§18) prima di generare.
+
+⚠️ Quando il tool è rosso **si corregge il glossario, non il dizionario**: la fonte unica dei testi è
+`messages.json` (lo dice anche l'ultima riga del rapporto). Una riga nuova del glossario si scrive
+copiando i testi dal JSON, non riscrivendoli a mano.
+
+### Autotest
+
+`--selftest` costruisce in una cartella temporanea un dizionario di **4 chiavi × 6 lingue** e un
+documento con §3, due blockquote di storia e la tabella nel formato vero (mai i file del repo), poi
+esercita **16 casi**: tabella allineata, chiave mancante, chiave in più, parola diversa in una sola
+lingua, differenza di sola forma (caporali) con e senza `--verbose`, riga con due chiavi e « · »,
+testo che contiene esso stesso un « · », blockquote di storia prima e dopo la tabella, cella con meno
+parti che chiavi, riga senza chiavi, §3 assente, intestazione assente, intestazione con cinque lingue,
+JSON assente e JSON rotto, chiave ripetuta in due righe (anche con una sola occorrenza sbagliata),
+lingua mancante nel dizionario. Stampa `galleria_gloss_check --selftest: N ok` — oggi **45** — ed esce
+0/1. I casi sono stati verificati con **nove mutanti** del tool (blockquote non ignorato,
+riallineamento tolto, mancanti/in più/celle non allineate/parole diverse non fatali, forma contata
+come mismatch, una sola occorrenza per chiave, controllo delle colonne tolto): tutti e nove fanno
+diventare rosso il selftest.
+
+**Misure del 14/09/2026** (UX-4, a tabella completata): 135 chiavi nel JSON, **135 nella tabella**
+(68 righe di dati, 136 occorrenze), **816 celle confrontate, 816 identiche**, 0 di sola forma,
+0 parole diverse, 12 celle riallineate (le sei della riga di `watch_flint`, 220, e le sei
+della riga di `preview_auto` + 3 chiavi, 248), 0 segnaposto incoerenti → `ESITO: ALLINEATO`.
+All'inizio della sessione lo stesso comando dava 100 chiavi su 135 e una cella con parole diverse.

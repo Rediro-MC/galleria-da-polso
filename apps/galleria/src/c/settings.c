@@ -44,7 +44,7 @@ bool settings_validate(const GalSettings *s) {
       && s->text_color <= GAL_TEXT_OXFORD
       && s->outline <= GAL_OUTLINE_NEVER
       && s->digit_style <= GAL_STYLE_FILL_3D
-      && s->lang <= GAL_LANG_FR
+      && s->lang <= GAL_LANG_LAST                /* S11 (D39): 0 auto .. 6 pt */
       && prv_interval_valid(s->interval_min)
       && s->order <= GAL_ORDER_RANDOM
       && s->shake_next <= 1
@@ -70,7 +70,7 @@ static void prv_debug_overrides(void) {
   s_settings.text_color = GALLERIA_DEBUG_TEXT_COLOR;
 #endif
 #ifdef GALLERIA_DEBUG_LANG
-  s_settings.lang = GALLERIA_DEBUG_LANG;                 /* S10: 0 auto, 1 en, 2 it, 3 de, 4 fr (data e migliaia) */
+  s_settings.lang = GALLERIA_DEBUG_LANG;                 /* S10/S11: 0 auto, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt (data e migliaia) */
 #endif
 #ifdef GALLERIA_DEBUG_OUTLINE
   s_settings.outline = GALLERIA_DEBUG_OUTLINE;

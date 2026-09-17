@@ -1,6 +1,6 @@
 # Piano di sviluppo — piccole app per Pebble Time 2 (e Pebble 2 Duo)
 
-> **Stato:** v1.2 — redatto il 24 agosto 2026 a valle di una ricerca multi-agente (8 report, 3 verificatori adversariali, 3 approfondimenti); **Fase 0 (setup) completata** lo stesso giorno — vedi §18 e `docs/CONTINUA-QUI.md`.
+> **Stato:** v1.3 (17 settembre 2026) — redatto il 24 agosto 2026 a valle di una ricerca multi-agente (8 report, 3 verificatori adversariali, 3 approfondimenti); **Fase 0 (setup) completata** lo stesso giorno, **Fase 1 chiusa** con la watchface Galleria pubblicata il 05/09/2026 — le modifiche successive sono elencate in §18, lo stato dei lavori in `docs/CONTINUA-QUI.md`.
 > **Per chi:** l'utente e Claude. Va letto a inizio di ogni sessione di lavoro sul progetto.
 > **Obiettivi dichiarati:** (1) app **performanti**, (2) che **sfruttano al meglio il display del Pebble Time 2**, (3) che **funzionano bene senza connessione continua al telefono**, (4) che **consumano poca memoria**.
 > **Ambiente:** Ubuntu 26.04 x86_64, **senza sudo**, Python 3.14 di sistema (senza pip/ensurepip), Node 22, gcc 15, niente Docker/QEMU/arm-gcc di sistema. 8 core, 5,3 GB RAM, 99 GB liberi su `/home`.
@@ -29,12 +29,12 @@
 | 4 | **Dark mode di default** (sfondo nero, testo chiaro), max 3–4 colori oltre bianco/nero, scelti dalla tabella "resa reale" (§7.2). | Il pannello MiP ha contrasto ~20:1: i colori saturi su bianco collassano. §7.2 |
 | 5 | **`MINUTE_UNIT` sempre** nelle watchface; nessuna animazione continua; animare solo su evento e solo se `light_is_on()`. | Backlight, watchface animate e health sono i 3 maggiori consumatori dichiarati da Core Devices. §9 |
 | 6 | **Offline-first come architettura**: il telefono è un *sync worker opportunistico*, mai una dipendenza. Render sempre dalla cache locale (`persist`, fino a 1 MiB/app), 4 stati UI, backoff con jitter, nessun retry se disconnesso. | §10 |
-| 7 | **Budget di memoria vincolanti**: footprint statico < 60 KiB (tetto hard 65.535 B), risorse < 256 KB per piattaforma (limite appstore), bitmap sempre palettizzate + `spaceOptimization: "memory"`, AppMessage dimensionato al minimo. | §8 |
+| 7 | **Budget di memoria vincolanti**: footprint statico < 60 KiB = **tetto di piattaforma** (hard 65.535 B), mentre l'**obiettivo di progetto** è **≤ 40 KB su emery / ≤ 45 KB su flint** (`CLAUDE.md` §Vincoli); risorse < 256 KB per piattaforma (limite appstore), bitmap sempre palettizzate + `spaceOptimization: "memory"`, AppMessage dimensionato al minimo. | §8 |
 | 8 | **Zero floating point**, fixed-point + `sin_lookup`/`cos_lookup`; buffer `static`, mai array grandi sullo stack (4 KiB su emery, 2 KiB su flint). | Le app sono compilate Cortex-M3 soft-float senza libm. §8.5 |
 | 9 | **Touch solo nelle watchapp** (mai nelle watchface, non supportato), con fallback ai pulsanti; `app_touch_navigation_enable(true)` per menu/liste. | §7.8 |
 | 10 | **Setup in user space con `uv`** (Python 3.13 gestito da uv) + `pebble sdk install latest`; librerie QEMU estratte dai `.deb` in `~/.local` (procedura verificata localmente). Piano B: CloudPebble / `pebble install --cloudpebble` sull'orologio reale. | §5 |
 | 11 | **Un repo monoprogetto** `ProgettiClaude/Pebble/` con `apps/<nome>/` per ogni app, `docs/`, `tools/`, CI GitHub Actions che produce i `.pbw`. | §6 |
-| 12 | **Pubblicare su entrambi gli store** (Core via `pebble publish` (5.0.40: `--is-published` inerte, release subito visibile), Rebble via dev-portal), nome app `"<Nome> for Pebble"`, UUID minuscolo e immutabile, versione `major.minor.0`. | §13 |
+| 12 | **Pubblicare su entrambi gli store** (Core via `pebble publish` (5.0.40: `--is-published` inerte, release subito visibile), Rebble via dev-portal), nome che **non** usa «Pebble …» come prefisso (il suffisso `" for Pebble"` è **ammesso, non obbligatorio**: Galleria lo toglie, D42 — `apps/galleria/store/LISTING.md` §1), UUID minuscolo e immutabile, versione `major.minor.0`. | §13 |
 
 ---
 
@@ -84,10 +84,10 @@ Le piattaforme "vive" (`emery`, `flint`, `gabbro`) ricevono nuove API; le altre 
 
 ### 2.4 Firmware, SDK, tool ✅
 
-- **PebbleOS** è open source (Apache-2.0) su `github.com/coredevices/PebbleOS`; driver proprietari (touch, HRM, HAL SiFli) in `pebbleos-nonfree`. Ultima release **v4.36.0 (24/08/2026)** (v4.35.0 era del 19/08: **un minor ogni pochi giorni**, i numeri di firmware in questo piano invecchiano in giorni); dal 2/6/2026 lo schema è `4.MINOR.PATCH`. Le release GitHub **non hanno note**: le novità per sviluppatori stanno nei **changelog SDK** (`developer.repebble.com/sdk/changelogs/` — esistono solo 4.17, 4.33, 4.33.1; 4.18–4.32 sono 404).
+- **PebbleOS** è open source (Apache-2.0) su `github.com/coredevices/PebbleOS`; driver proprietari (touch, HRM, HAL SiFli) in `pebbleos-nonfree`. Ultima release nota al 24/08/2026: **v4.36.0** (v4.35.0 era del 19/08: **un minor ogni pochi giorni**, i numeri di firmware in questo piano invecchiano in giorni); **firmware in campo: il Pebble Time 2 dell'utente girava con PebbleOS v4.36.2 il 30/08/2026** (`pebble ping -vvv`, `docs/design/galleria-s8-risultati.md` §Ambiente del test), sopra il minimo 4.32 richiesto dalle app SDK 4.33.1; dal 2/6/2026 lo schema è `4.MINOR.PATCH`. Le release GitHub **non hanno note**: le novità per sviluppatori stanno nei **changelog SDK** (`developer.repebble.com/sdk/changelogs/` — esistono solo 4.17, 4.33, 4.33.1; 4.18–4.32 sono 404).
 - **SDK corrente: 4.33.1 (14/08/2026)** = `pebble sdk install latest`. SDK scaricabili: 4.4, 4.5, 4.9.127, 4.9.148, 4.9.169, 4.17, 4.33.1. L'SDK segue la numerazione del firmware.
 - **Firmware minimo = scelta dell'SDK** ✅ (gap-2): un `.pbw` compilato con SDK 4.33.1 è marcato `sdk_version 5.106` e **gira solo su PebbleOS ≥ 4.32.0**; con SDK 4.17 basta fw ≥ 4.17.0. Il minimo **non è dichiarabile** in `package.json` e né lo store né l'app mobile filtrano: è l'orologio che rifiuta l'app con il popup *"Incompatible SDK / This app requires a newer version of the Pebble firmware"* (nessun crash, nessun no-op). `PBL_API_EXISTS()` è **solo compile-time**: la rilevazione runtime delle API è impossibile e inutile. Regola: per app che non usano recognizer/HRV/`alarm_service_peek_next()` si può compilare con **SDK 4.17** (base installata più ampia); altrimenti 4.33.1 e chiedere di aggiornare l'orologio. ⚠️ Possibile linea di firmware "di fabbrica" 4.27.1: unità nuove potrebbero rifiutare app 4.33.1 finché non aggiornate.
-- **pebble-tool 5.0.39** (30/06/2026, PyPI, Python ≥ 3.10). Toolchain ARM (xPack GCC 14.2.1), QEMU (`qemu-pebble` 10.1.5) e Moddable vengono scaricati da `pebble sdk install` in `~/.local/share/pebble-sdk/` (~770 MB).
+- **pebble-tool 5.0.40** (PyPI, Python ≥ 3.10; è la versione installata e pinnata dal 30/08/2026, prima c'era la 5.0.39 del 30/06/2026 — §5.1). Toolchain ARM (xPack GCC 14.2.1), QEMU (`qemu-pebble` 10.1.5) e Moddable vengono scaricati da `pebble sdk install` in `~/.local/share/pebble-sdk/` (~770 MB).
 - Novità API 2026 rilevanti: Touch raw (4.9.169, stabile da fw 4.9.164) + gesture recognizer e touch navigation (4.33; crash risolto in fw 4.33.2), Speaker (4.9.169), backlight RGB (4.9.169), persist a 1 MiB (fw ≥ 4.9.171, 30/04/2026; prima erano 6 KiB) e `persist_get_max_size()` (fw ≥ 4.9.172, SDK 4.17), `backlight_service_subscribe()`/`light_is_on()` (4.17), `app_launch_button()` / `app_launch_get_quick_launch_action()` (4.17), HRV (4.33), `alarm_service_peek_next()` (4.33), binario emery a 128 KiB (4.33), libc → picolibc (4.33), `pebble build --debug` (4.17), `pebble publish` (beta da pebble-tool 5.0.28, feb 2026; login Google/GitHub/Apple), CloudPebble tornato (feb 2026).
 - **App mobile "Pebble"** di Core Devices (Android `coredevices.coreapp`, iOS "Pebble Core"), open source (KMP). Supporta developer connection LAN e **cloud relay** (`pebble install --cloudpebble`). Su iOS PebbleKit JS gira in JavaScriptCore "nudo": **niente `fetch`/DOM**, usare `XMLHttpRequest`.
 - **App store**: due feed paralleli — Core (`apps.repebble.com`, backend `appstore-api.repebble.com`, CLI `pebble publish`) e Rebble (`apps.rebble.io`, `dev-portal.rebble.io`). La sincronizzazione Rebble→Core annunciata a ottobre 2025 **non è più affidabile** (⚠️ thread forum giugno 2026) → pubblicare su entrambi. Nessuna review preventiva, nessuna app a pagamento.
@@ -168,7 +168,7 @@ Abbandonati (non usare): `pebble-clay`, `pebble-generic-weather`, `pebble-owm-we
 
 ## 5. Setup dell'ambiente su questa macchina (senza sudo) — ✅ procedura verificata localmente il 24/08/2026 in sandbox
 
-> Nulla di questo è ancora installato nell'HOME reale: è la Fase 0 della roadmap. Occupa ~1,2 GB in `$HOME` (SDK 770 MB + cache uv). **Non installare in `/tmp`** (tmpfs da 2,7 GB).
+> Nota (17/09/2026): questa procedura **è stata eseguita** nell'HOME reale il 24/08/2026 (Fase 0) e da allora vive in `tools/setup-env.sh`, idempotente; qui resta come descrizione passo per passo, per capire che cosa fa lo script. Su un computer nuovo si parte da `README.md` §«Ripartire su un computer nuovo». Occupa ~1,2 GB in `$HOME` (SDK 770 MB + cache uv). **Non installare in `/tmp`** (tmpfs da 2,7 GB).
 
 ### 5.1 Toolchain
 
@@ -181,8 +181,8 @@ export PATH="$HOME/.local/bin:$PATH"
 uv python install 3.13
 
 # 3) CLI pinnata (riproducibilità)
-uv tool install "pebble-tool==5.0.39" --python 3.13
-pebble --version                     # Pebble Tool v5.0.39
+uv tool install "pebble-tool==5.0.40" --python 3.13
+pebble --version                     # Pebble Tool v5.0.40 (5.0.39 fino al 30/08/2026)
 
 # 4) SDK + toolchain ARM + QEMU (~40-80 s) → ~/.local/share/pebble-sdk/
 pebble sdk install latest            # 4.33.1
@@ -238,60 +238,38 @@ pebble kill
 
 (a) `pebble install --cloudpebble` sull'orologio; (b) CloudPebble in browser; (c) `ericmigi.github.io/pebble-qemu-wasm` (emery testato); (d) `pebble.nix` single-user ❓.
 
-### 5.7 CI (GitHub Actions) — da creare in Fase 0
+### 5.7 CI (GitHub Actions) ✅ scritta in Fase 0, attiva dal 30/08/2026
 
-```yaml
-name: build
-on: [push, pull_request]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy: { matrix: { app: [hello-emery] } }        # aggiungere ogni app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - uses: astral-sh/setup-uv@v6
-      - run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0 libglib2.0-0t64 libpixman-1-0 zlib1g libsndio7.0
-      - uses: actions/cache@v4
-        with: { path: ~/.local/share/pebble-sdk, key: pebble-sdk-4.33.1-${{ runner.os }} }
-      - run: uv tool install "pebble-tool==5.0.39" --python 3.13
-      - run: pebble sdk list | grep -q "(active)" || pebble sdk install latest
-      - run: cd apps/${{ matrix.app }} && pebble build
-      - run: cd apps/${{ matrix.app }} && pebble install --emulator emery --vnc && pebble screenshot --emulator emery --vnc --no-open emery.png && pebble kill
-      - uses: actions/upload-artifact@v4
-        with: { name: ${{ matrix.app }}, path: apps/${{ matrix.app }}/build/*.pbw }
-```
+La CI esiste e **l'unica fonte è `.github/workflows/build.yml`**: qui non se ne tiene una copia (due
+YAML che divergono sono peggio di nessuno). In sintesi, così da sapere che cosa aspettarsi:
+
+- job **`build`**, matrice `galleria, hello-emery, heapprobe`: Node 22 + `uv`, librerie QEMU da `apt`,
+  cache di `~/.local/share/pebble-sdk`, pebble-tool **5.0.40** e SDK **4.33.1** pinnati nelle `env`,
+  `pebble build` con il blocco `MEMORY USAGE` estratto dal log, screenshot emery headless (`--vnc`,
+  *best effort*), artefatti `.pbw` + `build.log` + `emery.png`;
+- job **`galleria-host-tests`**: `make -C apps/galleria/test` (C con gcc, node, Python), senza SDK.
+
+Al 17/09/2026 ha girato **10 volte, tutte verdi** (2 il 30/08, 1 il 04/09, 7 il 05/09; l'ultima il
+05/09 alle 21:28 UTC — `gh run list`). ⚠️ Il lavoro da S11 in poi non è ancora stato spinto: il primo
+push lo metterà alla prova per la prima volta. In CI manca l'interprete con `freetype-py`, quindi
+`gen_digits.py --check` si limita a stampare «saltato» e le maschere delle cifre **non** sono
+verificate (`apps/galleria/test/Makefile`, bersaglio `pagecheck`).
 
 ---
 
 ## 6. Struttura del repository e convenzioni
 
-```
-ProgettiClaude/Pebble/
-├── PIANO-SVILUPPO-PEBBLE.md          ← questo documento
-├── CLAUDE.md                          ← (Fase 0) regole operative per Claude, derivate da §17
-├── docs/
-│   ├── CONTINUA-QUI.md                ← (Fase 0) stato lavori, aggiornato a fine sessione
-│   ├── ricerca/*.md                   ← report dettagliati (già presenti)
-│   └── design/<app>.md                ← (per app) scelte di design, palette, layout, budget
-├── tools/
-│   ├── setup-env.sh                   ← §5.1–5.2 in forma di script idempotente
-│   ├── svg2pdc.py                     ← port Python 3 dello script ufficiale (è Python 2)
-│   ├── palette/pebble_colors_64.gif   ← palette ufficiale per ImageMagick
-│   └── pebble-watchface-agent-skill/  ← clone della skill ufficiale (riferimento)
-├── common/                            ← (opzionale) codice C condiviso come Pebble package locale
-├── apps/
-│   ├── hello-emery/                   ← smoke test Fase 0
-│   └── <app>/                         ← un progetto pebble per app: package.json, wscript, src/c, src/pkjs, resources
-└── .github/workflows/build.yml
-```
+L'albero vero è descritto **una volta sola**, in **`README.md` §«Struttura»**: l'elenco che stava qui
+era la fotografia del 24/08/2026 e divergeva sia dal repository sia dal README. Qui restano solo le
+**convenzioni**, che valgono per ogni app nuova. Della struttura immaginata in Fase 0 non è mai nata
+la cartella **`common/`** (codice C condiviso come Pebble package locale): l'idea resta in §14.1,
+fase 4, e finché non ci sono due app che condividono davvero qualcosa non va creata.
 
 Convenzioni per ogni app:
 - `package.json`: `"sdkVersion": "3"` (valore generato, non cambiarlo), `targetPlatforms` esplicito, UUID v4 **minuscolo**, `version` `major.minor.0`, `capabilities` coerenti (`health`, `location`, `configurable`).
 - Moduli C separati per responsabilità (pattern Halcyon): `main.c` (ciclo di vita), `ui_*.c` (disegno), `model.c` (stato), `storage.c` (persist + migrazioni), `sync.c` (AppMessage/connessione), `settings.c`. La **logica pura** (calcoli, parsing, layout math) in file che **non includono `pebble.h`**, così è testabile con gcc host + cmocka/Unity (non esiste un framework di test Pebble mantenuto).
 - Risorse con tag descrittivi (`bg~color~rect~200w.png`, `bg~bw.png`), mai `~emery`; `targetPlatforms` per-risorsa per escludere gli asset 200×228 dal bundle flint.
-- Ogni build in CI stampa e archivia il blocco `MEMORY USAGE`; soglie: footprint emery < 60 KiB, flint < 45 KiB, risorse < 256 KB.
+- Ogni build in CI stampa e archivia il blocco `MEMORY USAGE`; soglie: **60 KiB è il tetto di piattaforma** (hard 65.535 B), l'**obiettivo di progetto** è **≤ 40 KB su emery** e **≤ 45 KB su flint** (`CLAUDE.md` §Vincoli), risorse < 256 KB.
 
 ---
 
@@ -459,7 +437,7 @@ Budget indicativo emery: stack 4.096 · AppMessage 512+256 · cache in RAM ~2 KB
 | **E. Test emulatore** | Matrice §12.1 (emery, flint; Quick View on/off; content size ×3; BT off dal primo avvio; `pebble wipe`; batteria 10%; 12/24 h). Screenshot per piattaforma. | checklist §12 spuntata |
 | **F. Test orologio** | `pebble install --cloudpebble --logs`; verifica in interni senza backlight; touch; **48 h di batteria** confrontata con la watchface di sistema. | note in `docs/design/<app>.md` |
 | **G. QA finale** | §12.4. Confronto con Legacy Apps = Centered/Scaled. Nessun leak dopo N apri/chiudi. | — |
-| **H. Pubblicazione** | §13. Prima release non pubblicata/unlisted → controllo listing → public. Tag git `v<major>.<minor>.0`. | link store, `.pbw` in CI |
+| **H. Pubblicazione** | §13. ⚠️ **Dalla CLI la prima release nasce già pubblica**: `--is-published` è inerte nel tool 5.0.40 (§13) → controllo del listing **prima** del `publish`, unlisted solo dal portale developer. Tag git `v<major>.<minor>.0`. | link store, `.pbw` in CI |
 | **I. Manutenzione** | Seguire i changelog SDK; ricompilare con SDK nuovi solo se serve un'API (le app 4.33 richiedono fw ≥ 4.32). | `docs/CONTINUA-QUI.md` aggiornato |
 
 Definition of Done per app: gate D–G superati, `docs/design/<app>.md` allineato, budget rispettati, pubblicata (o motivo per cui non lo è).
@@ -494,7 +472,7 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 - [ ] Ora/health/timer/storage al 100% offline; `clock_is_timezone_set()` gestito
 
 ### 12.3 Checklist memoria/perf
-- [ ] `Total footprint in RAM` < 60 KiB emery / < 45 KiB flint; risorse < 256 KB
+- [ ] `Total footprint in RAM` sotto il tetto di piattaforma (< 60 KiB) **e** sotto l'obiettivo di progetto: **≤ 40 KB emery / ≤ 45 KB flint** (`CLAUDE.md` §Vincoli); risorse < 256 KB
 - [ ] `heap_bytes_free()` stabile dopo N cicli apri/chiudi (no leak)
 - [ ] Nessun `SECOND_UNIT`, nessuna animazione continua, timer cancellati in `disappear`
 - [ ] `update_proc` < 10 ms (misurata con `time_ms()` sul dispositivo)
@@ -503,9 +481,9 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 ### 12.4 Checklist pre-pubblicazione
 - [ ] Build pulita per tutte le `targetPlatforms`, senza warning
 - [ ] UUID minuscolo invariato; `version` `major.minor.0` incrementata; `capabilities` coerenti; `watchapp.watchface` corretto (determina la categoria)
-- [ ] Screenshot per ogni piattaforma a risoluzione nativa (200×228 emery, 144×168 flint), **senza cornice**; banner 720×320 (obbligatorio per watchapp); icone 144×144 e 48×48
+- [ ] Screenshot per ogni piattaforma a risoluzione nativa (200×228 emery, 144×168 flint), **senza cornice**; banner 720×320 (obbligatorio per watchapp); icone **80×80 (`--icon-small`) e 144×144 (`--icon-large`)** secondo i prompt del tool 5.0.40 (`apps/galleria/store/PUBLISH.md` §5; la 48×48 è la taglia del **vecchio** portale Rebble e resta utile per il listing)
 - [ ] Testato: Quick View on/off; 3 content size su emery; BT off; `wipe`; 12/24 h; batteria bassa/in carica; Legacy Apps Centered/Scaled
-- [ ] Nome conforme al trademark (`<Nome> for Pebble`, mai `Pebble <Nome>`, niente logo Pebble)
+- [ ] Nome conforme al trademark (mai `Pebble <Nome>` come prefisso, niente logo Pebble; il suffisso `<Nome> for Pebble` è **facoltativo** — Galleria si chiama «Galleria», D42)
 - [ ] Config page (se `configurable`) raggiungibile; release notes scritte
 
 ---
@@ -526,7 +504,7 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 | Fase | Contenuto | Esito atteso |
 |---|---|---|
 | **0 — Setup** ✅ **fatta il 24/08/2026** (stato in `docs/CONTINUA-QUI.md`) | §5.1–5.3 nell'HOME reale; `tools/setup-env.sh` (idempotente), `tools/pebble-env.sh` + hook `~/.bashrc`, `tools/qemu-pebble-wrapper` (`PEBBLE_QEMU_PATH`); `CLAUDE.md` + `docs/CONTINUA-QUI.md`; clone skill ufficiale e `sdk-docs` in `tools/`; `svg2pdc.py` Python 3; CI scritta (non eseguita); **app sonda memoria eseguita** su emery e flint (modello confermato, §3); emulatori emery/flint/gabbro verificati con screenshot; `git init` senza commit. Rimandati: prova touch col mouse (manuale), default Legacy Apps, `tools/pbltouch.py`, test su orologio. | `hello-emery` compila e gira su emery+flint+gabbro; heap misurato: 129.680 B (emery) / 64.144 B (flint) |
-| **1 — Watchface pilota** | Archetipo W (§14.2). Esercita: display (LECO 60, dark, quick view, content size), `MINUTE_UNIT`, indicatori BT/batteria con `peek`, persist impostazioni, opzionale Clay+enamel. | pubblicata; 48 h di batteria misurate; palette confrontata con foto del vetro |
+| **1 — Watchface pilota** ✅ *(Galleria)* | Archetipo W (§14.2). Esercita: display (LECO 60, dark, quick view, content size), `MINUTE_UNIT`, indicatori BT/batteria con `peek`, persist impostazioni, opzionale Clay+enamel. | **pubblicata il 05/09/2026** (0.1.0 beta e 0.2.0, store Core); restano **48 h di batteria** da misurare e la palette da confrontare con una foto del vetro |
 | **2 — Watchapp offline** | Archetipo U. Esercita: MenuLayer + touch navigation, menu impostazioni on-watch, persist versionato con CRC, wakeup con jitter, AppGlance con `time_since`, ActionBar/ActionMenu, speaker/backlight RGB come feedback. | pubblicata; heap e footprint documentati |
 | **3 — App con sync opportunistica** | Archetipo S. Esercita: PKJS sync worker (XHR, cache telefono, `FetchedAt`), 4 stati UI, backoff, buffer minimi, messaggio binario unico. | pubblicata; test offline completo |
 | **4 — Consolidamento** | Estrarre `common/` (storage/sync/ui helpers) come package locale; aggiungere `gabbro` se ha senso; iterare sulle app in base ai feedback store. | librerie riusabili; app successive in giorni, non settimane |
@@ -545,8 +523,8 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 |---|---|---|
 | 1 | Heap reale su emery: modello (heap ≈ 131.072 − statico − 24 B) **confermato in emulatore** (Fase 0), non ancora su PT2 reale | ripetere `apps/heapprobe` sull'orologio al primo accesso |
 | 2 | Resa colori del pannello PT2 vs LUT "sunlight" (nata sul pannello 2015) | foto del vetro vs screenshot corretto in Fase 1 |
-| 3 | UI attuale del Dev Connect nell'app mobile (login GitHub vs account Pebble) | al primo test su orologio |
-| 4 | `app_message_inbox_size_maximum()` in emulatore vs telefono | log in Fase 3 |
+| 3 | ~~UI attuale del Dev Connect nell'app mobile~~ ✅ **chiusa il 30/08/2026** sull'orologio reale: app Pebble **1.11.0.3**, Settings → Connectivity → «Use LAN developer connection» ON **più** ⋯ → «Dev Connection» ON sulla scheda dell'orologio; nessun login Pebble, `pebble ping/install/logs --phone <IP>` sulla porta 9000 | fonte: `docs/design/galleria-s8-risultati.md` §Ambiente del test e `docs/design/galleria-s8-runbook-android.md` |
+| 4 | ~~`app_message_inbox_size_maximum()` in emulatore vs telefono~~ ✅ **inerte dal 29/08/2026**: quell'API è **vietata** dalle regole di progetto (l'inbox si dimensiona con `dict_calc_buffer_size()`, una sola `app_message_open()` per esecuzione) e Galleria non la chiama | regola 7 di `CLAUDE.md` §Regole di codice C; §17.3 punto 8 |
 | 5 | Stabilità touch (firmware) e unità con consumo anomalo | aggiornare sempre il firmware; misurare 48 h |
 | 6 | Sync store Rebble→Core | pubblicare su entrambi |
 | 7 | **Firmware installato sugli orologi degli utenti**: le app SDK 4.33.1 girano solo su fw ≥ 4.32; possibile firmware di fabbrica 4.27.1 su unità nuove; non è noto se l'app mobile forzi gli aggiornamenti | scegliere l'SDK per app (4.17 quando basta); scrivere nella descrizione store il firmware minimo |
@@ -555,6 +533,13 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 | 10 | Cadenza altissima dei firmware (un minor ogni pochi giorni; v4.36.0 uscita il giorno di questa ricerca) | pinnare SDK e pebble-tool; aggiornare deliberatamente |
 | 11 | Il binario `qemu-pebble` dell'SDK 4.33.1 (10.1.5-pebble14) è precedente ai tag pebble15–17 di `coredevices/qemu`: touch/decorazioni potrebbero differire | verificare touch col mouse in Fase 0 |
 | 12 | Default "Legacy Apps" (scaled vs centered) | controllare in emulatore |
+
+Restano aperte come **compiti**, al 17/09/2026, le righe **#1** (`heapprobe` sul PT2 reale), **#2**
+(palette confrontata con una foto del vetro), **#11** (touch col mouse in emulatore) e **#12** (default
+Legacy Apps): tutte ferme a un accesso all'orologio o a una prova manuale. L'elenco vivo, con le altre
+cose rimandate (gate sul telefono, 48 h di batteria, flint reale), è in `docs/CONTINUA-QUI.md`
+§«Cose NON fatte / da fare a mano». Le righe #5, #6, #7, #9 e #10 non sono compiti ma rischi permanenti
+della piattaforma, da tenere d'occhio.
 
 ---
 
@@ -590,7 +575,7 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 5. Zero `float`/`double`; `sin_lookup`/`cos_lookup`/`atan2_lookup`, `DEG_TO_TRIGANGLE`, fixed-point; niente `%f`, `sqrt`, `qsort`, `strtol`, `alloca`.
 6. Buffer `static` file-scope (niente array > ~200 B sullo stack; stringhe per `text_layer_set_text` mai locali); `snprintf` con `sizeof`.
 7. Bitmap: `memoryFormat` palettizzato + `"spaceOptimization": "memory"` + `targetPlatforms`; PDC per icone; font con `characterRegex`; niente `RotBitmapLayer`; `GCompOpSet` per la trasparenza.
-8. AppMessage: buffer da `dict_calc_buffer_size()`; callback prima di `open`; `close` a fine sync; `JSReady`; mai retry su `APP_MSG_NOT_CONNECTED`; backoff con jitter; `SNIFF_INTERVAL_NORMAL`.
+8. AppMessage: buffer da `dict_calc_buffer_size()` (mai `*_size_maximum()`); callback prima di `open`; **una sola `app_message_open()` per esecuzione**, con l'inbox dimensionata una volta per il messaggio più grande — `app_message_close()` **non esiste nell'SDK 4.33.1** (verificato il 29/08/2026 in `pebble.h` e in `libpebble.a`) e un secondo `open` dà `APP_MSG_INVALID_STATE`; `JSReady`; mai retry su `APP_MSG_NOT_CONNECTED`; backoff con jitter; `SNIFF_INTERVAL_NORMAL`.
 9. Persist: `persist_exists()` prima di leggere; schema versionato + CRC; chunk poi lunghezza; scritture con debounce, flush in `deinit`; `persist_get_max_size()` con fallback 4096.
 10. Wakeup con retry su `E_RANGE`; niente worker se bastano wakeup + persist; AppGlance in `deinit` (watchapp).
 11. Touch: solo watchapp, `#if defined(PBL_TOUCH)`, `touch_service_is_enabled()`, recognizer, unsubscribe in `disappear`, fallback pulsanti.
@@ -600,12 +585,30 @@ Nota: l'install su un emulatore già avviato può atterrare sul launcher con l'a
 15. Mai `realloc()` su blocchi ≥ 64 KiB; statico ≤ 40 KB su emery; blocchi grandi allocati una volta in `init()`.
 16. L'SDK scelto fissa il firmware minimo (4.17 → fw ≥ 4.17; 4.33.1 → fw ≥ 4.32): dichiararlo in `docs/design/<app>.md` e nella descrizione store; recognizer touch solo con `watch_info_get_firmware_version()` ≥ 4.33.2.
 
-### 17.4 Contenuto minimo del `CLAUDE.md` di progetto (da creare in Fase 0)
-Comandi (`pebble build/install/screenshot/logs/kill`, `--vnc` se headless, `LD_LIBRARY_PATH`), piattaforme target, soglie di memoria, link a questo piano e a `docs/ricerca/`, le 14 regole di §17.3, la regola "nessun commit senza conferma".
+### 17.4 Contenuto minimo del `CLAUDE.md` di progetto (scritto in Fase 0, vedi `CLAUDE.md` di radice)
+Comandi (`pebble build/install/screenshot/logs/kill`, `--vnc` se headless, `LD_LIBRARY_PATH`), piattaforme target, soglie di memoria, link a questo piano e a `docs/ricerca/`, le 14 regole di §17.3, la regola "nessun commit senza conferma". Ogni app ne ha uno suo con le sole regole specifiche (`apps/galleria/CLAUDE.md`).
 
 ---
 
 ## 18. Changelog del piano
+
+- **2026-09-17 v1.3** — allineamento dopo la Fase 1 e la **pulizia del repository** per la pubblicazione
+  su GitHub. Numeri: **pebble-tool 5.0.40** (§2.4 e §5.1; 5.0.39 fino al 30/08/2026) e **firmware in
+  campo v4.36.2** misurato sul PT2 dell'utente il 30/08/2026 (§2.4, fonte
+  `docs/design/galleria-s8-risultati.md`). Sezioni riscritte: **§5.7**, che non duplica più lo YAML della
+  CI ma rimanda a `.github/workflows/build.yml` (10 esecuzioni, tutte verdi, fra il 30/08 e il
+  05/09/2026) e dice che in CI `gen_digits.py --check` viene saltato; **§6**, che per l'albero del
+  repository rimanda a `README.md` §Struttura e annota che `common/` non è mai stata creata; **§15**, con
+  #3 (UI del Dev Connect: app Pebble 1.11.0.3 + toggle LAN, 30/08/2026) e #4
+  (`app_message_inbox_size_maximum()`: API vietata dalle regole di progetto) chiuse e le sole #1, #11,
+  #12 lasciate aperte; **§17.3 punto 8**, che ora prescrive **una sola `app_message_open()`** e niente
+  `close` (l'API non esiste nell'SDK 4.33.1, come già corretto in §7.7 dalla v1.2.1). Soglie di
+  footprint: in dec. 7, §6 e §12.3 i **60 KiB** sono dichiarati **tetto di piattaforma**, mentre
+  l'obiettivo di progetto resta **≤ 40 KB emery / ≤ 45 KB flint** (`CLAUDE.md`). Questa voce copre anche
+  le modifiche fatte fra il 06 e il 14/09/2026 senza registrazione qui (§0 la impone): nome nello store
+  senza il suffisso obbligatorio «for Pebble» (dec. 12 e §12.4, decisione D42 di Galleria), icone dello
+  store **80×80** e **144×144** secondo i prompt del tool 5.0.40 (§12.4), prima release già pubblica
+  perché `--is-published` è inerte (§11 H), **Fase 1 ✅** con Galleria pubblicata il 05/09/2026 (§14.1).
 
 - **2026-08-26 v1.2.1** — corretto un'API inesistente (`text_layer_set_should_cache_layout`, assente in `pebble.h` 4.33.1) in §7.7 e §17.3; Fase 1 avviata con la watchface Galleria (`apps/galleria/PIANO.md`, `docs/design/galleria.md`, ricerca in `docs/ricerca/galleria/`).
 

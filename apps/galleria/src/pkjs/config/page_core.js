@@ -16,23 +16,34 @@
    * 650-1.200 ms (nessun avviso). */
   var SLOW_BASE_MS = 400, SLOW_PER_PHOTO_MS = 100;
   var FMT_LEN = { 1: 34200, 2: 3024 };
+  /* UX-3 (D117 / U-14): quanto pesa nel payload UNA foto in piu', per formato (1 = raw6 emery,
+   * 2 = raw1 flint). E' un TETTO, non una media: 45.600 (o 4.032) caratteri base64url di dati
+   * + una miniatura fino a MAX_THUMB_CHARS + l'involucro JSON, arrotondati in KB. Con la media
+   * (34 + 6) la foto seguente passerebbe il controllo e sforerebbe il tetto al Salva, che e'
+   * proprio il momento in cui non si puo' piu' rimediare: su iPhone (200 KB) succede gia' alla
+   * quarta foto. La pagina lo usa per spegnere «Aggiungi foto» PRIMA. */
+  var NEXT_PHOTO_KB = { 1: 52, 2: 10 };
   /* [nome, min, max, default] = album.js / settings_validate(); S8-stile: font fino a 5 (4 e 5 = i due
    * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21) */
   var SETTINGS_FIELDS = [['layout', 0, 1, 0], ['font', 0, 5, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
     ['text_color', 0, 4, 0], ['outline', 0, 2, 0], ['interval_min', 0, 1440, 30], ['order', 0, 1, 0],
     ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15], ['digit_style', 0, 3, 0],
-    /* S10 D31: lang = 0 auto, 1 en, 2 it, 3 de, 4 fr (byte 13 di GalSettings) */
-    ['lang', 0, 4, 0]];
-  /* Lingue nell'ordine di GalSettings.lang (1..4) e nomi nella lingua stessa (endonimi, D36:
-   * uguali in tutte le lingue, quindi non stanno nel dizionario). */
-  var LANGS = ['en', 'it', 'de', 'fr'], LANG_NAMES = ['English', 'Italiano', 'Deutsch', 'Fran\u00e7ais'];
+    /* S10 D31 + S11 D39: lang = 0 auto, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt (byte 13 di GalSettings) */
+    ['lang', 0, 6, 0]];
+  /* Lingue nell'ordine di GalSettings.lang (1..6; D39: es e pt in coda) e nomi nella lingua stessa
+   * (endonimi, D36: uguali in tutte le lingue, quindi non stanno nel dizionario). La lista e' la
+   * stessa di LANG_ORDER in index.js e degli array di i18n.js: build_config_page.py lo controlla. */
+  var LANGS = ['en', 'it', 'de', 'fr', 'es', 'pt'],
+      LANG_NAMES = ['English', 'Italiano', 'Deutsch', 'Fran\u00e7ais', 'Espa\u00f1ol', 'Portugu\u00eas'];
   var ENC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   var DEC = (function () {
     var t = [], i;
     for (i = 0; i < 256; i++) { t[i] = -1; }
     for (i = 0; i < 64; i++) { t[ENC.charCodeAt(i)] = i; }
-    t[43] = 62; t[47] = 63;                                      /* alfabeto standard */
-    t[61] = -2; t[32] = -2; t[10] = -2; t[13] = -2; t[9] = -2;   /* '=' e spazi: ignorati */
+    /* alfabeto standard */
+    t[43] = 62; t[47] = 63;
+    /* '=' e spazi: ignorati */
+    t[61] = -2; t[32] = -2; t[10] = -2; t[13] = -2; t[9] = -2;
     return t;
   })();
 
@@ -44,12 +55,14 @@
     if (isInt(v) && v >= 1 && v <= LANGS.length) { return LANGS[v - 1]; }
     return LANGS.indexOf(langAuto) >= 0 ? langAuto : 'en';
   }
-  /* separatore decimale per lingua (D35): en col punto, it/de/fr con la virgola. v arriva col punto. */
+  /* separatore decimale per lingua (D35): en col punto, it/de/fr/es/pt con la virgola (D42).
+   * v arriva col punto. */
   function dec(v, lang) { return String(v).replace('.', lang === 'en' ? '.' : ','); }
   function isArray(v) { return Object.prototype.toString.call(v) === '[object Array]'; }
   function isSlot(v) { return isInt(v) && v >= 0 && v < MAX_SLOTS; }
   function has(list, v) { return list.indexOf(v) >= 0; }
-  function slotList(v) {                                         /* interi 0..11 senza duplicati */
+  /* interi 0..11 senza duplicati */
+  function slotList(v) {
     var out = [], i;
     if (isArray(v)) { for (i = 0; i < v.length; i++) { if (isSlot(v[i]) && !has(out, v[i])) { out.push(v[i]); } } }
     return out;
@@ -95,8 +108,10 @@
       s[f[0]] = (isInt(v) && v >= f[1] && v <= f[2]) ? v : f[3];
     }
     if (!has(INTERVALS, s.interval_min)) { s.interval_min = 30; }
-    if (s.font === 3 && s.layout === 1) { s.font = 0; }         /* LECO solo in layout A */
-    if (s.font === 3) { s.digit_style = 0; }                    /* LECO: font di sistema, nessuno sprite (D21) */
+    /* LECO solo in layout A */
+    if (s.font === 3 && s.layout === 1) { s.font = 0; }
+    /* LECO: font di sistema, nessuno sprite (D21) */
+    if (s.font === 3) { s.digit_style = 0; }
     return s;
   }
 
@@ -105,7 +120,7 @@
     for (k = 0; k < MAX_SLOTS; k++) { photos.push(null); }
     return { v: 1, ok: true, platform: 'unknown', fmt: 1, cap_kb: 900, dev: false, settings: defaultSettings(),
              settingsSet: false, photos: photos, order: [], deleted: [], watch: null,
-             i18n: null, lang_auto: 'en' };
+             i18n: null, lang_auto: 'en', masks: null, preview_time: null };
   }
   function normPhoto(p) {
     var out, f, fm;
@@ -131,7 +146,7 @@
     }
     return out;
   }
-  /* dizionari dell'hash (D35): { en: [...], it: [...], de: [...], fr: [...] }, nell'ordine delle
+  /* dizionari dell'hash (D35; S11/D39: sei lingue): { en: [...], ..., es: [...], pt: [...] }, nell'ordine delle
    * chiavi di i18n.js. Si tiene solo cio' che e' un array; niente = null (pagina in "chiavi"). */
   function normI18n(o) {
     var out = null, i, k;
@@ -163,6 +178,13 @@
     s.order = slotList(o.order); s.deleted = slotList(o.deleted); s.watch = normWatch(o.watch);
     s.i18n = normI18n(o.i18n);
     if (LANGS.indexOf(o.lang_auto) >= 0) { s.lang_auto = o.lang_auto; }
+    /* S12 (D45/D46): maschere delle cifre e ora campione dell'anteprima. Facoltative — un PKJS
+     * senza digit_masks.js non le manda —, quindi si validano soltanto: un oggetto e una stringa
+     * corta, il resto e' null e l'anteprima mostra la sola foto. Il contenuto lo interpreta il
+     * motore (preview.js), che non si fida comunque di quello che trova. */
+    s.masks = (o.masks && typeof o.masks === 'object' && !isArray(o.masks)) ? o.masks : null;
+    s.preview_time = (typeof o.preview_time === 'string' && o.preview_time.length > 0 &&
+                      o.preview_time.length <= 8) ? o.preview_time : null;
     return s;
   }
 
@@ -241,23 +263,36 @@
     var ms = watch && watch.openMs;
     return (isInt(ms) && ms > slowThresholdMs(watch)) ? secondsText(ms, lang) : null;
   }
+  /* UX-2 (D82): CRC-16 del blob delle impostazioni DI FABBRICA, cioe' quello che album.js calcola
+   * con settingsCrc(defaultSettings()); e' inchiodato dalla S4 (settings.c: il CRC dei default non
+   * cambia) e i test lo riverificano contro album.js, cosi' una modifica alle impostazioni non lo
+   * lascia indietro in silenzio.
+   * settingsDiffer(watch) = "l'orologio si e' gia' fatto le sue impostazioni": snapshot HELLO
+   * presente e CRC diverso da quello di fabbrica. La nota «L'orologio usa le sue impostazioni:
+   * queste valgono quando tocchi Salva.» si mostra solo quando questo e' vero — senza snapshot, o
+   * con un orologio ancora ai default, non c'e' niente da avvertire. */
+  var DEFAULTS_CRC = 0x7EE7;
+  function settingsDiffer(watch) {
+    return !!watch && isInt(watch.settingsCrc) && (watch.settingsCrc & 0xFFFF) !== DEFAULTS_CRC;
+  }
   function payloadKb(payload) { return Math.ceil(JSON.stringify(payload).length / 1024); }
   /* T = il T(chiave, a, b) della pagina; senza (page_core usato da solo) il ripiego e' inglese (D35). */
   function capMessage(kb, capKb, nAdded, T) {
     var k, over;
     if (!(kb > capKb)) { return null; }
-    over = T ? T('cap_over', kb, capKb) : 'Too much data for one transfer (' + kb + ' KB of ' + capKb + ')';
+    over = T ? T('cap_over', kb, capKb) : 'Too many photos for one transfer (' + kb + ' KB of ' + capKb + ')';
     if (!(nAdded > 0)) { return over; }
     k = Math.min(nAdded, Math.max(1, Math.ceil((kb - capKb) / (kb / nAdded))));
-    return T ? T('cap_over_fix', over, k) : over + '. Photos to remove: ' + k + ', or save in more than one go';
+    return T ? T('cap_over_fix', over, k)
+             : over + '. Photos to remove with ✕ (among those to save): ' + k + '. Then save; add the others by reopening the settings';
   }
 
   return { SETTINGS_FIELDS: SETTINGS_FIELDS, INTERVALS: INTERVALS, MAX_SLOTS: MAX_SLOTS, MAX_THUMB_CHARS: MAX_THUMB_CHARS,
     MAX_NAME: MAX_NAME, FMT_LEN: FMT_LEN, decodeState: decodeState, b64urlToBytes: b64urlToBytes, utf8Decode: utf8Decode,
     defaultSettings: defaultSettings, normalizeSettings: normalizeSettings, defaultState: defaultState, buildTiles: buildTiles,
     freeSlot: freeSlot, buildPayload: buildPayload, payloadKb: payloadKb, capMessage: capMessage, thumbFits: thumbFits,
-    truncateName: truncateName, capForUa: capForUa, SLOW_BASE_MS: SLOW_BASE_MS,
+    truncateName: truncateName, capForUa: capForUa, SLOW_BASE_MS: SLOW_BASE_MS, NEXT_PHOTO_KB: NEXT_PHOTO_KB,
     LANGS: LANGS, langName: langName, effectiveLang: effectiveLang, dec: dec,
     SLOW_PER_PHOTO_MS: SLOW_PER_PHOTO_MS, slowThresholdMs: slowThresholdMs, secondsText: secondsText,
-    slowSeconds: slowSeconds };
+    slowSeconds: slowSeconds, DEFAULTS_CRC: DEFAULTS_CRC, settingsDiffer: settingsDiffer };
 }));

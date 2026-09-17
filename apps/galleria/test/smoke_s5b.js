@@ -264,12 +264,14 @@ steps.push(function (next) {
 steps.push(function (next) {
   /* 10. S6: showConfiguration apre la pagina con lo stato nell'hash (base64url dei byte UTF-8 del
    *     JSON): sul "telefono" (platform android) un data: URL; fmt dal formato dell'ultimo HELLO,
-   *     cap_kb 900 (Android), foto e slot dell'orologio presenti. */
+   *     cap_kb 900 (Android), foto e slot dell'orologio presenti.
+   *     S12/D44: il corpo della pagina viaggia in base64 STANDARD (`;base64,`), non piu'
+   *     percent-encoded; l'hash resta base64url (test_index_retry.js caso p lo verifica a fondo). */
   var nOpened = pebble.opened.length, l10 = logs.length, url, hashPos, hash, st;
   pebble.fire('showConfiguration');
   check(pebble.opened.length === nOpened + 1, 'step10: openURL chiamata una volta');
   url = pebble.opened[pebble.opened.length - 1] || '';
-  check(url.indexOf('data:text/html;charset=utf-8,') === 0, 'step10: data: URL sul telefono');
+  check(url.indexOf('data:text/html;charset=utf-8;base64,') === 0, 'step10: data: URL base64 sul telefono');
   hashPos = url.indexOf('#');
   check(hashPos > 0, 'step10: hash presente');
   hash = hashPos > 0 ? url.slice(hashPos + 1) : '';
@@ -279,12 +281,14 @@ steps.push(function (next) {
   check(!!st && st.fmt === 1 && st.platform === 'emery', 'step10: fmt 1 / platform emery (got ' + (st && st.fmt) + '/' + (st && st.platform) + ')');
   check(!!st && st.cap_kb === 900 && st.dev === false, 'step10: cap 900 KB, dev false');
   /* S10 (D33/D35): lingua automatica dall'orologio (getActiveWatchInfo().language = 'it_IT' nel
-   * Pebble finto) e i quattro dizionari, che la pagina usa per cambiare lingua senza tornare al PKJS. */
+   * Pebble finto) e i sei dizionari (S11/D39: es e pt in coda), che la pagina usa per cambiare
+   * lingua senza tornare al PKJS. */
   check(!!st && st.lang_auto === 'it', 'step10: lang_auto dall\'orologio it_IT (got ' + (st && st.lang_auto) + ')');
   check(hasLog(/^\[config\] lang auto=it \(watch it_IT\)$/, l10), 'step10: log ASCII della lingua automatica');
-  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr"]',
-        'step10: i18n con le quattro lingue (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
-  check(!!st && st.i18n && st.i18n.it.length === st.i18n.de.length && st.i18n.fr.length === st.i18n.en.length,
+  check(!!st && st.i18n && JSON.stringify(Object.keys(st.i18n)) === '["en","it","de","fr","es","pt"]',
+        'step10: i18n con le sei lingue (got ' + (st && st.i18n && Object.keys(st.i18n).join(',')) + ')');
+  check(!!st && st.i18n && st.i18n.it.length === st.i18n.de.length && st.i18n.fr.length === st.i18n.en.length &&
+        st.i18n.es.length === st.i18n.en.length && st.i18n.pt.length === st.i18n.en.length,
         'step10: dizionari paralleli');
   check(!!st && st.settings && st.settings.lang === 0, 'step10: settings.lang = 0 (automatica) nel payload');
   check(!!st && st.settingsSet === true && st.settings && st.settings.font === 2 && st.settings.layout === 1 && st.settings.interval_min === 15, 'step10: impostazioni salvate nello stato (got ' + JSON.stringify(st && st.settings) + ')');

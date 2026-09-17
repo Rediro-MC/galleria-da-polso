@@ -1303,18 +1303,27 @@ static void test_env_settings(void) {
   storage_flush();
   env_case("shake 0 -> 1", s, base, 0, 0, 0, 1, 1);
 
-  /* --- S10 (D31/D37): GalSettings.lang --- */
-  for (uint8_t l = GAL_LANG_EN; l <= GAL_LANG_FR; l++) {
+  /* --- S10 (D31/D37) + S11 (D39): GalSettings.lang, tutte le lingue 1..GAL_LANG_LAST (es 5 e pt 6 comprese) --- */
+  for (uint8_t l = GAL_LANG_EN; l <= GAL_LANG_LAST; l++) {
     s = base; s.lang = l;
     env_case_l("lang auto -> forzata", base, s, 1, 0, 0, 0, 1, 0);   /* lang_changed + redraw prudente */
   }
   s = base; s.lang = GAL_LANG_IT;
   env_case_l("lang it -> auto", s, base, 1, 0, 0, 0, 1, 0);          /* anche il ritorno ad auto notifica */
+  s = base; s.lang = GAL_LANG_PT;
+  env_case_l("lang pt -> auto", s, base, 1, 0, 0, 0, 1, 0);
   {
     GalSettings fr = base; fr.lang = GAL_LANG_FR;
     s = base; s.lang = GAL_LANG_DE;
     env_case_l("lang fr -> de", fr, s, 1, 0, 0, 0, 1, 0);            /* forzata -> forzata */
     env_case_l("lang de -> de", s, s, 0, 0, 0, 0, 1, 0);             /* lang identico: nessuna notifica */
+    GalSettings es = base; es.lang = GAL_LANG_ES;
+    s = base; s.lang = GAL_LANG_PT;
+    env_case_l("lang es -> pt", es, s, 1, 0, 0, 0, 1, 0);            /* S11: fra le due lingue nuove */
+    env_case_l("lang pt -> es", s, es, 1, 0, 0, 0, 1, 0);
+    env_case_l("lang pt -> pt", s, s, 0, 0, 0, 0, 1, 0);
+    s = base; s.lang = GAL_LANG_FR;
+    env_case_l("lang es -> fr", es, s, 1, 0, 0, 0, 1, 0);            /* nuova -> vecchia */
   }
   s = base; s.lang = GAL_LANG_FR; s.clock_mode = GAL_CLOCK_12H;
   env_case_l("lang+clock", base, s, 1, 1, 0, 0, 1, 0);               /* lang PRIMA del tick */
@@ -1416,13 +1425,15 @@ static void test_settings_message(void) {
   CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
   ack_all();
   storage_flush();
-  /* lang 5 (fuori 0..4): BAD_FORMAT, lang resta de, nessuna notifica */
+  /* lang 7 (primo valore fuori 0..6: S11/D39, es = 5 e pt = 6 sono valide): BAD_FORMAT, lang resta de,
+   * nessuna notifica */
   shim_ui_reset_counters();
-  blob[13] = 5;
+  blob[13] = 7;
   in_msg(SYNC_MSG_SETTINGS);
   CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
   CHECK(deliver());
   CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(last()->reply_to, SYNC_MSG_SETTINGS);
   CHECK_EQ(settings_get()->lang, GAL_LANG_DE);
   CHECK_EQ(shim_ui_lang_calls(), 0);
   CHECK_EQ(shim_ui_time_calls(), 0);
@@ -1439,7 +1450,77 @@ static void test_settings_message(void) {
   CHECK_EQ(shim_ui_time_calls(), 0);
   ack_all();
   storage_flush();
-  /* fr (4) con reserved[] != 0 (PKJS di uno schema futuro): reserved NON e' validato -> OK, lang 4 */
+  /* S11 (D39): es (5) via SETTINGS -> OK, applicata, ui_time_lang_changed UNA volta e per PRIMA, redraw
+   * prudente, niente layout/style/tick (stesso contratto D37 delle lingue vecchie) */
+  shim_ui_reset_counters();
+  blob[13] = GAL_LANG_ES;
+  CHECK_EQ(blob[13], 5);
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(last()->reply_to, SYNC_MSG_SETTINGS);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_ES);
+  CHECK_EQ(shim_ui_lang_calls(), 1);
+  CHECK_EQ(shim_ui_lang_order(), 1);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  CHECK_EQ(shim_ui_layout_calls(), 0);
+  CHECK_EQ(shim_ui_style_calls(), 0);
+  CHECK_EQ(shim_ui_tick_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* lo stesso blob es di nuovo: OK, lang identico -> nessuna notifica di lingua; resta solo il redraw
+   * prudente che sync_env_settings_changed fa per OGNI SETTINGS accettata (come "lang de -> de") */
+  shim_ui_reset_counters();
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(shim_ui_lang_calls(), 0);
+  CHECK_EQ(shim_ui_lang_order(), 0);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  CHECK_EQ(shim_ui_time_calls(), 1);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_ES);
+  ack_all();
+  storage_flush();
+  /* pt (6): idem, es -> pt notificata */
+  shim_ui_reset_counters();
+  blob[13] = GAL_LANG_PT;
+  CHECK_EQ(blob[13], 6);
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_PT);
+  CHECK_EQ(shim_ui_lang_calls(), 1);
+  CHECK_EQ(shim_ui_lang_order(), 1);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  CHECK_EQ(shim_ui_layout_calls(), 0);
+  CHECK_EQ(shim_ui_style_calls(), 0);
+  CHECK_EQ(shim_ui_tick_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* il HELLO successivo porta il CRC con pt (e non quello dei default) */
+  js_ready();
+  m = shim_am_last_sent();
+  CHECK(m != NULL);
+  if (m) {
+    CHECK_EQ(m->crc, crc16_ccitt((const uint8_t *)settings_get(), (uint32_t)(sizeof(GalSettings) - 2)));
+    CHECK(m->crc != 0x7EE7);
+  }
+  ack_all();
+  /* lang 7 dopo pt: ancora BAD_FORMAT e pt resta (il confine e' 6, non "l'ultima accettata + 1") */
+  shim_ui_reset_counters();
+  blob[13] = 7;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->lang, GAL_LANG_PT);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* fr (4) con reserved[] != 0 (PKJS di uno schema futuro): reserved NON e' validato -> OK, lang 4 (da pt: notificata) */
   shim_ui_reset_counters();
   blob[13] = GAL_LANG_FR;
   blob[14] = 0xAA;

@@ -2,6 +2,18 @@
 
 > Unico posto dove finiscono i numeri misurati sull'orologio reale (spec `galleria-s8-hardware.md` §2.6). Ogni riga cita il file di log (`apps/galleria/run_s8_*.log`, riassunto con `python3 tools/galleria_logstats.py --md`) e lo screenshot. Vuoto = non ancora misurato.
 
+> **Nota (17/09/2026) — che cosa manca e dove va il resto.** Le celle vuote sono misure **mai fatte**, non
+> dimenticanze: restano senza numeri **O4** (timing della build M sul vetro), **O5** (colore automatico su 20 foto
+> vere e sulle test card), **O6/D6** (LUT sunlight), **O7** (batteria 48 h) e **O11** (Pebble 2 Duo reale), più la
+> parte di **O8** che chiede BT off/on, app chiusa e riavvio dell'orologio; **O9** è chiuso per *decisione* (U5 del
+> 05/09/2026: D5 sull'SDK 4.33.1) e non per misura. L'elenco con i passi del runbook che li produrrebbero sta in
+> `galleria-s8-hardware.md` §9.
+>
+> Il **gate sul telefono della 0.4.0** (UX-4, runbook `galleria-s13-ux4-gate-telefono.md`, prove P01–P20) non
+> rifà questa tabella: i numeri nuovi dell'orologio (heap, tempi di sync, `open`) si aggiungono **qui**, mentre
+> l'esito prova per prova va nella riga di risultato del runbook (§3) e da lì in `apps/galleria/PIANO.md` §8
+> e nel riassunto di `docs/design/galleria-s13-ux-casual.md` §15.
+
 ## Ambiente del test
 
 | Voce | Valore |
@@ -22,7 +34,7 @@
 | `heap main` used/free | 24 / 105.680 | |
 | `storage: quota=` (persist_get_max_size) | **1.048.576** (esatta: album abilitato, 12 slot ok) | |
 | `heap after first render` (layout A) | used 58.992 / **free 46.712** | |
-| Screenshot | ✅ Anton su demo aurora, passi 7.509, 79%, «Dom 30 Ago» (it_IT) | `shot_s8_02.png` |
+| Screenshot | ✅ Anton su demo aurora, passi 7.509, 79%, «Dom 30 Ago» (it_IT) | `galleria/s8_02_emery_a_anton_reale.png` (dall'orologio reale) |
 | Log PKJS visibili nel tool? (formato) | ✅ `[HH:MM:SS] pkjs> Galleria:193:28) [tag] …` (riga del bundle). **F-S8-1**: payload in ingresso a chiavi-NOME → fix `gv()` in `sync.js` (PIANO §4); dopo il fix handshake completo (HELLO→piano→fine) | |
 
 ## O2 — Sync di foto vere (Android)
@@ -138,6 +150,8 @@ Totale sbagliate su n: … → decisione soglie (spec §6).
 | `[config] payload applicato` (ms) con 1 / 4 / 8 / 12 foto | 1 foto: **15 ms** |
 | Limiti incontrati | |
 
+**S12 (06/09/2026, 13:03–13:07, Android)**: config page in **base64** con le maschere delle cifre nell'hash → URL **198.455** caratteri (4 foto in album) e **201.484** (5 foto): si apre; sezione «Anteprima» con foto aggiunta, occhio, cambio font/stile ok; Salva → foto in 9 messaggi / 14,1 s (chunk medi 1.410 ms, max 5.414: molto più lenti del 05/09; telefono lontano o occupato?). Log `apps/galleria/run_and_s12_0[12].log`. iPhone: da provare con la nuova pagina.
+
 ## O11 — Pebble 2 Duo (flint)
 
 | Misura | Valore |
@@ -162,14 +176,19 @@ Totale sbagliate su n: … → decisione soglie (spec §6).
 
 ## S8b — iPhone (dopo Android; spec §5)
 
+**Primo test: 06/09/2026, 09:38–09:53** (interrotto dall'utente dopo i test 1–5; 6–8 non fatti). Galleria **0.2.0 dallo store**, PT2 firmware **v4.36.2**, lingua dell'orologio it_IT, album dell'iPhone vuoto all'inizio. Log in `apps/galleria/run_ios_0*.log` (ignorati da git: contengono seriale e coordinate di un'altra watchface).
+
 | Misura | Valore |
 |---|---|
-| iPhone (modello, iOS, versione app Pebble) | |
-| Trasporto (`--phone` / `--cloudpebble`) | |
-| O1: ping, firmware, install, log | |
-| O10: pagina `data:` (~100–200 KB) si apre in WKWebView? | |
-| O10: `<input type=file>` apre la libreria? | |
-| O10: Salva ≤ 200 KB ok? close URL con 500 KB? | |
-| O2: sync di 1–2 foto | |
-| O8: sync con app in background 5 min (PKJS sospeso?) | |
-| `localStorage` (NSUserDefaults) con 12 foto | |
+| iPhone (modello, iOS, versione app Pebble) | non annotati (da chiedere all'utente) |
+| Trasporto (`--phone` / `--cloudpebble`) | `--phone <IP>` via LAN (porta 9000): `Pong!` al primo colpo. La Dev Connection dell'app iOS **cade spesso**: dopo la chiusura della pagina con sync, dopo riavvii ripetuti della watchface, al cambio di watchface, e quando l'app va in secondo piano (`Connection refused` finché lo switch non viene spento e riacceso). Rimedio usato: ciclo di ritentativi ogni 5 s (`for i in $(seq 1 120); do timeout -s INT 900 pebble logs --phone IP >> log; grep refused && sleep 5 || break; done`). |
+| O1: ping, firmware, install, log | `WatchVersion v4.36.2`, avvio pulito: `heap init` 59.796 usati / **42.476 liberi** (layout A, demo). L'errore all'avvio riferito dall'utente **prima** del collegamento non si è ripresentato e non è in nessun log (causa ignota). I log PKJS arrivano con prefisso fisso `pkjs> Galleria:196:31` (riga del wrapper del bundle, non del sorgente). |
+| O10: pagina `data:` (~100–200 KB) si apre in WKWebView? | **Sì, 4 aperture su 4** (rilettura dei log, 14/09/2026): URL **128.250** car. (album vuoto, stato 20.907, `run_ios_01.log:48`), **133.569** car. ×2 (1 foto, stato 26.226, `run_ios_03.log:30` e `:47`) e **138.249** car. (**2 foto**, stato 30.906, `run_ios_04.log:4` → chiusa con 220 car. dopo 5,6 s, `:5`): il massimo aperto finora su iPhone è **138.249**, non 133.569. Una **quinta** richiesta (128.249 car., album svuotato, `run_ios_04.log:33`) non ha una riga di chiusura: il log finisce lì con la caduta della Dev Connection, quindi non la contiamo. Contatore «**1 KB / 200 KB**»: cap iOS riconosciuto. Tempo di caricamento non cronometrato; tempo nella pagina 119,6 s / 94,4 s / 43,7 s / 5,6 s. |
+| O10: `<input type=file>` apre la libreria? | **Sì**: 2 foto aggiunte dalla libreria (orientamento/EXIF non annotato). |
+| O10: Salva ≤ 200 KB ok? close URL con 500 KB? | Ritorno via `pebblejs://close`: **49.806** e **49.327** car. (una foto ciascuno) e 218 car. (solo impostazioni) → `payload applicato` in 13 / 18 / 6 ms. **Non provato** il salvataggio con 4 foto (~185 KB, test 6) né 500 KB. |
+| O2: sync di 1–2 foto | Foto slot 0: log interrotto al 4º chunk su 9 dalla caduta della Dev Connection, ma al riavvio `photo: slot 0 persist crc ok` (arrivata intera). Foto slot 1: **9 messaggi, 3.496 ms** (chunk ack 150–672 ms, media 249, max 547 visto dall'orologio; `commit 16 ms`). `SETTINGS` (cambio font) applicate in ~3 s senza riavvio; `ALBUM_ORDER` ok; luma: foto 1 bianco+alone (bad 32 %), foto 2 nero+alone (bad 20 %); rotazione `valid=2`; 9 scosse → cambio foto in **16–24 ms** l'una. |
+| O8: sync con app in background 5 min (PKJS sospeso?) | non provato (test 8 interrotto: l'utente è passato a TimeStyle e la Dev Connection è caduta). Nota: con l'app in secondo piano cade anche la Dev Connection, quindi la misura richiede i contatori dell'orologio, non il log. |
+| `localStorage` (NSUserDefaults) con 12 foto | non provato (album a 2 foto). |
+| Heap a regime sull'orologio | A demo 42.476; **B Francois One + foto 36.900**; B Anton 38.580 (≈ 1,8 KB meno che in emulatore, D28 resta valida). |
+
+**Da fare al prossimo incontro iOS** (runbook §8, in quest'ordine): test 6 = 4 foto in un solo salvataggio (contatore ~185/200 KB, chiusura della pagina con quel payload: D1); test 7 = lingua forzata «English» → «Sun 6 Sep» e passi con la virgola, poi «Automatica»; test 8 = app chiusa, riavvio della watchface, scosse; album a 12 foto e `localStorage` (⚠️ URL **non** «~160 k»: misurato al banco il 14/09/2026 con le miniature vere, **221.703** car. su emery e 198.020 su flint, fino a **292.908** / 269.225 con le miniature al tetto di 6.000 car. l'una — contratto UX-4 §2 —, cioè **da 1,6 a 2,1 volte** il massimo mai aperto su iPhone: è il gate U-18b); annotare modello iPhone/iOS/versione app; cronometrare l'apertura della pagina; una foto scattata in verticale (R15/O10).

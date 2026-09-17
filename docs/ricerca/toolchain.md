@@ -1,5 +1,11 @@
 # SDK, toolchain e workflow di sviluppo per i nuovi Pebble (Core Devices) su Linux — stato ad agosto 2026
 
+> **Stato (17/09/2026).** Snapshot del 24/08/2026, non aggiornato (indice ed errata della cartella in
+> `README.md`). La parte operativa è superata dal banco reale: la procedura vera è in `tools/README.md`,
+> `tools/setup-env.sh` e nella sezione «Comandi» di `CLAUDE.md` (le librerie QEMU mancanti di §0 sono
+> risolte da `tools/qemu-pebble-wrapper`). Sono storiche le 12 righe **del corpo** che dicono pebble-tool **5.0.39**
+> (installata la **5.0.40**) e l'«ultima release» firmware v4.35.0, già superata dalla v4.36.0 il 24/08.
+
 Data ricerca: 2026-08-24. Macchina di riferimento: Ubuntu 26.04 LTS x86_64, senza sudo, Python di sistema 3.14.4, Node 22.22.1, gcc 15.2.
 
 Legenda: **[CONFERMATO]** = verificato su fonte primaria o riprodotto localmente; **[INFERENZA]** = deduzione ragionevole non verificata direttamente; **[DA VERIFICARE]** = non confermabile.

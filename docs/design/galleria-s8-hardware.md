@@ -183,4 +183,31 @@ Lenti (Opus): (1) *eseguibilità* del runbook contro il sorgente del tool e dell
 
 ## 9. Esito
 
-*(preparazione 30/08/2026; sul campo con l'utente in data …)*
+> **Nota (17/09/2026): sessione chiusa, questa specifica resta come riferimento.** I numeri misurati
+> sull'orologio vero non stanno qui: stanno in `galleria-s8-risultati.md` (Android e Pebble Time 2 il
+> 30/08/2026, avvio/uscita dopo S8-perf il 04/09, iPhone il 06/09, rilettura dei log iOS il 14/09). Il gate sul
+> telefono **di oggi** non si fa più con il runbook di S8: si fa con `galleria-s13-ux4-gate-telefono.md`
+> (venti prove P01–P20 sulla 0.4.0, da fare con l'utente), che ha una sua tabella delle vie di collegamento
+> (§1.4) e di S8 riprende le **test card** (§0 punto 5 di `galleria-s8-runbook-android.md`, richiamato nella
+> §1.3 del gate); il **glossario delle righe di log** resta solo nella §5 di quel runbook.
+
+Misurato sul campo il 30/08/2026 (Android + Pebble Time 2, passi 1–5 del runbook e la variante di 5d):
+**O1**, **O2**, **O3**, **O10** e in parte **O8** (sync interrotta e ripresa). **O9** è chiuso per
+*decisione* e non per misura: il firmware letto è v4.36.2 e la risposta **U5** del 05/09/2026 ha fissato
+D5 su **SDK 4.33.1**, quindi la prova della build 4.17 (passo 11) non serve più. Il rimedio persist della
+sessione S8-perf è stato provato sul vetro il 04/09 (O4b nei risultati).
+
+Restano **non misurati**, e con loro i passi del runbook che li producono:
+
+| Aperto | Che cosa manca | Passo del runbook |
+|---|---|---|
+| **O4** | timing reale di `update_proc` e del tick con la build M (la tabella dei risultati è vuota) | 7 |
+| **O5** | colore automatico su 20 foto vere + le test card | 9 |
+| **O6 / D6** | LUT sunlight: card `palette64` fotografata alla luce del giorno, confronto con `pebble screenshot` | 10 |
+| **O7** | batteria 48 h contro una watchface di sistema (baseline 78–79 % il 30/08, mai ripresa) | 12 |
+| **O8** (resto) | BT off/on reale, app Pebble chiusa e riaperta, riavvio dell'orologio | 8 |
+| **O11** | Pebble 2 Duo reale: nessuna prova, nemmeno di collegamento | §3 (passi 1–4, 7, 9 ridotto) |
+
+Restano aperti anche i passi **6** (rotazione a intervalli e scossa: la scossa è già stata vista viva al
+passo 2) e **5d** nella sua forma piena (dodici foto in un solo salvataggio). Lo stato di sessione è in
+`apps/galleria/PIANO.md` §4 (S8) e §8; le decisioni D5/D6 in §6 di questo documento.
