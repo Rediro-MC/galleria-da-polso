@@ -19,12 +19,12 @@
 
 | Campo | Valore | Fonte |
 |---|---|---|
-| Nome nello store | **Galleria** dalla **0.4.0** (decisione **D42** di S11, 06/09/2026: si rinomina con il `PATCH` di `PUBLISH.md` §0/§0.1, `--form-string "title=Galleria"`). ⚠️ **Oggi lo store mostra ancora «Galleria for Pebble»**: il `PATCH` non è mai stato lanciato e la 0.3.0, che avrebbe dovuto portare il nome nuovo, non è mai uscita (verificato il **14/09/2026** sull'API pubblica dell'app `cdf80cc3bf6745b1a310e4c8`: `title` = «Galleria for Pebble», ultima release **0.2.0** del 05/09). Il nome era stato messo da `--name` alla creazione | spec S9 §2 e `galleria-s11-lingue-es-pt.md` D42; `--name` è efficace **solo alla creazione** (`publish.py:806`, `:814`; `PUBLISH.md`, campo *name* e §9), quindi il nome si cambia solo via API/dashboard (`PUBLISH.md` §0) |
+| Nome nello store | **Galleria** dalla **0.4.0** (decisione **D42** di S11, 06/09/2026: si rinomina con il `PATCH` di `PUBLISH.md` §0/§0.1, `--form-string "title=Galleria"`). ⚠️ **Oggi lo store mostra ancora «Galleria for Pebble»** anche a **0.4.0 pubblicata** (18/09/2026): il `PATCH` non è ancora stato lanciato (bloccato dal permission mode di Claude Code; lo lancia l'utente, `PUBLISH.md` §0.1). Il nome era stato messo da `--name` alla creazione | spec S9 §2 e `galleria-s11-lingue-es-pt.md` D42; `--name` è efficace **solo alla creazione** (`publish.py:806`, `:814`; `PUBLISH.md`, campo *name* e §9), quindi il nome si cambia solo via API/dashboard (`PUBLISH.md` §0) |
 | Nome sull'orologio | **Galleria** (`displayName`) | `package.json` → `pebble.displayName` |
 | Tipo | **watchface** (dedotto dal `.pbw`, non si dichiara) | `package.json` → `pebble.watchapp.watchface = true`; `PUBLISH.md`, campo *type* |
 | Categoria | **nessuna**: per una watchface la CLI non chiede e non invia il campo | `PUBLISH.md`, campo *category* (`publish.py:777-779`, `848`) — sul portale Rebble la categoria è richiesta per le app, non per le watchface |
 | Piattaforme | **Pebble Time 2** (`emery`, 200×228, 64 colori) e **Pebble 2 Duo** (`flint`, 144×168 B/N) | `package.json` → `targetPlatforms`; `docs/design/galleria.md` §1 e §3.3 |
-| Versione | **0.4.0** — beta: spagnolo e portoghese (S11) **più** la pagina delle impostazioni rifatta (S12 anteprima, UX-1/UX-2/UX-3). Già pubblicate: **0.1.0** (prima release, beta, decisione **U7**, tag `v0.1.0-beta`) e **0.2.0** (multilingua en/it/de/fr, tag `v0.2.0`), entrambe il 05/09/2026. La **0.3.0 non è mai stata pubblicata** (D126 di UX-4): ne resta solo il testo delle release notes in §3.1 — il file `store/release_notes_0.3.0.txt` è uscito dal repo il 17/09/2026 e il `.pbw` storico non è più in `build_s8/` | `package.json` → `version` = `0.4.0` (14/09/2026; 0.3.0 solo nel repo dal 06/09, 0.1.0 il 05/09, prima era 1.0.0) |
+| Versione | **0.4.0** — **pubblicata il 18/09/2026** — beta: spagnolo e portoghese (S11) **più** la pagina delle impostazioni rifatta (S12 anteprima, UX-1/UX-2/UX-3). Già pubblicate: **0.1.0** (prima release, beta, decisione **U7**, tag `v0.1.0-beta`) e **0.2.0** (multilingua en/it/de/fr, tag `v0.2.0`), entrambe il 05/09/2026. La **0.3.0 non è mai stata pubblicata** (D126 di UX-4): ne resta solo il testo delle release notes in §3.1 — il file `store/release_notes_0.3.0.txt` è uscito dal repo il 17/09/2026 e il `.pbw` storico non è più in `build_s8/` | `package.json` → `version` = `0.4.0` (14/09/2026; 0.3.0 solo nel repo dal 06/09, 0.1.0 il 05/09, prima era 1.0.0) |
 | UUID | `6f2dd646-a76a-44ff-8719-b012d04c79a4` (minuscolo, immutabile) | `package.json` → `pebble.uuid` |
 | Autore | **Rediro** — decisione **U2** presa il 05/09/2026 (nickname GitHub) | `package.json` → `"author": "Rediro"` (finisce in `companyName` del `.pbw` alla prima ricompilazione); nello store resta probabile che compaia il nome dell'account developer (`PUBLISH.md`, *uncertainties*) |
 | Sorgente (`--source`) | `https://github.com/Rediro-MC/galleria-da-polso` — decisione **U4**: il repo viene **reso pubblico** (codice MIT), quindi si passa l'URL esplicito | spec §7 U4; `publish.py:808`, `:817`; `PUBLISH.md`, campo *source* e §6 |
@@ -126,7 +126,7 @@ scrivere la frase per esteso, invece di vivere con 2 caratteri di margine.
 Sono l'**unico campo testuale che si aggiorna a ogni release** dalla CLI (`PUBLISH.md`, campo
 *releaseNotes*, `publish.py:547`): nome, descrizione e icone no (§9 di `PUBLISH.md`).
 
-### 3.0 Release notes 0.4.0 (S11 + S12 + UX-1/UX-2/UX-3) — da usare con la 0.4.0
+### 3.0 Release notes 0.4.0 (S11 + S12 + UX-1/UX-2/UX-3) — **pubblicate con la 0.4.0 il 18/09/2026**
 
 **696 caratteri** (`wc -m store/release_notes_0.4.0.txt` = 697 con il newline finale), **6 righe**,
 **tutto ASCII** (niente accenti: «Espanol», «Portugues», «pagina», «apercu», «heisst», «piu'») e

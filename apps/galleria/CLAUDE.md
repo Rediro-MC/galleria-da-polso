@@ -98,9 +98,10 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
 ## Vincoli specifici
 - `package.json`: UUID `6f2dd646-a76a-44ff-8719-b012d04c79a4` **immutabile**; `version` **0.4.0** (UX-4/D126: una sola
   release con es/pt di S11, l'anteprima di S12 e la pagina rifatta di UX-1…UX-3; **la 0.3.0 non è mai stata pubblicata**;
-  lo store è fermo alla **0.2.0** «Galleria for Pebble», tag `v0.2.0`, e alla 0.1.0 beta, tag `v0.1.0-beta`, U7; con la 0.4.0
-  escono insieme `pebble publish` e il `PATCH` `title=Galleria` di `store/PUBLISH.md` §0.1, lanciati dall'utente dopo il gate
-  sul telefono); `author` **"Rediro"** (U2; finisce in `companyName` del `.pbw`); licenza del codice **MIT** (`LICENSE` in
+  prima di lei nello store: 0.2.0 «Galleria for Pebble», tag `v0.2.0`, e 0.1.0 beta, tag `v0.1.0-beta`, U7;
+  la **0.4.0 è stata pubblicata il 18/09/2026**, tag `v0.4.0`, con `pebble publish` su richiesta dell'utente — resta da lanciare il `PATCH`
+  `title=Galleria` di `store/PUBLISH.md` §0.1, bloccato dal permission mode: lo fa l'utente); `author` **"Rediro"** (U2;
+  finisce in `companyName` del `.pbw`); licenza del codice **MIT** (`LICENSE` in
   radice, U1; terze parti in `THIRD-PARTY-NOTICES.md`); `watchface: true`; `targetPlatforms ["emery","flint"]`;
   `capabilities ["configurable","health"]`; `sdkVersion "3"` non toccare.
 - Budget: statico ≤ 40 KB emery / ≤ 45 KB flint (**29.080 / 28.968 B** = `arm-none-eabi-size -A` .text+.data+.bss + 256,
@@ -314,9 +315,10 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   in `settings_init`) con **`build_s8/galleria_p_0.4.0_ux4.pbw`** (ELF in `build_s8/p040/`; il `.pbw` **non è riproducibile al
   byte**: `manifest.json` porta un timestamp); log `run_s13_ux4_<and|ios>_<NN>.log`, screenshot `docs/design/galleria/s13_ux4_*.png`,
   mai foto personali nel repo; se l'iPhone non apre 12 foto → bisezione P15-bis e sessione RLE delle maschere a parte. Store:
-  fermo alla 0.2.0 → una sola **0.4.0** (`store/release_notes_0.4.0.txt`, `description.txt` «Beta 0.4.0», `LISTING.md`
-  §3.0/§5/§6/§7, `PUBLISH.md` §0.1; le note della 0.3.0 mai uscita vivono solo in `LISTING.md` §3.1; screenshot dello store
-  invariati, D131).
+  **0.4.0 pubblicata il 18/09/2026** su richiesta dell'utente **senza il gate P01–P20** (provata prima sul PT2 reale via
+  Android: install + screenshot ok; `store/release_notes_0.4.0.txt`, `LISTING.md` §3.0/§6, `PUBLISH.md` in testa; le note
+  della 0.3.0 mai uscita vivono solo in `LISTING.md` §3.1; screenshot dello store invariati, D131); **resta il `PATCH
+  title=Galleria`** di `PUBLISH.md` §0.1 (bloccato dal permission mode: lo lancia l'utente).
 - **Screenshot nel repo** (politica dal 17/09/2026): `docs/design/galleria/` tiene **un set per gate** e ogni PNG è citato per
   nome in un `.md` (`docs/design/galleria/README.md` per le licenze delle immagini); le varianti di lingua/larghezza restano
   nell'archivio locale fuori repo (le serie `s13_ux1_*`/`s13_ux2_*` non sono versionate); `apps/*/*.png`, `*.pbw`, `build_s8/`

@@ -1,6 +1,6 @@
 # CONTINUA QUI — stato lavori progetto Pebble
 
-> **Aggiornato: 17/09/2026.** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
+> **Aggiornato: 18/09/2026.** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
 > minuto. Il dettaglio di ogni sessione (compiti per importanza, numeri, decisioni) sta in
 > `apps/galleria/PIANO.md` §8 (stato ed esiti) e §4 (sessione per sessione): qui resta una riga per sessione.
 
@@ -8,12 +8,19 @@
 
 - **Fase 0 (setup) chiusa il 24/08/2026, Fase 1 in corso**: la watchface **Galleria** (`apps/galleria`) è l'unica
   app in sviluppo; `apps/hello-emery` e `apps/heapprobe` restano come smoke test della CI e sonda di memoria.
-- **0.4.0 pronta al banco e non pubblicata**: `apps/galleria/package.json` è a `0.4.0`, il `.pbw` del gate è
-  `apps/galleria/build_s8/galleria_p_0.4.0_ux4.pbw` (cartella **non versionata**: si rigenera con `pebble build`,
-  ma non al byte), testi pronti in `store/` (note 697 B, descrizione 795 B).
-- **Lo store è fermo alla 0.2.0** «Galleria for Pebble» (con la **0.1.0 beta**, entrambe del 05/09/2026, app
-  `cdf80cc3bf6745b1a310e4c8`): la **0.3.0 non è mai uscita**, le sue novità escono con la 0.4.0.
-- **Ultima sessione, 17/09/2026 — lettura pre-gate ✅ al banco**: rieseguite le tre lenti alte di UX-4; runbook del
+- **0.4.0 PUBBLICATA nello store il 18/09/2026** (~00:50 locali; API `published_date` 2026-09-17T22:50 UTC) con
+  `pebble publish --version 0.4.0` e le note di `store/release_notes_0.4.0.txt` (log locale `publish_040.log`,
+  «Release created successfully», app `cdf80cc3bf6745b1a310e4c8`). Su richiesta esplicita dell'utente, che prima
+  l'aveva provata sul PT2 reale via Android (install + screenshot ok); il **gate completo P01–P20 del runbook non
+  è stato eseguito** (scelta dell'utente). ⚠️ **Manca il `PATCH title=Galleria` + descrizione** (`PUBLISH.md`
+  §0.1): il permission mode l'ha bloccato («Create Public Surface»), quindi nello store il nome è ancora
+  «Galleria for Pebble» e la descrizione è la vecchia — lo lancia l'utente (comando pronto in §0.1).
+- **Ultima sessione, 18/09/2026 — prova sull'orologio reale + release 0.4.0**: install del `.pbw` UX-4 sul PT2
+  via Android (`--phone 192.168.188.29`, IP nuovo; ping/install/screenshot ok, log a riposo vuoti = attesi),
+  poi su richiesta dell'utente commit `6e79f6f` + tag `v0.4.0` + push (145 file: S11, S12, UX-1…UX-4, pulizia)
+  e `pebble publish` della 0.4.0. Pre-publish rifatti tutti verdi: `make -C test`, `pebble clean && build`
+  (29.080 / 28.968 B), `make_assets.py --check`, testi 795/697 B, `versionLabel 0.4.0`.
+- **Sessione 17/09/2026 — lettura pre-gate ✅ al banco**: rieseguite le tre lenti alte di UX-4; runbook del
   gate 460 → **518 righe** (D134 «un orologio, due telefoni», D135 pin sull'asse y), `test_page` 2.687 / 2.712,
   C invariato **29.080 / 28.968 B**, pagina inlinata **85.476 B** (modulo `config_page.js` **88.284 B**).
 - **17/09/2026 — pulizia del repo** per la pubblicazione su GitHub: tolti i percorsi personali e il nome
@@ -24,13 +31,20 @@
   (build e test verdi), archivio di ciò che sparisce in `~/galleria-archivio-2026-09-17/`, rapporto e decisioni
   aperte in `~/ProgettiClaude/pulizia-2026-09-17/RAPPORTO.md`. **Su conferma dell'utente**: scambio delle cartelle,
   cancellazione della vecchia, commit e push (dettagli in `apps/galleria/PIANO.md` §4 «Pulizia del repo»).
-- **Niente è committato da S11 in poi**: ultimo commit `81dbcca` del 05/09/2026; tutto il lavoro di S11, S12,
-  UX-1…UX-4, lettura pre-gate e pulizia del 17/09 è solo nel working tree. **Commit e push solo su richiesta
-  esplicita dell'utente.**
-- **CI verde** (`.github/workflows/build.yml`): 10 esecuzioni fra il 30/08 e il 05/09/2026, tutte `success`; il
-  primo push del lavoro da S11 in poi sarà anche il suo primo passaggio in CI.
+- **Tutto committato e pushato**: commit `6e79f6f` + tag `v0.4.0` del 18/09/2026 (chiesti dall'utente) portano su
+  GitHub tutto il lavoro da S11 alla pulizia del 17/09. **Commit e push restano solo su richiesta esplicita.**
+- **CI**: 10 esecuzioni verdi fra il 30/08 e il 05/09/2026; il push del 18/09 è il primo passaggio in CI del
+  lavoro da S11 in poi — **esito da controllare** su GitHub Actions.
 
-## Prossimo passo — il gate sul telefono (lo fa l'utente)
+## Prossimo passo — il PATCH del nome, poi (se si vuole) il gate sul telefono
+
+1. **`PATCH title=Galleria` + descrizione nuova** (`apps/galleria/store/PUBLISH.md` §0.1): la release 0.4.0 è
+   fuori ma il nome nello store è ancora «Galleria for Pebble». Lo lancia l'utente (in sessione basta
+   `! <comando>`); poi verifica al punto 4 di §0.1.
+2. Il **gate P01–P20** del runbook resta utile anche a release uscita (config page, flusso foto, P15 sull'iPhone
+   con 12 foto): da fare quando l'utente vuole.
+
+### Il gate sul telefono (runbook)
 
 **Runbook: `docs/design/galleria-s13-ux4-gate-telefono.md`** (518 righe). Prima le **11 domande** di §1.1 (telefoni
 e versioni, album di partenza, foto del gate, tedesco temporaneo, persona non tecnica, tempo), poi le **20 prove
@@ -41,9 +55,9 @@ due telefoni: fra Android e iPhone l'album va svuotato (**D134**, §0 del runboo
 198.020 su flint, contro i **138.249** aperti finora dall'iPhone. Se non regge, prima della release serve una
 sessione a parte per l'**RLE delle maschere** (−28 k).
 
-Poi, **su conferma dell'utente**, la pubblicazione della **0.4.0**: `pebble publish --version 0.4.0` e il `PATCH`
-`title=Galleria` (`apps/galleria/store/PUBLISH.md` §0.1, `store/LISTING.md` §6). I risultati del gate vanno in
-`apps/galleria/PIANO.md` §8 e in `docs/design/galleria-s13-ux-casual.md` §15.
+La **0.4.0 è già pubblicata** (18/09, su richiesta dell'utente senza il gate completo): del giro di release manca
+solo il `PATCH title=Galleria` (`apps/galleria/store/PUBLISH.md` §0.1). I risultati del gate, quando si farà,
+vanno in `apps/galleria/PIANO.md` §8 e in `docs/design/galleria-s13-ux-casual.md` §15.
 
 ## Da leggere a inizio sessione
 
@@ -91,6 +105,9 @@ hanno una voce propria in §8 (sono più vecchie della sezione).
 - **13/09/2026 notte — UX-3** il flusso della foto: editor, footer a stati, ✕ a due tocchi (D104–D125; 135 chiavi).
 - **14/09/2026 — UX-4** gate sul telefono preparato, note di design, documenti e store (D126–D133; zero C).
 - **17/09/2026 — lettura pre-gate**: le tre lenti alte di UX-4 rieseguite, runbook e numeri corretti (D134–D135).
+- **17–18/09/2026 — pulizia del repo**: copia pulita, screenshot un set per gate, indici `docs/design`/`docs/ricerca`.
+- **18/09/2026 — release 0.4.0**: prova sul PT2 reale via Android, commit `6e79f6f` + tag `v0.4.0` + push,
+  `pebble publish` 0.4.0 nello store; resta il `PATCH title=Galleria` (utente, `PUBLISH.md` §0.1).
 
 ## Fase 0, ambiente, verifiche in emulatore
 

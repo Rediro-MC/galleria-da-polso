@@ -2,6 +2,14 @@
 
 > **PUBBLICATA il 05/09/2026 alle 20:41** (0.1.0) e **release 0.2.0 la sera stessa** con la variante «nuova release» (`--release-notes` da `store/release_notes_0.2.0.txt`, log locale `publish_020.log`: «Resolved existing appstore app ID … Release created successfully»); con il comando di creazione (§4; testo intero in `LISTING.md` §6; esito in `apps/galleria/publish_010.log`, file locale): app **`cdf80cc3bf6745b1a310e4c8`**, pagina https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8, dashboard https://appstore-api.repebble.com/dashboard. Verificato via API (`/api/v1/apps/id/<id>`): title «Galleria for Pebble», type watchface, author «Rediro», category «Faces» (assegnata dal server), `visible: true`, release 0.1.0 con le note, `source` = repo GitHub, descrizione completa; **screenshot emery e flint online** (`hardware_platforms[].images.screenshot`); **`icon_image`/`list_image` vuoti** subito dopo la creazione (per una watchface lo store usa lo screenshot; da ricontrollare in dashboard dopo qualche minuto: il tool parlava di «icon generation may take ~2 min»). Il repo sorgente è **pubblico** dalla stessa sera (storia riscritta prima del push).
 >
+> **RELEASE 0.4.0 PUBBLICATA il 18/09/2026** (~00:50 locali; API `published_date` 2026-09-17T22:50 UTC) con il
+> comando di `LISTING.md` §6 (`pebble publish --non-interactive --no-gif-all-platforms --version 0.4.0
+> --release-notes …`; log locale `publish_040.log`: «Resolved existing appstore app ID … Release created
+> successfully»). Pre-check tutti verdi (test, clean build 29.080/28.968 B, `make_assets.py --check`, 795/697 B,
+> `versionLabel 0.4.0`). ⚠️ **Il `PATCH` di §0.1 NON è ancora stato lanciato** (bloccato dal permission mode di
+> Claude Code, «Create Public Surface»): `title` è ancora «Galleria for Pebble» e la descrizione è la vecchia —
+> il comando di §0.1 vale tale e quale, lo lancia l'utente.
+>
 > **Stato al 14/09/2026 (UX-4, D126)**, verificato sull'API pubblica `GET /api/v1/apps/id/cdf80cc3bf6745b1a310e4c8`:
 > `title` è **ancora «Galleria for Pebble»** e l'ultima release è **ancora la 0.2.0** (pubblicata il 05/09 alle 21:16).
 > Il `PATCH` di §0.1 **non è mai stato lanciato** e la **0.3.0 non è mai stata pubblicata**: il nome «Galleria» (D42)
