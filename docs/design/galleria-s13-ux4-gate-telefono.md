@@ -17,11 +17,11 @@
 >
 > **19/09/2026**: la **0.4.0 è uscita il 18/09/2026** (tag `v0.4.0`) **senza questo gate** (scelta dell'utente) e il
 > titolo nello store è già **«Galleria»** (messo dall'utente dalla dashboard). Il gate resta utile a release uscita;
-> di §5 valgono il punto 1 (risultati) e, del punto 3, solo il `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1 per
-> la **sola descrizione** (online c'è ancora quella della 0.2.0); i punti 2–3 sono superati e il punto 4 (verifica
-> finale) vale per la descrizione nuova. Sono superate anche la domanda 7 di §1.1 e la scelta (a)/(b) di §4: se
-> P15 non regge, l'RLE delle maschere va in una release successiva (o il limite «su iPhone fino a N foto» nel
-> listing).
+> di §5 vale il punto 1 (risultati); i punti 2–4 sono tutti superati: la 0.4.0 è uscita il 18/09 e il `PATCH` di
+> `apps/galleria/store/PUBLISH.md` §0.1 è stato eseguito la sera del **19/09/2026** (descrizione nuova verificata
+> sull'API). Sono superate anche la domanda 10 di §1.1 (publish e `PATCH` sono usciti senza il gate), la domanda 7
+> di §1.1 e la scelta (a)/(b) di §4: se P15 non regge, l'RLE delle maschere va in una release successiva (o il limite
+> «su iPhone fino a N foto» nel listing).
 
 ## 0. Che cosa si prova e perché
 
@@ -509,9 +509,8 @@ listing** («su iPhone fino a N foto», N dalla bisezione), RLE in una release s
 
 Nell'ordine:
 
-> 19/09/2026: i punti 2–3 sono superati (0.4.0 pubblicata il 18/09, titolo «Galleria» online) e il punto 4 vale per
-> la descrizione nuova; resta il `PATCH`
-> della sola descrizione.
+> 19/09/2026: i punti 2–4 sono superati (0.4.0 pubblicata il 18/09, titolo «Galleria» online — verificato il
+> 19/09 — e descrizione nuova online dal 19/09 sera).
 
 1. **Risultati**: le righe di §3 in `apps/galleria/PIANO.md` §8 (tabella dei costi misurati) e il riassunto in
    `docs/design/galleria-s13-ux-casual.md` §15; i riepiloghi con `galleria_logstats.py --md run_s13_ux4_*.log`; gli

@@ -1,6 +1,6 @@
 # CONTINUA QUI — stato lavori progetto Pebble
 
-> **Aggiornato: 19/09/2026.** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
+> **Aggiornato: 19/09/2026 sera.** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
 > minuto. Il dettaglio di ogni sessione (compiti per importanza, numeri, decisioni) sta in
 > `apps/galleria/PIANO.md` §8 (stato ed esiti) e §4 (sessione per sessione): qui resta una riga per sessione.
 
@@ -12,28 +12,36 @@
   `pebble publish --version 0.4.0` e le note di `store/release_notes_0.4.0.txt` (log locale `publish_040.log`,
   «Release created successfully», app `cdf80cc3bf6745b1a310e4c8`). Su richiesta esplicita dell'utente, che prima
   l'aveva provata sul PT2 reale via Android (install + screenshot ok); il **gate completo P01–P20 del runbook non
-  è stato eseguito** (scelta dell'utente). **Stato dello store verificato sull'API il 19/09/2026**: il titolo è
-  **«Galleria»** (rinominato dall'utente dalla dashboard, non con il `PATCH`, che il 18/09 il permission mode
-  aveva bloccato); la **descrizione online è ancora quella della 0.2.0** senza il prefisso «Beta 0.2.0, » (777
-  caratteri: «tested on Android», quattro lingue) e quella di `store/description.txt` non è mai stata mandata →
-  il `PATCH` di `PUBLISH.md` §0.1 **resta da lanciare per la sola descrizione** (porta comunque `title=Galleria`,
-  obbligatorio): lo lancia l'utente, o l'orchestratore su richiesta esplicita.
-- **Ultima sessione, 19/09/2026 — allineamento dei documenti** (dopo «a che punto siamo del PIANO?»): verifiche
-  al banco sullo store (API pubblica: titolo «Galleria» ok, descrizione vecchia, **5 screenshot emery + 3 flint
-  online**, `emery_screenshot_6.png` no; `make_assets.py --check` verde), CI verde (3 run `success` su `6e79f6f`
-  e `79abb57`), poi `PIANO.md`, `CONTINUA-QUI.md`, `apps/galleria/CLAUDE.md`, i documenti di `store/`, i due
-  `README.md` e la nota di testa di `docs/design/galleria-s11-lingue-es-pt.md` allineati allo stato reale (più note
-  datate 19/09 in `THIRD-PARTY-NOTICES.md`, `docs/design/README.md`, `docs/design/galleria/README.md`, nel runbook
-  del gate, in `galleria-s9-pubblicazione.md` e in `galleria.md` §10). Zero C, zero pagina, zero `description.txt`;
-  commit `3504762` + push su `main` il 19/09/2026 (richiesta dell'utente «carica su github ultimo aggiornamento»).
+  è stato eseguito** (scelta dell'utente). **Stato dello store al 19/09/2026 sera**: titolo **«Galleria»**
+  (rinominato dall'utente dalla dashboard; il `PATCH` di `PUBLISH.md` §0.1 il 18/09 era stato bloccato dal
+  permission mode) e **descrizione nuova online** (`PATCH` di `PUBLISH.md` §0.1 eseguito dall'orchestratore la
+  sera del 19/09 su richiesta dell'utente: **794 caratteri = `store/description.txt`**, «Beta 0.4.0», sei lingue,
+  «tested on Android and iPhone»); screenshot online **5 emery + 3 flint** = gli 8 di `store/`.
+- **Ultima sessione, 19/09/2026 sera — PATCH della descrizione, sesto screenshot tolto, commit**: su richiesta
+  esplicita dell'utente l'orchestratore ha lanciato il `PATCH` di `PUBLISH.md` §0.1 (HTTP 200) e verificato sull'API
+  pubblica: **descrizione online = `store/description.txt`, 794 caratteri**; titolo, screenshot, icone e release
+  invariati. `emery_screenshot_6.png` (unico con foto CC-BY-SA-4.0) **cancellato** su decisione dell'utente:
+  `make_assets.py` a **8 screenshot** (5 emery + 3 flint = quelli online) + 3 icone, `--check` verde; il PNG resta
+  solo nella storia git (`3504762`–`7a6ed8f`), la sorgente `s8stile_*` resta (171 PNG). Nessuna decisione aperta
+  sullo store. Zero C, zero pagina, zero `description.txt`. **Commit di fine sessione, push su richiesta.**
+- **19/09/2026 — allineamento dei documenti** (dopo «a che punto siamo del PIANO?»): verifiche al banco sullo
+  store (API pubblica: titolo «Galleria» ok, descrizione vecchia — mandata poi la sera stessa —, **5 screenshot
+  emery + 3 flint online**, `emery_screenshot_6.png` no; `make_assets.py --check` verde), CI verde (3 run `success`
+  su `6e79f6f` e `79abb57`), poi `PIANO.md`, `CONTINUA-QUI.md`, `apps/galleria/CLAUDE.md`, i documenti di
+  `store/`, i due `README.md` e la nota di testa di `docs/design/galleria-s11-lingue-es-pt.md` allineati allo stato
+  reale (più note datate 19/09 in `THIRD-PARTY-NOTICES.md`, `docs/design/README.md`,
+  `docs/design/galleria/README.md`, nel runbook del gate, in `galleria-s9-pubblicazione.md` e in `galleria.md` §10).
+  Zero C, zero pagina, zero `description.txt`; commit `3504762` + push su `main` il 19/09/2026 (richiesta
+  dell'utente «carica su github ultimo aggiornamento»), poi il commit docs `7a6ed8f` che lo registra qui e in
+  `PIANO.md`.
 - **18/09/2026 notte — screenshot extra dello store** (sessione non registrata, ricostruita il 19/09 dal diff e
   dai timestamp, file delle 01:13 e 01:21): su richiesta dell'utente 7 screenshot in più in `store/`
   (`emery_screenshot_2…6`, `flint_screenshot_2…3`; due nuovi dall'emulatore, `store040_*` in
   `docs/design/galleria/`), `make_assets.py` esteso (`--check` verde), `store/README.md`, `LISTING.md` §3,
   `apps/galleria/CLAUDE.md` e `docs/design/galleria/README.md` aggiornati; online il 19/09 **5 emery + 3 flint**
-  (i 6 extra caricati dall'utente dalla dashboard), `emery_screenshot_6` no (unico con foto CC-BY-SA-4.0: decisione
-  dell'utente, punto 2 del prossimo passo). **Regola nuova: le release notes dello store si scrivono solo in
-  inglese.** Committata il 19/09/2026 con l'allineamento (`3504762`).
+  (i 6 extra caricati dall'utente dalla dashboard), `emery_screenshot_6` no (unico con foto CC-BY-SA-4.0) → tolto
+  la sera del 19/09. **Regola nuova: le release notes dello store si scrivono solo in inglese.** Committata il
+  19/09/2026 con l'allineamento (`3504762`).
 - **Sessione 18/09/2026 — prova sull'orologio reale + release 0.4.0**: install del `.pbw` UX-4 sul PT2
   via Android (`--phone 192.168.188.29`, IP nuovo; ping/install/screenshot ok, log a riposo vuoti = attesi),
   poi su richiesta dell'utente commit `6e79f6f` + tag `v0.4.0` + push (145 file: S11, S12, UX-1…UX-4, pulizia)
@@ -54,24 +62,19 @@
   del 18/09/2026 portano su GitHub tutto il lavoro da S11 alla pulizia del 17/09 e la release; **il commit
   `3504762` del 19/09/2026** porta i 7 screenshot extra con `make_assets.py`, `store/README.md`, `LISTING.md`,
   `apps/galleria/CLAUDE.md`, `docs/design/galleria/README.md`, i due `store040_*` e l'allineamento dei documenti
-  del 19/09. **Commit e push restano solo su richiesta esplicita.**
+  del 19/09, poi il commit docs `7a6ed8f` (push su `main`). **Commit e push restano solo su richiesta esplicita.**
 - **CI**: 10 esecuzioni verdi fra il 30/08 e il 05/09/2026; il push del 18/09 era il primo passaggio in CI del
   lavoro da S11 in poi — **verde** (verificato il 19/09/2026: 3 run `success`, due su `6e79f6f` e uno su `79abb57`).
 
-## Prossimo passo — il PATCH della descrizione, poi (se si vuole) il gate sul telefono
+## Prossimo passo — il gate sul telefono (se si vuole)
 
-1. **`PATCH` della descrizione** (`apps/galleria/store/PUBLISH.md` §0.1, con `title=Galleria` dentro): il titolo
-   nello store è già «Galleria» (messo dall'utente dalla dashboard), la descrizione online è ancora quella della
-   0.2.0. Lo lancia l'utente (in sessione basta `! <comando>`) o l'orchestratore su richiesta esplicita; poi
-   verifica al punto 4 di §0.1.
-2. **`emery_screenshot_6.png`** (l'unico dei 9 non online): è anche l'unico con una foto di prova **CC-BY-SA-4.0**
-   (screenshot S8-stile del 04/09/2026, `apps/galleria/store/README.md`) → decisione dell'utente: rigenerarlo da una
-   sorgente CC0 (emulatore, build 0.4.0, come i due `store040_*`), caricarlo con l'attribuzione nel listing, o
-   lasciarlo fuori dallo store.
-3. Il **gate P01–P20** del runbook resta utile anche a release uscita (config page, flusso foto, P15 sull'iPhone
+1. **Fatti il 19/09/2026 sera**: `PATCH` della descrizione (online **794 caratteri = `store/description.txt`**, titolo
+   «Galleria») e `emery_screenshot_6.png` cancellato (`store/` = 8 screenshot, tutti online): nulla resta aperto
+   sullo store.
+2. Il **gate P01–P20** del runbook resta utile anche a release uscita (config page, flusso foto, P15 sull'iPhone
    con 12 foto): da fare quando l'utente vuole.
-4. **Commit**: fatto il 19/09/2026 (`3504762`, push su `main`), su richiesta dell'utente; i prossimi restano solo su
-   richiesta esplicita.
+3. **Commit**: `3504762` + `7a6ed8f` del 19/09/2026 (push su `main`, su richiesta dell'utente); **commit di fine
+   sessione del 19/09 sera (push su richiesta)**; i prossimi restano solo su richiesta esplicita.
 
 ### Il gate sul telefono (runbook)
 
@@ -84,10 +87,9 @@ due telefoni: fra Android e iPhone l'album va svuotato (**D134**, §0 del runboo
 198.020 su flint, contro i **138.249** aperti finora dall'iPhone. Se non regge, serve una sessione a parte per
 l'**RLE delle maschere** (−28 k), in una release successiva (la 0.4.0 è già uscita).
 
-La **0.4.0 è già pubblicata** (18/09, su richiesta dell'utente senza il gate completo): del giro di release manca
-solo la descrizione (`PATCH` di `apps/galleria/store/PUBLISH.md` §0.1; il titolo «Galleria» è online, verificato
-il 19/09/2026). I risultati del gate, quando si farà, vanno in `apps/galleria/PIANO.md` §8 e in
-`docs/design/galleria-s13-ux-casual.md` §15.
+La **0.4.0 è già pubblicata** (18/09, su richiesta dell'utente senza il gate completo) e **il giro di release è
+completo** (19/09/2026 sera): 0.4.0, titolo «Galleria», descrizione nuova, 8 screenshot. I risultati del gate,
+quando si farà, vanno in `apps/galleria/PIANO.md` §8 e in `docs/design/galleria-s13-ux-casual.md` §15.
 
 ## Da leggere a inizio sessione
 
@@ -137,12 +139,14 @@ hanno una voce propria in §8 (sono più vecchie della sezione).
 - **17/09/2026 — lettura pre-gate**: le tre lenti alte di UX-4 rieseguite, runbook e numeri corretti (D134–D135).
 - **17–18/09/2026 — pulizia del repo**: copia pulita, screenshot un set per gate, indici `docs/design`/`docs/ricerca`.
 - **18/09/2026 — release 0.4.0**: prova sul PT2 reale via Android, commit `6e79f6f` + tag `v0.4.0` + push,
-  `pebble publish` 0.4.0 nello store; il titolo «Galleria» l'ha poi messo l'utente dalla dashboard, resta la
-  descrizione (`PUBLISH.md` §0.1).
-- **18/09/2026 notte — screenshot extra dello store**: 7 screenshot in più (ora 6 emery + 3 flint in `store/`),
+  `pebble publish` 0.4.0 nello store; il titolo «Galleria» l'ha poi messo l'utente dalla dashboard, la
+  descrizione è stata mandata il 19/09 sera.
+- **18/09/2026 notte — screenshot extra dello store**: 7 screenshot in più (6 online; il settimo tolto il 19/09),
   regola release notes solo in inglese; sessione ricostruita il 19/09.
 - **19/09/2026 — allineamento dei documenti**: stato dello store verificato sull'API (titolo ok, descrizione
   vecchia, 5+3 screenshot online), CI verde, `PIANO`/`CONTINUA-QUI`/`CLAUDE.md`/`store` allineati.
+- **19/09/2026 sera — PATCH della descrizione + sesto screenshot tolto**: descrizione nuova online (794 car.),
+  `emery_screenshot_6` cancellato (foto CC-BY-SA), `make_assets.py` a 8 screenshot; commit di fine sessione.
 
 ## Fase 0, ambiente, verifiche in emulatore
 
@@ -163,8 +167,6 @@ hanno una voce propria in §8 (sono più vecchie della sezione).
 ## Cose NON fatte / da fare a mano
 
 - **Gate sul telefono di UX-4** (P01–P20, serve l'utente): vedi «Prossimo passo» qui sopra.
-- **`PATCH` della descrizione dello store** (`PUBLISH.md` §0.1; il titolo è già «Galleria»): utente, o
-  orchestratore su richiesta.
 - **O7, batteria 48 h**: mai misurata (in `docs/design/galleria-s8-risultati.md` §O7 c'è solo la lettura a 0 h
   del 30/08; le colonne 24 h e 48 h sono vuote). L'unico dato è il consumo ordinario del 30/08–02/09:
   78–79 % → 65 %, cioè 4,3–5,5 %/giorno (≈ 18–23 giorni per carica).

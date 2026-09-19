@@ -19,8 +19,8 @@
 > (`galleria-s13-ux4-gate-telefono.md` §5).
 >
 > → **19/09/2026**: la **0.4.0 è uscita il 18/09/2026** (tag `v0.4.0`) senza il gate sul telefono; il nome nello
-> store è **«Galleria»**, messo dall'utente dalla dashboard; resta il `PATCH` di `apps/galleria/store/PUBLISH.md`
-> §0.1 per la **sola descrizione** (online c'è ancora quella della 0.2.0 senza «Beta 0.2.0, »). Le frasi qui sopra
+> store è **«Galleria»**, messo dall'utente dalla dashboard, e la sera del 19/09 il `PATCH` di
+> `apps/galleria/store/PUBLISH.md` §0.1 ha mandato la **descrizione nuova** (794 caratteri). Le frasi qui sopra
 > su «lo store è fermo lì», sul nome ancora «Galleria for Pebble» e sulla pubblicazione «dopo il gate» sono storia
 > del 17/09.
 

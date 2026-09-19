@@ -187,14 +187,11 @@ essendo obbligatori. Dettagli, comandi di preparazione, CRC32 e verifiche in
 ## 5. Screenshot storici e foto di prova — CC-BY-SA-4.0
 
 **Nessuno di questi file entra nell'app pubblicata.** Dal **05/09/2026** l'app e gli asset dello
-store usano soltanto le foto CC0 della sezione 4. Fa eccezione, dal **18/09/2026**,
-`apps/galleria/store/emery_screenshot_6.png`: asset dello store generato da
-`docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (foto di prova CC-BY-SA-4.0), per il
-quale vale l'attribuzione di questa sezione; al 19/09/2026 **non è online** e resta fuori dallo store
-finché l'utente non decide (attribuzione nel listing, sorgente CC0 rigenerata, o lasciarlo fuori dallo
-store). Restano però nel
-repository — e nella **storia git** — immagini di lavoro in cui compaiono, come foto **di prova**,
-wallpaper del pacchetto Debian/Ubuntu **`ubuntu-wallpapers`**, che sono sotto **CC-BY-SA-4.0**.
+store usano soltanto le foto CC0 della sezione 4 (l'asset `apps/galleria/store/emery_screenshot_6.png`
+del 18/09/2026, mai online, è stato tolto il 19/09/2026: vedi «Nella storia git» qui sotto).
+Restano però nel repository — e nella **storia git** — immagini di lavoro in cui compaiono,
+come foto **di prova**, wallpaper del pacchetto Debian/Ubuntu **`ubuntu-wallpapers`**, che sono
+sotto **CC-BY-SA-4.0**.
 
 ### File interessati
 
@@ -211,9 +208,6 @@ wallpaper del pacchetto Debian/Ubuntu **`ubuntu-wallpapers`**, che sono sotto **
     **demo_1 storica** (`mizuno-as-Big_Dipper.jpg`).
 
   La classificazione set per set è in [`docs/design/galleria/README.md`](docs/design/galleria/README.md).
-- `apps/galleria/store/emery_screenshot_6.png` — asset dello store generato il 18/09/2026 da
-  `docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (screenshot S8-stile del
-  04/09/2026, prima delle foto demo CC0); al 19/09/2026 non è online.
 - **Non** rientrano: gli `s1_*` (nessuna foto); gli `s5a_*` e `s5b_*_fixture_*` (figura di prova
   sintetica a barre colorate); gli `s9_*`, gli scatti dell'orologio di `s10_*` e `s11_*` e i quattro
   `s13_ux*_emu_*` (foto demo e foto candidate **CC0 1.0**, fra cui `b01_densefog`…`b04_sprucefog`
@@ -223,7 +217,10 @@ wallpaper del pacchetto Debian/Ubuntu **`ubuntu-wallpapers`**, che sono sotto **
   dalla sua storia** il 05/09/2026: non c'è più nemmeno come oggetto git irraggiungibile.
 - Nella **storia git**: le versioni precedenti di `apps/galleria/resources/photos/demo_*` e di
   `apps/galleria/store/*.png` (icone e screenshot dello store, generati dagli screenshot del gate
-  S7 — così dice la versione storica di `apps/galleria/store/README.md`).
+  S7 — così dice la versione storica di `apps/galleria/store/README.md`), e
+  `apps/galleria/store/emery_screenshot_6.png` nei commit `3504762`–`7a6ed8f` del 19/09/2026 (asset
+  dello store generato da `s8stile_emery_b_staatliches_trasparente.png`, mai pubblicato, tolto il
+  19/09/2026).
 
 ### Attribuzione
 

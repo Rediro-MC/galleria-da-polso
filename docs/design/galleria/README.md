@@ -6,10 +6,9 @@ Screenshot dell'emulatore, della config page (Firefox headless) e — per
 `rev19_*`, `s10_*`, `s11_*`, `s12_*`, `s13_ux_before_*`, `s13_ux3_*`, `s13_ux4_*`, `store040_*`
 (18/09/2026, non da un gate). Servono da prova visiva delle sessioni descritte in
 `../../../apps/galleria/PIANO.md` e nei documenti di design accanto a questa cartella; non entrano nel
-`.pbw`; nove di essi (elenco in `../../../apps/galleria/store/README.md`: sei `s9_*`, i due
-`store040_*` e uno `s8stile_*`) sono le sorgenti degli asset dello store. Al 17/09/2026 erano
-**169 PNG** per 5.658.891 B; al 19/09/2026 sono **171** per **5.681.308 B** (5,4 MiB) con i due
-`store040_*`.
+`.pbw`; **otto** di essi (elenco in `../../../apps/galleria/store/README.md`: sei `s9_*` e i due
+`store040_*`) sono le sorgenti degli asset dello store. Al 17/09/2026 erano **169 PNG** per
+5.658.891 B; al 19/09/2026 sono **171** per **5.681.308 B** (5,4 MiB) con i due `store040_*`.
 
 ## Politica della cartella (dal 17/09/2026)
 
@@ -72,10 +71,11 @@ store: layout B in emulatore con la build 0.4.0, elenco in `../../../apps/galler
 tutte foto demo e candidate **CC0 1.0**. Il file `rev19_watch_francois_3d.png`, l'unica fotografia
 personale dell'autore, è stato **rimosso dal repository e dalla sua storia** il 05/09/2026. **Nessuno
 di questi file entra nell'app pubblicata**: dal 05/09/2026 l'app e gli asset dello store usano solo le
-foto CC0, con una sola eccezione dal 18/09/2026: `../../../apps/galleria/store/emery_screenshot_6.png`
-deriva da `s8stile_emery_b_staatliches_trasparente.png` (foto di prova **CC-BY-SA-4.0**, attribuzione
-qui sopra) e al 19/09/2026 **non è online**: decisione dell'utente — rigenerarlo da una sorgente CC0
-in emulatore (come i due `store040_*`), caricarlo con l'attribuzione CC-BY-SA nel listing, o lasciarlo
-fuori dallo store (`../../../apps/galleria/store/README.md`).
+foto CC0. L'unica eccezione è stata `../../../apps/galleria/store/emery_screenshot_6.png`, generato
+il 18/09/2026 da `s8stile_emery_b_staatliches_trasparente.png` (foto di prova **CC-BY-SA-4.0**,
+attribuzione qui sopra): **non è mai andato online** ed è stato **tolto dal repo il 19/09/2026**; resta
+solo nella storia git (commit `3504762` e `7a6ed8f`). La sorgente
+`s8stile_emery_b_staatliches_trasparente.png` resta in questa cartella, ma non è più sorgente di alcun
+asset dello store (elenco aggiornato in `../../../apps/galleria/store/README.md`).
 
 Dettagli, elenco completo dei file e testi di licenza: **[`../../../THIRD-PARTY-NOTICES.md`](../../../THIRD-PARTY-NOTICES.md)** §5.

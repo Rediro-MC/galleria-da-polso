@@ -76,10 +76,10 @@ python3 ../../tools/galleria_devserver.py --page-dir src/pkjs/config [--open-ms 
 BROWSER=true pebble emu-app-config --emulator emery & python3 ../../tools/galleria_browser.py open-emu
 #   S6: Firefox headless via geckodriver (WebDriver stdlib): open-emu legge l'URL dal file ~/pebble-tool-emu-app-config-*.html; poi set-file/drag/
 #   wheel/click/set-value/screenshot/narrow URL 400/--script; foto SOTTO $HOME e FUORI dai dot-dir (~/galleria-gate/photos/); --selftest = make -C test browsertest
-python3 store/make_assets.py [--check]                   # S7: icone 144/80/48 + 9 screenshot store da docs/design/galleria/ (s9_emery_a_anton_scura.png e
-#   s9_flint_a_anton_chiara.png = `_screenshot_1`, S9-prep; dal 18/09/2026 altri 7: emery 2-6, flint 2-3, sorgenti `SRC_EMERY_2`…`SRC_EMERY_6`,
-#   `SRC_FLINT_2`/`_3` in `make_assets.py`; --check verde il 19/09/2026); rigenerare dopo ogni gate che li cambia; nomi <piatt>_screenshot_N.png
-#   come vuole `pebble publish --screenshots`
+python3 store/make_assets.py [--check]                   # S7: icone 144/80/48 + 8 screenshot store da docs/design/galleria/ (s9_emery_a_anton_scura.png e
+#   s9_flint_a_anton_chiara.png = `_screenshot_1`, S9-prep; dal 18/09/2026 altri 6: emery 2-5, flint 2-3, sorgenti `SRC_EMERY_2`…`SRC_EMERY_5`,
+#   `SRC_FLINT_2`/`_3` in `make_assets.py` (il settimo, emery_6 da s8stile_* CC-BY-SA, tolto il 19/09); --check verde il 19/09/2026 con 8 + 3);
+#   rigenerare dopo ogni gate che li cambia; nomi <piatt>_screenshot_N.png come vuole `pebble publish --screenshots`
 # --- S8: orologio REALE via telefono (runbook docs/design/galleria-s8-runbook-android.md; spec galleria-s8-hardware.md §2.1) ---
 pebble ping --phone <IP> [-vvv 2>&1 | grep -i watchversion]   # app Pebble: Settings→Connectivity→"Use LAN developer connection" ON + scheda orologio
 #   ⋯→"Dev Connection" ON (porta 9000); `--phone` SENZA IP = CloudPebble!
@@ -102,11 +102,10 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   release con es/pt di S11, l'anteprima di S12 e la pagina rifatta di UX-1…UX-3; **la 0.3.0 non è mai stata pubblicata**;
   prima di lei nello store: 0.2.0 «Galleria for Pebble», tag `v0.2.0`, e 0.1.0 beta, tag `v0.1.0-beta`, U7;
   la **0.4.0 è stata pubblicata il 18/09/2026**, tag `v0.4.0`, con `pebble publish` su richiesta dell'utente — il
-  titolo «Galleria» è online (messo dall'utente dalla dashboard; verificato il 19/09/2026 sull'API pubblica), mentre
-  la **descrizione online è ancora quella della 0.2.0** senza «Beta 0.2.0, » (777 car.): il `PATCH` di
-  `store/PUBLISH.md` §0.1 resta da lanciare per la sola descrizione (porta comunque `title=Galleria`, obbligatorio;
-  utente, o orchestratore su richiesta)); `author` **"Rediro"** (U2; finisce in `companyName` del `.pbw`); licenza del
-  codice **MIT** (`LICENSE` in radice, U1; terze parti in `THIRD-PARTY-NOTICES.md`); `watchface: true`;
+  titolo «Galleria» è online (messo dall'utente dalla dashboard; verificato il 19/09/2026 sull'API pubblica) e la
+  **descrizione nuova è online dal 19/09/2026 sera** (`PATCH` di `store/PUBLISH.md` §0.1 eseguito su richiesta
+  dell'utente: 794 car. = `store/description.txt`)); `author` **"Rediro"** (U2; finisce in `companyName` del `.pbw`);
+  licenza del codice **MIT** (`LICENSE` in radice, U1; terze parti in `THIRD-PARTY-NOTICES.md`); `watchface: true`;
   `targetPlatforms ["emery","flint"]`; `capabilities ["configurable","health"]`; `sdkVersion "3"` non toccare.
 - Budget: statico ≤ 40 KB emery / ≤ 45 KB flint (**29.080 / 28.968 B** = `arm-none-eabi-size -A` .text+.data+.bss + 256,
   raggiunti in S11, zero C da S12 in poi); risorse ≤ 256 KB; una sola foto in RAM (8Bit full-screen = 45.600 B su
@@ -322,10 +321,10 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   **0.4.0 pubblicata il 18/09/2026** su richiesta dell'utente **senza il gate P01–P20** (provata prima sul PT2 reale via
   Android: install + screenshot ok; `store/release_notes_0.4.0.txt`, `LISTING.md` §3.0/§6, `PUBLISH.md` in testa; le note
   della 0.3.0 mai uscita vivono solo in `LISTING.md` §3.1; screenshot dello store invariati alla release, D131); poi, la
-  notte del 18/09, **7 screenshot extra** in `store/` (`make_assets.py` ne produce ora 9: 6 emery + 3 flint; online al
-  19/09 5 emery + 3 flint, `emery_screenshot_6` no; lo store ri-codifica tutti i PNG in palette: flint pixel-identici,
-  emery quasi; `emery_screenshot_6` è anche l'unico con foto CC-BY-SA-4.0, S8-stile: decisione dell'utente); titolo
-  «Galleria» online al 19/09 (dashboard), **resta il `PATCH` della descrizione** (`PUBLISH.md` §0.1). **Regola dal
+  notte del 18/09, **7 screenshot extra** in `store/` (`make_assets.py` ne produce ora **8**: 5 emery + 3 flint,
+  tutti online al 19/09; il settimo, `emery_6` da `s8stile_*` con foto CC-BY-SA-4.0, tolto il 19/09 su decisione
+  dell'utente; lo store ri-codifica tutti i PNG in palette: flint pixel-identici, emery quasi); titolo «Galleria»
+  online (dashboard) e **descrizione nuova online dal 19/09 sera** (`PATCH` di `PUBLISH.md` §0.1 fatto). **Regola dal
   18/09/2026: le release notes dello store si scrivono SOLO IN INGLESE** (niente righe per lingua; `LISTING.md` §3).
 - **Screenshot nel repo** (politica dal 17/09/2026): `docs/design/galleria/` tiene **un set per gate** e ogni PNG è citato per
   nome in un `.md` (`docs/design/galleria/README.md` per le licenze delle immagini); le varianti di lingua/larghezza restano

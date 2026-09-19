@@ -18,8 +18,8 @@
 >   aggiunte e le fusioni di UX-1…UX-3 (**D116**);
 > - **il nome nello store è «Galleria»** (verificato il **19/09/2026**): il «Galleria» di **D42** è stato
 >   applicato dall'utente dalla dashboard, a 0.4.0 già pubblicata (18/09/2026); la descrizione nuova è
->   invece **ancora da mandare**, con il `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1 (che porta
->   comunque `title=Galleria`);
+>   **online dal 19/09/2026 sera**, mandata con il `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1
+>   (che porta comunque `title=Galleria`);
 > - **le release notes non hanno più una riga per lingua** (D42): dal 18/09/2026 si scrivono solo in
 >   inglese (`apps/galleria/store/LISTING.md` §3); le sei righe della 0.4.0 e quelle della 0.2.0 restano
 >   come storia.

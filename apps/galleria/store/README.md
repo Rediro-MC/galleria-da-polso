@@ -1,4 +1,4 @@
-# Asset per lo store — Galleria (S7 §2.12, sorgenti aggiornate in S9-prep e il 18/09/2026)
+# Asset per lo store — Galleria (S7 §2.12, sorgenti aggiornate in S9-prep e il 18-19/09/2026)
 
 Immagini di presentazione dell'app (icone + screenshot) per la pubblicazione con
 `pebble publish`. **Generate**, mai ritoccate a mano: l'unica sorgente di verità è
@@ -8,11 +8,13 @@ Immagini di presentazione dell'app (icone + screenshot) per la pubblicazione con
 
 Gli asset derivano da screenshot in `docs/design/galleria/`: i due storici dal **gate
 S9-prep** (05/09/2026, emulatore, build normale, layout A, font Anton, 24 h, album vuoto
--> foto demo **CC0**); i **sette in più** sono stati chiesti dall'utente nella **notte del
-18/09/2026**, a 0.4.0 già pubblicata: tre alle 01:13, quattro «ora a tutto schermo»
-alle 01:21, fra cui i due `store040_*` girati apposta con l'emulatore sulla build
-0.4.0 (e `emery_screenshot_6` da uno screenshot **S8-stile** del 04/09/2026, non dal
-gate S9-prep):
+-> foto demo **CC0**); i **sei in più** sono stati chiesti dall'utente nella **notte del
+18/09/2026**, a 0.4.0 già pubblicata: tre alle 01:13, tre «ora a tutto schermo» alle
+01:21 (più un settimo, poi tolto), fra cui i due `store040_*` girati apposta con
+l'emulatore sulla build 0.4.0. Quel settimo, `emery_screenshot_6.png` (layout B
+Staatliches trasparente da uno screenshot **S8-stile** del 04/09/2026, con una foto di
+prova **CC-BY-SA-4.0**), non è mai stato online ed è stato **tolto il 19/09/2026** su
+decisione dell'utente: tutte le sorgenti di oggi sono foto demo CC0.
 
 | Sorgente | Piattaforma | Dimensioni | Cosa ne esce |
 |---|---|---|---|
@@ -23,7 +25,6 @@ gate S9-prep):
 | `../../../docs/design/galleria/s9_flint_a_anton_scura.png` (demo 1 scura su flint, testo bianco) | `flint` | 144x168 | `flint_screenshot_2.png` |
 | `../../../docs/design/galleria/store040_emery_b_anton_scura.png` (layout B «Ora grande», Anton pieno; emulatore, build 0.4.0 con `GALLERIA_DEBUG_LAYOUT=1`, 18/09/2026) | `emery` | 200x228 | `emery_screenshot_4.png` |
 | `../../../docs/design/galleria/s9_emery_b_francois_trasparente3d_chiara.png` (layout B, Francois One trasparente 3D su demo chiara) | `emery` | 200x228 | `emery_screenshot_5.png` |
-| `../../../docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (layout B, Staatliches trasparente; S8-stile 04/09/2026, foto di prova CC-BY-SA-4.0, non CC0) | `emery` | 200x228 | `emery_screenshot_6.png` |
 | `../../../docs/design/galleria/store040_flint_b_anton_chiara.png` (layout B su flint, Anton nero su demo chiara; emulatore, build 0.4.0, 18/09/2026) | `flint` | 144x168 | `flint_screenshot_3.png` |
 
 Le **icone** sono un ritaglio quadrato 200x200 dello screenshot emery, centrato
@@ -32,10 +33,12 @@ di stato (batteria / passi / data) e la parte alta della foto. Il ritaglio viene
 ridimensionato con **LANCZOS** alle tre taglie richieste.
 
 Le due foto demo sono **CC0 1.0** (Wikimedia Commons, S9-prep): si possono usare senza
-problemi nelle immagini dello store (vale per otto dei nove screenshot:
-`emery_screenshot_6.png` no, vedi «File prodotti»). Provenienza, autori e verifica
-della licenza in [`../resources/photos/README.md`](../resources/photos/README.md). Se
-le demo o il gate cambiano, **questi asset vanno rigenerati** (`make_assets.py`).
+problemi nelle immagini dello store (vale per **tutti gli otto screenshot** dal
+19/09/2026: il settimo degli extra, `emery_screenshot_6.png` con foto CC-BY-SA-4.0,
+è stato tolto).
+Provenienza, autori e verifica della licenza in
+[`../resources/photos/README.md`](../resources/photos/README.md). Se le demo o il gate
+cambiano, **questi asset vanno rigenerati** (`make_assets.py`).
 
 ## Rigenerazione
 
@@ -62,8 +65,10 @@ sorgente manca o non ha le dimensioni attese.
 | `flint_screenshot_2.png` | 144x168 | RGB | flint su foto scura: **online al 19/09/2026**, dalla dashboard come sopra |
 | `emery_screenshot_4.png` | 200x228 | RGB | layout B «Ora grande», Anton pieno su aurora: **online al 19/09/2026**, dalla dashboard come sopra |
 | `emery_screenshot_5.png` | 200x228 | RGB | layout B, Francois One trasparente 3D su demo chiara: **online al 19/09/2026**, dalla dashboard come sopra |
-| `emery_screenshot_6.png` | 200x228 | RGB | layout B, Staatliches trasparente: **NON online al 19/09/2026**; unico dei nove con una foto di prova **CC-BY-SA-4.0** (sorgente `s8stile_*` del 04/09/2026, `ubuntu-wallpapers`, attribuzione in `../../../docs/design/galleria/README.md`), non la demo CC0: caricarlo è una **decisione dell'utente** (attribuzione CC-BY-SA nel listing, oppure sorgente CC0 rigenerata in emulatore come i due `store040_*`, o lasciarlo fuori dallo store) |
 | `flint_screenshot_3.png` | 144x168 | RGB | layout B su flint, Anton nero su demo chiara: **online al 19/09/2026**, dalla dashboard come sopra |
+
+`store/` ha così **8 screenshot** (5 emery + 3 flint, esattamente quelli online al
+19/09/2026) + 3 icone.
 
 Gli screenshot conservano i pixel della sorgente in `docs/design/galleria/` (nessun
 ridimensionamento); l'unica differenza rispetto a quei file è la conversione da RGBA
