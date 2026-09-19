@@ -145,14 +145,16 @@ FMT_LEN = {FMT_RAW6: RAW6_BYTES, FMT_RAW1: RAW1_BYTES}
 # (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D) occupa il byte 12 del blob.
 # S10 (D31) + S11 (D39): `lang` 0..6 (0 automatica, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt)
 # occupa il byte 13; stesso intervallo di settings_validate() in src/c/settings.c.
+# S14 (D136): `layout` 0..2 (0 «ora in alto», 1 «a tutto schermo», 2 «ora in basso»).
+# S14 (D139): `interval_min` ha anche 360 (ogni 6 h) e 720 (ogni 12 h), fra 180 e 1440.
 SETTINGS_SPEC = (
-    ('layout',       tuple(range(0, 2)),                     '0..1',    0),
+    ('layout',       tuple(range(0, 3)),                     '0..2',    0),
     ('font',         tuple(range(0, 6)),                     '0..5',    0),
     ('clock_mode',   tuple(range(0, 3)),                     '0..2',    0),
     ('leading_zero', tuple(range(0, 3)),                     '0..2',    0),
     ('text_color',   tuple(range(0, 5)),                     '0..4',    0),
     ('outline',      tuple(range(0, 3)),                     '0..2',    0),
-    ('interval_min', (0, 5, 15, 30, 60, 180, 1440),          '0/5/15/30/60/180/1440', 30),
+    ('interval_min', (0, 5, 15, 30, 60, 180, 360, 720, 1440), '0/5/15/30/60/180/360/720/1440', 30),
     ('order',        tuple(range(0, 2)),                     '0..1',    0),
     ('shake_next',   tuple(range(0, 2)),                     '0..1',    1),
     ('info_row',     tuple(range(0, 16)),                    '0..15',  15),
@@ -939,7 +941,8 @@ var RT = "";
 })();
 
 var SETTINGS_FIELDS = [
-  { key: "layout", label: "Layout", opts: [[0, "A — ora in alto"], [1, "B — a tutto schermo"]] },
+  { key: "layout", label: "Layout",
+    opts: [[0, "A — ora in alto"], [1, "B — a tutto schermo"], [2, "C — ora in basso"]] },
   { key: "font", label: "Font",
     opts: [[0, "Anton"], [1, "Bebas"], [2, "Barlow"], [3, "LECO"], [4, "Francois One"], [5, "Staatliches"]] },
   { key: "clock_mode", label: "Formato ora", opts: [[0, "automatico"], [1, "12 h"], [2, "24 h"]] },
@@ -948,7 +951,8 @@ var SETTINGS_FIELDS = [
     opts: [[0, "automatico"], [1, "bianco"], [2, "nero"], [3, "giallo"], [4, "Oxford"]] },
   { key: "outline", label: "Contorno", opts: [[0, "automatico"], [1, "sempre"], [2, "mai"]] },
   { key: "interval_min", label: "Rotazione (minuti)",
-    opts: [[0, "mai"], [5, "5"], [15, "15"], [30, "30"], [60, "60"], [180, "180"], [1440, "1440 (giornaliera)"]] },
+    opts: [[0, "mai"], [5, "5"], [15, "15"], [30, "30"], [60, "60"], [180, "180"], [360, "360 (6 h)"],
+           [720, "720 (12 h)"], [1440, "1440 (giornaliera)"]] },
   { key: "order", label: "Ordine", opts: [[0, "sequenziale"], [1, "casuale"]] },
   { key: "shake_next", label: "Shake = foto successiva", opts: [[0, "no"], [1, "sì"]] },
   { key: "info_row", label: "Riga info (bit 1 passi, 2 batteria, 4 data, 8 BT)", number: [0, 15] },
@@ -1986,6 +1990,16 @@ def selftest():
               SETTINGS_ALLOWED['lang'] == tuple(range(0, 7)), str(SETTINGS_ALLOWED['lang']))
         check('pagina di prova: le sei lingue nel select `lang` (S11/D39)',
               '[5, "Español"]' in PAGE_HTML and '[6, "Português"]' in PAGE_HTML)
+        check('impostazione `layout` 0..2 (S14/D136: 2 = ora in basso)',
+              SETTINGS_ALLOWED['layout'] == (0, 1, 2), str(SETTINGS_ALLOWED['layout']))
+        check('pagina di prova: la terza voce del select `layout` (S14/D136)',
+              '[2, "C — ora in basso"]' in PAGE_HTML)
+        check('impostazione `interval_min` con 360 e 720 (S14/D139)',
+              SETTINGS_ALLOWED['interval_min'] == (0, 5, 15, 30, 60, 180, 360, 720, 1440)
+              and SETTINGS_RANGE_TEXT['interval_min'] == '0/5/15/30/60/180/360/720/1440',
+              str(SETTINGS_ALLOWED['interval_min']))
+        check('pagina di prova: 360 e 720 nel select `interval_min` (S14/D139)',
+              '[360, "360 (6 h)"]' in PAGE_HTML and '[720, "720 (12 h)"]' in PAGE_HTML)
         check('dopo il save: scenario aggiornato', st2['hooks']['scenario'] == 'crc')
         check('dopo il save: la foto 2 del pool è nello slot 5',
               [p['crc'] for p in st2['photos'] if p['slot'] == 5] == [pool[2]['crc6'], pool[2]['crc1']])
@@ -2000,7 +2014,10 @@ def selftest():
             ('src fuori pool', json.dumps({'photos': [{'slot': 3, 'src': 9}]})),
             ('slot fuori 0..11', json.dumps({'photos': [{'slot': 12, 'src': 0}]})),
             ('settings fuori intervallo', json.dumps({'settings': {'layout': 7}})),
+            ('layout 3 fuori intervallo (S14/D136: 0..2)', json.dumps({'settings': {'layout': 3}})),
             ('interval_min non ammesso', json.dumps({'settings': {'interval_min': 7}})),
+            ('interval_min 240 non ammesso (S14/D139: 360 e 720, non 240)',
+             json.dumps({'settings': {'interval_min': 240}})),
             ('settings campo ignoto', json.dumps({'settings': {'pippo': 1}})),
             ('lang fuori intervallo (S10/S11: 0..6)', json.dumps({'settings': {'lang': 7}})),
             ('scenario ignoto', json.dumps({'scenario': 'boh'})),
@@ -2453,6 +2470,30 @@ def selftest():
             rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"lang": 7}'])
             check('--settings \'{"lang": 7}\': fuori intervallo, errore senza traceback',
                   rc != 0 and 'Traceback' not in err and '0..6' in err,
+                  'rc=%s err=%s' % (rc, err.strip()[-90:]))
+            # S14: layout 2 (D136) e intervalli 360/720 (D139) accettati dalla riga di comando
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings',
+                                    '{"layout": 2, "interval_min": 360}'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--settings \'{"layout": 2, "interval_min": 360}\': accettati (S14/D136 + D139)',
+                  rc == 0 and dj is not None and dj.get('settings', {}).get('layout') == 2
+                  and dj.get('settings', {}).get('interval_min') == 360,
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings',
+                                    '{"interval_min": 720}'])
+            try:
+                dj = json.loads(out)
+            except ValueError:
+                dj = None
+            check('--settings \'{"interval_min": 720}\': accettato (S14/D139)',
+                  rc == 0 and dj is not None and dj.get('settings', {}).get('interval_min') == 720,
+                  'rc=%s out=%s' % (rc, out.strip()[:90]))
+            rc, out, err = run_cli(['--dump-json', 'state', '--relay', '--settings', '{"layout": 3}'])
+            check('--settings \'{"layout": 3}\': fuori intervallo, errore senza traceback',
+                  rc != 0 and 'Traceback' not in err and '0..2' in err,
                   'rc=%s err=%s' % (rc, err.strip()[-90:]))
             rc, out, err = run_cli(['--dump-json', 'state', '--page-dir', page_dir])
             try:

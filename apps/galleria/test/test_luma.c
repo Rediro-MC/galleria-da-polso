@@ -1,6 +1,13 @@
 /* test_luma.c — test host di luma.c (nessun pebble.h): immagini sintetiche in buffer static.
  * Campionamento 1 px su 2: su 200×120 a 8 bit si leggono 100×60 = 6.000 campioni (colonne e righe
- * pari); su 144×80 a 1 bit 72×40 = 2.880. Le percentuali attese sono calcolate su quei campioni. */
+ * pari); su 144×80 a 1 bit 72×40 = 2.880. Le percentuali attese sono calcolate su quei campioni.
+ * S14 (D140): l'alone scatta gia' a bad_pct == 15 (>=, era >): le 5 attese vecchie a 15 % sono halo
+ * = true e test_8bit_halo_threshold pinna il confine 14/15 nei due versi, con e senza stato.
+ * S14 (D136, «Ora in basso»): test_band_bottom campiona fasce con y > 0 su immagini grandi come lo
+ * schermo (200×228 a 8 bit, 144×168 a 1 bit, con una riga di guardia sotto): la fascia [122, 228)
+ * legge le righe 122, 124, …, 226 e mai la 121, la 227 o la 228; idem Quick View [63, 169) (righe
+ * dispari) ed ExtraLarge [118, 228); flint [92, 168) e [41, 117). Ogni caso ha un CONTROLLO che
+ * sposta la fascia di 1 riga e vede la riga esclusa: il test non e' vacuo. */
 #include <stdio.h>
 #include <string.h>
 #include "luma.h"
@@ -231,10 +238,10 @@ static void test_8bit_hysteresis(void) {
   luma_compute_8bit(g_img8, W8, FULL8, &r);
   check_res(&r, true, true, 20, 20, 15, 82, "isteresi 20/15 resta bianco");
 
-  /* 30 % chiari / 15 % scuri: 30 ≥ 25 → nero; bad 15 non è > 15 → niente halo. Media 103. */
+  /* 30 % chiari / 15 % scuri: 30 ≥ 25 → nero; bad 15 ≥ 15 → halo (S14/D140: era > 15, niente halo). Media 103. */
   img8_bad(30, 15);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
-  check_res(&r, false, false, 15, 30, 15, 103, "isteresi 30/15 passa a nero");
+  check_res(&r, false, true, 15, 30, 15, 103, "isteresi 30/15 passa a nero");
 
   /* Limite esatto: 25/15 → 25 ≥ 25 → cambia; 24/15 → resta. Media 25/15: (25·255+60·49)/100 = 93;
    * 24/15: (24·255 + 61·49)/100 = 91. */
@@ -246,7 +253,7 @@ static void test_8bit_hysteresis(void) {
   check_res(&r, true, true, 24, 24, 15, 91, "isteresi 24/15 resta bianco");
   img8_bad(25, 15);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
-  check_res(&r, false, false, 15, 25, 15, 93, "isteresi 25/15 passa a nero");
+  check_res(&r, false, true, 15, 25, 15, 93, "isteresi 25/15 passa a nero");   /* bad 15 → halo (D140) */
 
   /* Direzione opposta: stato nero (foto bianca), poi 15 % chiari / 20 % scuri → vorrebbe bianco
    * ma 20 < 15 + 10 → resta nero con bad 20 → halo. Media (15·255 + 65·49)/100 = 70. */
@@ -256,26 +263,27 @@ static void test_8bit_hysteresis(void) {
   img8_bad(15, 20);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
   check_res(&r, false, true, 20, 15, 20, 70, "isteresi 15/20 resta nero");
-  img8_bad(15, 30);                                       /* 30 ≥ 15 + 10 → bianco, bad 15 */
+  img8_bad(15, 30);                                       /* 30 ≥ 15 + 10 → bianco, bad 15 → halo (D140) */
   luma_compute_8bit(g_img8, W8, FULL8, &r);
-  check_res(&r, true, false, 15, 15, 30, 65, "isteresi 15/30 passa a bianco");
+  check_res(&r, true, true, 15, 15, 30, 65, "isteresi 15/30 passa a bianco");
 
-  /* Senza stato (reset): decisione diretta, niente isteresi. */
+  /* Senza stato (reset): decisione diretta, niente isteresi; bad 15 → halo (S14/D140). */
   luma_reset(&r);
   img8_bad(20, 15);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
-  check_res(&r, false, false, 15, 20, 15, 82, "20/15 senza stato → nero");
+  check_res(&r, false, true, 15, 20, 15, 82, "20/15 senza stato → nero");
   luma_reset(&r);
   img8_bad(15, 20);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
-  check_res(&r, true, false, 15, 15, 20, 70, "15/20 senza stato → bianco");
+  check_res(&r, true, true, 15, 15, 20, 70, "15/20 senza stato → bianco");
 
   /* bad_pct è la % ostile al colore SCELTO: 16 % chiari / 0 % scuri → nero senza conflitti. */
   luma_reset(&r);
   img8_bad(16, 0);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
   check_res(&r, false, false, 0, 16, 0, 81, "16/0 → nero, bad 0");
-  /* Halo: 16 % → true (15 % → false già visto). 16/20 → bianco, bad 16; media (16·255+64·49)/100 = 72. */
+  /* Halo: 16 % → true (15 % → true già visto; il confine 14/15 in test_8bit_halo_threshold, S14/D140).
+   * 16/20 → bianco, bad 16; media (16·255+64·49)/100 = 72. */
   luma_reset(&r);
   img8_bad(16, 20);
   luma_compute_8bit(g_img8, W8, FULL8, &r);
@@ -506,12 +514,217 @@ static void test_1bit(void) {
   luma_compute_1bit(g_img1, STRIDE1, FULL1, NULL);
 }
 
+
+/* --- S14 (D140): confine dell'alone a 15 % esatto, nei due versi, con e senza stato --- */
+static void test_8bit_halo_threshold(void) {
+  LumaResult r;
+
+  /* senza stato: 14 % ostili al colore SCELTO → niente alone; 15 % → alone (D140: >=, era >).
+   * Medie: 14/20 (14·255 + 66·49)/100 = 68; 15/20 = 70; 20/14 (20·255 + 66·49)/100 = 83; 20/15 = 82. */
+  luma_reset(&r);
+  img8_bad(14, 20);                                       /* → bianco, bad 14 */
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, false, 14, 14, 20, 68, "14/20 senza stato → bianco, bad 14: niente alone");
+  luma_reset(&r);
+  img8_bad(15, 20);                                       /* → bianco, bad 15 */
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, true, 15, 15, 20, 70, "15/20 senza stato → bianco, bad 15: alone");
+  luma_reset(&r);
+  img8_bad(20, 14);                                       /* → nero, bad 14 */
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, false, 14, 20, 14, 83, "20/14 senza stato → nero, bad 14: niente alone");
+  luma_reset(&r);
+  img8_bad(20, 15);                                       /* → nero, bad 15 */
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, true, 15, 20, 15, 82, "20/15 senza stato → nero, bad 15: alone");
+
+  /* con stato e colore confermato dall'isteresi: stesso confine sul colore CORRENTE */
+  luma_reset(&r);
+  fill8(C_BLK);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);              /* stato bianco */
+  img8_bad(14, 20);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, false, 14, 14, 20, 68, "stato bianco, 14/20: niente alone");
+  img8_bad(15, 20);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, true, 15, 15, 20, 70, "stato bianco, 15/20: alone");
+  luma_reset(&r);
+  fill8(C_WHT);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);              /* stato nero */
+  img8_bad(20, 14);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, false, 14, 20, 14, 83, "stato nero, 20/14: niente alone");
+  img8_bad(20, 15);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, true, 15, 20, 15, 82, "stato nero, 20/15: alone");
+
+  /* isteresi che TRATTIENE il colore con bad esattamente 15: l'alone guarda bad_pct del colore tenuto.
+   * Stato bianco, 15/10: vorrebbe nero (15 > 10) ma 15 < 10 + 10 → resta bianco, bad 15 → alone;
+   * media (15·255 + 75·49)/100 = 75. Poi 14/10: resta bianco, bad 14 → niente; media (14·255 + 76·49)/100 = 72. */
+  luma_reset(&r);
+  fill8(C_BLK);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  img8_bad(15, 10);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, true, 15, 15, 10, 75, "isteresi trattiene bianco con bad 15: alone");
+  img8_bad(14, 10);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, true, false, 14, 14, 10, 72, "isteresi trattiene bianco con bad 14: niente alone");
+  /* Stato nero, 10/15: vorrebbe bianco ma 15 < 20 → resta nero, bad 15 → alone; media (10·255 + 75·49)/100 = 62.
+   * Poi 10/14: resta nero, bad 14 → niente; media (10·255 + 76·49)/100 = 62. */
+  luma_reset(&r);
+  fill8(C_WHT);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  img8_bad(10, 15);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, true, 15, 10, 15, 62, "isteresi trattiene nero con bad 15: alone");
+  img8_bad(10, 14);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, false, 14, 10, 14, 62, "isteresi trattiene nero con bad 14: niente alone");
+
+  /* parità 15/15: decide la media (72 ≥ 46 → nero), bad 15 → alone */
+  luma_reset(&r);
+  img8_bad(15, 15);
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, true, 15, 15, 15, 72, "15/15 → nero per media, alone");
+  /* la costante e' 15 e la regola e' >= (un LUMA_HALO_PCT cambiato per sbaglio deve emergere qui) */
+  CHECK(LUMA_HALO_PCT == 15);
+  luma_reset(&r);
+  img8_bad(0, 0);                                         /* tutto neutro: bad 0 → niente alone */
+  luma_compute_8bit(g_img8, W8, FULL8, &r);
+  check_res(&r, false, false, 0, 0, 0, 49, "0/0 → nero (media 49), niente alone");
+}
+
+/* --- S14 (D136): fasce con y > 0 su immagini grandi come lo schermo («Ora in basso», Quick View, ExtraLarge) --- */
+#define WE 200
+#define HE 228
+static uint8_t g_img_e[(HE + 1) * WE];       /* riga 228 = guardia: fuori dal bitmap, mai letta */
+#define WF 144
+#define HF 168
+#define STRIDEF 18
+static uint8_t g_img_f[(HF + 1) * STRIDEF];  /* riga 168 = guardia */
+
+static void rows_e(int32_t y0, int32_t y1, uint8_t v) {
+  for (int32_t yy = y0; yy < y1; yy++) {
+    memset(&g_img_e[yy * WE], v, WE);
+  }
+}
+
+/* nero in [0, y0), bianco in [y0, y1), nero in [y1, 229) (guardia compresa) */
+static void img_e_white_band(int32_t y0, int32_t y1) {
+  rows_e(0, y0, C_BLK);
+  rows_e(y0, y1, C_WHT);
+  rows_e(y1, HE + 1, C_BLK);
+}
+
+static void img_f_white_band(int32_t y0, int32_t y1) {
+  memset(g_img_f, 0x00, sizeof(g_img_f));                 /* tutto nero, guardia compresa */
+  rect1(g_img_f, STRIDEF, 0, y0, WF, y1 - y0, true);
+}
+
+static void test_band_bottom(void) {
+  LumaResult r;
+
+  /* emery «Ora in basso»: fascia [122, 228) → righe 122, 124, …, 226 (53 righe × 100 colonne). Nero sopra
+   * la 122 e sotto la 228 (guardia): il risultato non deve vedere il nero. */
+  img_e_white_band(122, 228);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 122, WE, 106 }, &r);
+  check_res(&r, false, false, 0, 100, 0, 255, "emery [122,228): non vede il nero sopra");
+  /* controllo di sensibilita': da y 121 (h 107) le righe sono 121, 123, …, 227: la 121 nera entra
+   * (1 riga su 54: bad_black 100/5400 = 1 %, bad_white 5300/5400 = 98 %, media 53·255/54 = 250) */
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 121, WE, 107 }, &r);
+  check_res(&r, false, false, 1, 98, 1, 250, "controllo: da y 121 la riga 121 si vede");
+  /* la riga 227 (dispari) non e' campionata dalla fascia [122, 228)... */
+  rows_e(227, 228, C_BLK);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 122, WE, 106 }, &r);
+  check_res(&r, false, false, 0, 100, 0, 255, "emery [122,228): la riga 227 non conta");
+  /* ...ma da y 123 (h 105: righe 123 … 227) si': 1 su 53 → bad_black 100/5300 = 1, bad_white 98, media 52·255/53 = 250 */
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 123, WE, 105 }, &r);
+  check_res(&r, false, false, 1, 98, 1, 250, "controllo: da y 123 la riga 227 si vede");
+  /* dalla riga 0 (fascia «Ora in alto» estesa a tutto lo schermo) il nero si vede eccome: righe pari 0..226 = 114,
+   * 61 nere e 53 bianche → bad_black 6100/11400 = 53, bad_white 5300/11400 = 46 → bianco, bad 46 → alone, media 118 */
+  img_e_white_band(122, 228);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 0, WE, HE }, &r);
+  check_res(&r, true, true, 46, 46, 53, 118, "controllo: da y 0 il nero sopra si vede");
+  /* specchio: bianco sopra, nero nella fascia → testo bianco senza alone (non vede il bianco sopra) */
+  rows_e(0, 122, C_WHT);
+  rows_e(122, HE + 1, C_BLK);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 122, WE, 106 }, &r);
+  check_res(&r, true, false, 0, 0, 100, 0, "emery [122,228) nera sotto bianco: bianco senza alone");
+
+  /* Quick View su emery: unob 169 → fascia [63, 169): righe DISPARI 63, 65, …, 167 (53). Bianco solo in [63, 169):
+   * la 169 (nera) resta fuori. */
+  img_e_white_band(63, 169);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 63, WE, 106 }, &r);
+  check_res(&r, false, false, 0, 100, 0, 255, "emery QV [63,169): righe dispari, 169 esclusa");
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 63, WE, 107 }, &r);   /* h 107: entra la 169 */
+  check_res(&r, false, false, 1, 98, 1, 250, "controllo: con h 107 la riga 169 si vede");
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 62, WE, 107 }, &r);   /* da 62: righe pari 62..168, la 62 e' nera */
+  check_res(&r, false, false, 1, 98, 1, 250, "controllo: da y 62 la riga 62 si vede");
+
+  /* ExtraLarge: fascia [118, 228) (110 righe) → 118, 120, …, 226 (55); Quick View [59, 169) → 59 … 167 (55, dispari) */
+  img_e_white_band(118, 228);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 118, WE, 110 }, &r);
+  check_res(&r, false, false, 0, 100, 0, 255, "emery XL [118,228)");
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 117, WE, 111 }, &r);   /* 117 … 227: la 117 e' nera (1/56, media 55·255/56 = 250) */
+  check_res(&r, false, false, 1, 98, 1, 250, "controllo XL: da y 117");
+  img_e_white_band(59, 169);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 59, WE, 110 }, &r);
+  check_res(&r, false, false, 0, 100, 0, 255, "emery XL QV [59,169)");
+
+  /* la fascia bassa con l'isteresi: stessa foto, stato bianco (fascia alta nera) → la fascia bassa bianca
+   * (bad_white 100 ≥ 0 + 10) porta a nero; il nero sopra non pesa */
+  img_e_white_band(122, 228);
+  luma_reset(&r);
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 0, WE, 106 }, &r);    /* «Ora in alto»: tutta nera → bianco */
+  check_res(&r, true, false, 0, 0, 100, 0, "fascia alta [0,106) nera → bianco");
+  luma_compute_8bit(g_img_e, WE, (LumaRect){ 0, 122, WE, 106 }, &r);  /* passaggio a «Ora in basso» */
+  check_res(&r, false, false, 0, 100, 0, 255, "fascia bassa dopo l'alta: nero (isteresi superata)");
+
+  /* flint «Ora in basso»: fascia [92, 168) su 144×168 → righe 92, 94, …, 166 (38 × 72 campioni); guardia 168 nera */
+  img_f_white_band(92, 168);
+  luma_reset(&r);
+  luma_compute_1bit(g_img_f, STRIDEF, (LumaRect){ 0, 92, WF, 76 }, &r);
+  check_res(&r, false, true, 0, 100, 0, 255, "flint [92,168): non vede il nero sopra");
+  luma_reset(&r);
+  luma_compute_1bit(g_img_f, STRIDEF, (LumaRect){ 0, 91, WF, 77 }, &r);   /* 91 … 167: la 91 e' nera (1/39 → 2 %, 97 %, media 38·255/39 = 248) */
+  check_res(&r, false, true, 2, 97, 2, 248, "controllo flint: da y 91");
+  /* flint Quick View: unob 117 → [41, 117): righe dispari 41 … 115 (38); la 117 (nera) esclusa */
+  img_f_white_band(41, 117);
+  luma_reset(&r);
+  luma_compute_1bit(g_img_f, STRIDEF, (LumaRect){ 0, 41, WF, 76 }, &r);
+  check_res(&r, false, true, 0, 100, 0, 255, "flint QV [41,117)");
+  luma_reset(&r);
+  luma_compute_1bit(g_img_f, STRIDEF, (LumaRect){ 0, 41, WF, 77 }, &r);   /* entra la 117 */
+  check_res(&r, false, true, 2, 97, 2, 248, "controllo flint QV: con h 77 la riga 117 si vede");
+  /* specchio flint: bianco sopra, nero nella fascia → bianco (contorno sempre) */
+  memset(g_img_f, 0xFF, sizeof(g_img_f));
+  rect1(g_img_f, STRIDEF, 0, 92, WF, HF + 1 - 92, false);
+  luma_reset(&r);
+  luma_compute_1bit(g_img_f, STRIDEF, (LumaRect){ 0, 92, WF, 76 }, &r);
+  check_res(&r, true, true, 0, 0, 100, 0, "flint [92,168) nera sotto bianco: bianco");
+}
+
 int main(void) {
   test_table_and_reset();
   test_8bit_uniform();
   test_8bit_split_and_alpha();
   test_8bit_hysteresis();
+  test_8bit_halo_threshold();
   test_8bit_band();
+  test_band_bottom();
   test_1bit();
 
   printf("luma: %d ok, %d falliti\n", g_pass, g_fail);

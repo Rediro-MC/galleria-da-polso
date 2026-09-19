@@ -1557,7 +1557,10 @@ static void test_settings_msg(void) {
   mk_valid_settings(&m); m.schema = 0;             expect_settings_rejected(m, "schema 0");
   mk_valid_settings(&m); m.interval_min = 7;       expect_settings_rejected(m, "interval 7");
   mk_valid_settings(&m); m.interval_min = 31;      expect_settings_rejected(m, "interval 31");
-  mk_valid_settings(&m); m.layout = 2;             expect_settings_rejected(m, "layout 2");
+  mk_valid_settings(&m); m.layout = 3;             expect_settings_rejected(m, "layout 3");     /* S14 (D136): 2 = «Ora in basso» e' VALIDO, 3 il primo fuori */
+  mk_valid_settings(&m); m.layout = 255;           expect_settings_rejected(m, "layout 255");
+  mk_valid_settings(&m); m.interval_min = 361;     expect_settings_rejected(m, "interval 361"); /* S14 (D139): 360 e 720 validi, i vicini no */
+  mk_valid_settings(&m); m.interval_min = 719;     expect_settings_rejected(m, "interval 719");
   mk_valid_settings(&m); m.font = GAL_FONT_COUNT;  expect_settings_rejected(m, "font 6");     /* S8-stile: 4 e 5 sono F4/F5 */
   mk_valid_settings(&m); m.digit_style = 4;        expect_settings_rejected(m, "digit_style 4");
   mk_valid_settings(&m); m.clock_mode = 3;         expect_settings_rejected(m, "clock_mode 3");
@@ -1568,6 +1571,28 @@ static void test_settings_msg(void) {
   mk_valid_settings(&m); m.shake_next = 2;         expect_settings_rejected(m, "shake 2");
   mk_valid_settings(&m); m.info_row = 16;          expect_settings_rejected(m, "info_row 16");
   mk_valid_settings(&m); m.info_row = 255;         expect_settings_rejected(m, "info_row 255");
+
+  /* S14 (D136/D139): layout 2 «Ora in basso» e intervalli 720/360 ACCETTATI (code 0, callback chiamata con i
+   * valori PRECEDENTI), applicati in RAM */
+  {
+    const int sc = g_settings_changed;
+    mk_valid_settings(&m);
+    m.layout = GAL_LAYOUT_A_BOTTOM;
+    m.interval_min = 720;
+    CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
+    CHECK_EQ(g_out.code, SYNC_CODE_OK);
+    CHECK_EQ(g_settings_changed, sc + 1);
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(settings_get()->interval_min, 720);
+    m.interval_min = 360;
+    CHECK_EQ(send_settings(&m, (uint16_t)sizeof(m)), SYNC_ACT_SEND);
+    CHECK_EQ(g_out.code, SYNC_CODE_OK);
+    CHECK_EQ(g_settings_changed, sc + 2);
+    CHECK_EQ(g_settings_before.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(g_settings_before.interval_min, 720);
+    CHECK_EQ(settings_get()->interval_min, 360);
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  }
 
   /* valori limite ACCETTATI */
   mk_valid_settings(&m);

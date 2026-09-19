@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /* mutants_preview.js - mutation testing di src/pkjs/config/preview.js (S12/D48; revisione S12, rv).
  *
+ * S14: i mutanti nuovi coprono "ora in basso" (D136: specchio sul riempimento, lumaY, fascia del
+ * colore in basso) e la soglia del contorno al 15 % (D140: >= invece di >).
+ *
  * D48 chiede che almeno 6 mutanti "a mano" del porting JS (passo D25 senza -2R-S, anello senza
  * dilatazione diagonale, ombra dal solo riempimento, LUMA_SUN spostata, soglia 77 -> 78,
  * campionamento 1 su 1) rendano ROSSO test/test_preview.js. Qui ce ne sono di piu': ogni mutante e'
@@ -41,10 +44,17 @@ var MUT = [
   ['soglia nero 25 -> 26 (Y 25 diventa ostile)', "Y_BLACK = 25,", "Y_BLACK = 26,"],
   ['crossover 46 -> 47', "Y_CROSS = 46,", "Y_CROSS = 47,"],
   ['campionamento 1 su 1 in y (luma8 e luma1)', "for (y = b.y; y < b.y + b.h; y += 2) {", "for (y = b.y; y < b.y + b.h; y += 1) {", 2],
-  ['contorno con >= 15 invece di > 15', "r.halo = r.bad_pct > HALO_PCT;", "r.halo = r.bad_pct >= HALO_PCT;"],
+  ['contorno con > 15 invece di >= 15 (D140)', "r.halo = r.bad_pct >= HALO_PCT;", "r.halo = r.bad_pct > HALO_PCT;"],
+  ['contorno della palette con > 15 (D140)', "(light ? lm.bad_white : lm.bad_black) >= HALO_PCT", "(light ? lm.bad_white : lm.bad_black) > HALO_PCT"],
   ['parita: bianco se media <= 46', "(m < Y_CROSS)", "(m <= Y_CROSS)"],
   ['fascia di luma in A +3 invece di +2 (layoutRows e render)', "L.info_y + L.info_h + 2", "L.info_y + L.info_h + 3", 2],
-  ['contorno auto su flint come su emery', "(bw || (light ? lm.bad_white : lm.bad_black) > HALO_PCT)", "((light ? lm.bad_white : lm.bad_black) > HALO_PCT)"],
+  ['contorno auto su flint come su emery', "(bw || (light ? lm.bad_white : lm.bad_black) >= HALO_PCT)", "((light ? lm.bad_white : lm.bad_black) >= HALO_PCT)"],
+  /* --- "ora in basso" (D136) --- */
+  ['specchio sulla STRIP invece che sul riempimento', "bot ? L.h - L.a_fill_y - (sz.digit_h | 0) - R : L.a_fill_y - R", "bot ? L.h - (L.a_fill_y - R) - (sz.strip_h | 0) : L.a_fill_y - R"],
+  ['specchio senza digit_h (stessa riga per tutti i font)', "L.h - L.a_fill_y - (sz.digit_h | 0) - R", "L.h - L.a_fill_y - R"],
+  ['lumaY sempre 0 (fascia del colore in alto anche con l ora in basso)', "function lumaTop(L, bot, h) { return bot ? L.h - h : 0; }", "function lumaTop(L, bot, h) { return 0; }"],
+  ['render: fascia come sola altezza (ignora lumaY)', "band = lumaY > 0 ? { x: 0, y: lumaY, w: W, h: lumaH } : lumaH;", "band = lumaH;"],
+  ['isBottom senza le forme lasche (C, c)', "function isBottom(l) { return l === 2 || l === 'C' || l === 'c'; }", "function isBottom(l) { return l === 2; }"],
   /* --- griglia e posizioni --- */
   ['FIT_MARGIN 2 -> 3', "FIT_MARGIN = 2,", "FIT_MARGIN = 3,"],
   ['griglia di riserva senza + R', "return gap >= 0 ? v + 2 * R + gap : v + R;", "return gap >= 0 ? v + 2 * R + gap : v;"],

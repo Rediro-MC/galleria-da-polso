@@ -1,6 +1,6 @@
 # CONTINUA QUI — stato lavori progetto Pebble
 
-> **Aggiornato: 19/09/2026 sera.** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
+> **Aggiornato: 19/09/2026 notte (S14).** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
 > minuto. Il dettaglio di ogni sessione (compiti per importanza, numeri, decisioni) sta in
 > `apps/galleria/PIANO.md` §8 (stato ed esiti) e §4 (sessione per sessione): qui resta una riga per sessione.
 
@@ -17,6 +17,21 @@
   permission mode) e **descrizione nuova online** (`PATCH` di `PUBLISH.md` §0.1 eseguito dall'orchestratore la
   sera del 19/09 su richiesta dell'utente: **794 caratteri = `store/description.txt`**, «Beta 0.4.0», sei lingue,
   «tested on Android and iPhone»); screenshot online **5 emery + 3 flint** = gli 8 di `store/`.
+- **Ultima sessione, 19/09/2026 sera/notte — S14, cinque feature per la v1.0 ✅ al banco (non committata)**: dal
+  pannello «nuove feature per una watchface minimale» (38 proposte, archivio locale `~/galleria-gate/feature-2026-09-19/`)
+  e dalle risposte dell'utente: **F01** alone già al 15 % (`>=`, D140), **F03 «Ora in basso»** = terza disposizione
+  (`layout = 2`: il layout A specchiato nella fascia ancorata al fondo dell'area non ostruita, riga info sopra, cifre a
+  filo del fondo; sale con la Quick View; D136), **F04** «Ottimizza per lo schermo» spuntata di serie (D138, rovescia
+  D6 senza O6), **F09** intervalli 6 h/12 h (D139), **F25** via le frecce del font (D137), lessico **D141**
+  («Insieme all'ora», «Font di sistema (tranne Ora grande)»). Spec `docs/design/galleria-s14-feature-v1.md`. Numeri:
+  statico **29.300 / 29.188 B** (+220), pagina **85.058 B** (−418, 958 B sotto l'avviso soft), 134 chiavi,
+  `test_preview` 2.511, `test_page` 2.694/2.719, `make -C test` verde in 61 s; gate in emulatore e nel browser con 13
+  screenshot `docs/design/galleria/s14_*.png` (inchiostro delle cifre alle righe 154..217, specchio esatto di «Ora in
+  alto»; anteprima della pagina identica). Tre workflow (14 + 49 + 5 agenti; revisione 8 confermati / 22 refutati,
+  nessun difetto funzionale). F02 no, F11 (O5/O6) sospesa, P15 iPhone «mai probabilmente», F28 dopo la v1.0.
+  **Provata sul PT2 reale via Android** (23:48–23:54): «Ora in basso» con tre font, «ogni 12 h» (`int=720`), foto nuova in
+  15 s, 5 foto a scosse, URL 206.331 caratteri, zero errori (12 h con «PM» provato; Quick View vista al riavvio delle 00:01 con la fascia a 63+106; cambio foto a mezzanotte con «ogni 12 h»).
+  **`package.json` resta 0.4.0; commit, push e release solo su richiesta dell'utente.** Dettagli in `PIANO.md` §4 «S14», §5, §8.
 - **Ultima sessione, 19/09/2026 sera — PATCH della descrizione, sesto screenshot tolto, commit**: su richiesta
   esplicita dell'utente l'orchestratore ha lanciato il `PATCH` di `PUBLISH.md` §0.1 (HTTP 200) e verificato sull'API
   pubblica: **descrizione online = `store/description.txt`, 794 caratteri**; titolo, screenshot, icone e release
@@ -68,6 +83,11 @@
 
 ## Prossimo passo — il gate sul telefono (se si vuole)
 
+0. **Dopo S14 (19/09 notte)**: (a) l'utente decide **commit/push** dei 40+ file di S14 e la **release** (0.5.0 o 1.0.0:
+   `package.json`, `store/release_notes_<ver>.txt` in inglese, `pebble publish`, bozza delle note in `store/LISTING.md` §3);
+   prima della release conviene una **prova sul PT2 reale** di «Ora in basso» (Quick View, 12 h, sync) e della pagina con
+   la tendina del font senza frecce (su iPhone il picker a ruota). (b) **O5/O6 (F11)** quando l'utente ha 2–3 h con il
+   PT2 alla luce del giorno: conferma o correzione di D138/D140. (c) **F28** issue a PebbleOS dopo la v1.0.
 1. **Fatti il 19/09/2026 sera**: `PATCH` della descrizione (online **794 caratteri = `store/description.txt`**, titolo
    «Galleria») e `emery_screenshot_6.png` cancellato (`store/` = 8 screenshot, tutti online): nulla resta aperto
    sullo store.

@@ -28,11 +28,24 @@ FLINT_CARDS = ('f1_black', 'f2_white', 'f3_5050', 'f4_40w', 'f5_60w')
 ALL_CARDS = EMERY_CARDS + FLINT_CARDS
 # c8a, c8b e palette64 si controllano su due fasce (106 = layout A, 228 = layout B)
 DUE_FASCE = ('c8a_hyst_hold', 'c8b_hyst_flip', 'palette64')
+# S14/D140: la soglia dell'alone e' `bad_pct >= 15 %` (era `> 15 %`). Le card al limite sono c7b
+# (15 % di colonne bianche su fondo nero) e c8a/c8b (15 colonne nere nella fascia A, testo nero a
+# freddo): tutte e tre devono ora dare alone SI, mentre c7a al 12 % resta a `no`. Il confronto sta
+# nella colonna "alone atteso" della tabella di --check, e la colonna "previsione photo_prep" dice
+# che anche tools/photo_prep.py applica la stessa regola (le quattro copie cambiano insieme).
+HALO_ATTESO = {('c7a_halo12', 106): 'no', ('c7b_halo15', 106): 'SI',
+               ('c7c_halo18', 106): 'SI', ('c8a_hyst_hold', 106): 'SI',
+               ('c8b_hyst_flip', 106): 'SI', ('c8a_hyst_hold', 228): 'no',
+               ('c8b_hyst_flip', 228): 'no', ('c6_tie_halo', 106): 'SI'}
 ROWS = len(ALL_CARDS) + len(DUE_FASCE)
 # Pezzi dell'avviso su come inviare le card (SEND_HINT del tool): la dimenticanza piu' facile e'
 # la casella del vetro, che su palette64 falserebbe O6. HINT_UNA_VOLTA compare una volta sola
 # nell'avviso (serve a scoprire se --check lo stampa due volte).
-HINT_BITS = ('Ottimizza per il vetro', 'dithering "Nessuno"', 'gamma 1, lift 0')
+# S14/D138: la casella "Ottimizza" ora e' spuntata di serie, quindi l'avviso deve dire di
+# SPEGNERLA a mano (prima bastava non toccarla); il pulsante che riporta la cornice a tutta la
+# foto si chiama "Riparti da capo" da UX-3 (btn_fit/#fit), non piu' "Adatta".
+HINT_BITS = ('Ottimizza per lo schermo dell\'orologio', 'dithering "Nessuno"', 'gamma 1, lift 0',
+             'da SPEGNERE A MANO', 'Riparti da capo')
 HINT_UNA_VOLTA = 'ALTRIMENTI I NUMERI ATTESI NON VALGONO'
 
 ok = 0
@@ -119,6 +132,29 @@ def main():
             check(len(rows) == atteso and set(rows) == {'ok'},
                   '%s: %d righe con esito %s (attese %d, tutte ok)' % (name, len(rows), rows, atteso))
 
+        # --- 3b. S14/D140: l'alone atteso delle card al limite del 15 %, e la previsione di
+        # photo_prep sulla stessa riga (la tabella ha 9 colonne: card, piatt., fascia, bad w/b,
+        # Y medio, testo atteso, alone atteso, previsione photo_prep, esito)
+        for (name, band), halo in sorted(HALO_ATTESO.items()):
+            m = re.search(r'^\| `%s` \| \w+ \| %d \| (\S+) \| \d+ \| (\w+) \| (\w+) \| '
+                          r'(\S+) · \d+ · (\w+) · (\w+) \| (\w+) \|$'
+                          % (re.escape(name), band), out, re.M)
+            if m is None:
+                check(False, '%s fascia %d: riga della tabella non trovata' % (name, band))
+                continue
+            check(m.group(3) == halo,
+                  '%s fascia %d: alone atteso %s (ha dato %s) [S14/D140]'
+                  % (name, band, halo, m.group(3)))
+            check(m.group(6) == halo,
+                  '%s fascia %d: photo_prep prevede alone %s (ha dato %s) [S14/D140]'
+                  % (name, band, halo, m.group(6)))
+            check(m.group(1) == m.group(4) and m.group(2) == m.group(5) and m.group(7) == 'ok',
+                  '%s fascia %d: bad w/b e testo uguali fra attesi e photo_prep (%s/%s %s/%s, %s)'
+                  % (name, band, m.group(1), m.group(4), m.group(2), m.group(5), m.group(7)))
+        # c7b e' la card al limite: la sua descrizione dice "alone SI", non "alone no"
+        check(re.search(r'`c7b_halo15`.*\| 15/85 \| \d+ \| BIANCO \| SI \|', out) is not None,
+              'c7b_halo15: 15 % di colonne bianche -> BIANCO con alone (S14/D140)')
+
         # --- 4. i PNG ci sono davvero, RGB 200x228 e con i soli colori della palette
         for name in ALL_CARDS:
             path = os.path.join(cards, name + '.png')
@@ -155,6 +191,13 @@ def main():
         check(rc == 0, '--check esce 0 (ha dato %d)\n%s' % (rc, tail(out_chk)))
         for bit in HINT_BITS:
             check(bit in out_chk, '--check stampa l\'avviso (manca %r)' % bit)
+        # S14/D138: l'avviso non deve piu' dire che la casella e' gia' spenta di default, e il
+        # pulsante della cornice non si chiama piu' "Adatta" (UX-3: "Riparti da capo")
+        for stale in ('oggi di default', 'pulsante "Adatta"', 'premere "Adatta"'):
+            check(stale not in out_plain and stale not in out_chk,
+                  'l\'avviso non dice piu\' %r (S14/D138 e UX-3)' % stale)
+        for vivo in ('pulsante "Riparti da capo"', 'premere "Riparti da capo"'):
+            check(vivo in out_plain and vivo in out_chk, 'l\'avviso dice %r' % vivo)
         check(out_chk.count(HINT_UNA_VOLTA) == 1,
               '--check stampa l\'avviso una volta sola (ha dato %d)'
               % out_chk.count(HINT_UNA_VOLTA))

@@ -58,13 +58,13 @@ var FMT_RAW6 = 1, FMT_RAW1 = 2;
 var FMT_LEN = {};
 FMT_LEN[FMT_RAW6] = 34200;                 /* photo_codec.h: 150 B × 228 righe */
 FMT_LEN[FMT_RAW1] = 3024;                  /* 18 B × 168 righe */
-var INTERVALS = [0, 5, 15, 30, 60, 180, 1440];
+var INTERVALS = [0, 5, 15, 30, 60, 180, 360, 720, 1440];   /* S14/D139: 360 = ogni 6 h, 720 = ogni 12 h */
 var SETTINGS_SCHEMA = 1;
 var SETTINGS_BYTES = 20;
 
 /* [nome, min, max, default] — stessi intervalli di settings_validate() (settings.c). */
 var SETTINGS_FIELDS = [
-  ['layout', 0, 1, 0],
+  ['layout', 0, 2, 0],            /* S14/D136: 2 = GAL_LAYOUT_A_BOTTOM ("ora in basso") */
   ['font', 0, 5, 0],
   ['clock_mode', 0, 2, 0],
   ['leading_zero', 0, 2, 0],
@@ -791,3 +791,4 @@ module.exports.normalizeSettings = normalizeSettings;
 module.exports.settingsBytes = settingsBytes;
 module.exports.settingsCrc = settingsCrc;
 module.exports.SETTINGS_FIELDS = SETTINGS_FIELDS;
+module.exports.INTERVALS = INTERVALS;   /* S14/D139: i test pinnano la lista unica degli intervalli */

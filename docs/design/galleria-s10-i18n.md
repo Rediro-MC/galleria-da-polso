@@ -13,7 +13,7 @@
 > oggi la release è la **0.4.0** (UX-4/D126). Dove qui si legge «quattro lingue», `lang <= 4`,
 > `LANGS = ['en','it','de','fr']`, `WDAY[4][7][4]`/`MON[4][12][7]` = 448 B, `DATEFMT_MAX_LEN` 13 o
 > «121 chiavi × 4 lingue», vale la versione a sei di S11 (`GAL_LANG_LAST` = `GAL_LANG_PT` = 6, tabelle `[6][7][5]` e
-> `[6][12][7]` = 714 B, `DATEFMT_MAX_LEN` 14, 121 chiavi × 6 lingue — 🔁 **oggi 135 chiavi × 6**, dopo S12, UX-1, UX-2 e UX-3: il conteggio vivo sta in §3). Le decisioni D31–D38 restano valide così come
+> `[6][12][7]` = 714 B, `DATEFMT_MAX_LEN` 14, 121 chiavi × 6 lingue — 🔁 **oggi 134 chiavi × 6**, dopo S12, UX-1, UX-2, UX-3 e S14: il conteggio vivo sta in §3). Le decisioni D31–D38 restano valide così come
 > sono scritte: S11 le **estende**, non le cambia (il registro es è «tú», pt «você»; il separatore delle migliaia di
 > es e pt è `.`, senza eccezioni — D41). Il **glossario §3** qui sotto ha già le colonne es/pt.
 
@@ -136,8 +136,8 @@
 
 ## 3. Glossario e regole di traduzione
 
-✅ **Tabella completa e riallineata a `apps/galleria/i18n/messages.json`** (ultima riallineatura: 14/09/2026,
-a fine UX-4): copre **tutte e 135** le chiavi in **68 righe**. Le celle si **generano da `messages.json`**, mai
+✅ **Tabella completa e riallineata a `apps/galleria/i18n/messages.json`** (ultima riallineatura: 19/09/2026,
+in S14): copre **tutte e 134** le chiavi in **67 righe**. Le celle si **generano da `messages.json`**, mai
 a mano, e nella colonna «chiavi» le righe portano fra parentesi un **tag di zona** — intestazione e stato,
 foto e tessere, editor, aspetto dell'ora, aiuto e avvio lento, tetto e messaggi, anteprima — che dice dove la
 chiave si vede nella pagina. La **fonte unica** resta `messages.json`: se cambia, questa tabella si corregge,
@@ -173,9 +173,8 @@ fondo a questa sezione.
 | Tocca di nuovo ✕ per togliere {0} | Tap ✕ again to remove {0} | Tippe erneut auf ✕, um {0} zu entfernen | Appuyez de nouveau sur ✕ pour retirer {0} | Toca ✕ de nuevo para quitar {0} | Toque em ✕ de novo para remover {0} | `msg_del_arm` (**UX-3/D110**) |
 | da salvare · non è ancora sull'orologio · solo sull'orologio · da togliere e riaggiungere | to save · not on the watch yet · only on the watch · remove it and add it again | zu speichern · noch nicht auf der Uhr · nur auf der Uhr · entfernen, neu hinzufügen | à enregistrer · pas encore sur la montre · uniquement sur la montre · à retirer et rajouter | por guardar · aún no está en el reloj · solo en el reloj · quítala y añádela otra vez | para salvar · ainda não está no relógio · só no relógio · remova e adicione de novo | `badge_new`, `badge_pending`, `badge_foreign`, `badge_no_fmt` |
 | Questo è l'ordine delle foto: ▲ ▼ per cambiarlo | This is the photo order: ▲ ▼ to change it | Das ist die Reihenfolge der Fotos: ▲ ▼ zum Ändern | Voici l'ordre des photos : ▲ ▼ pour le changer | Este es el orden de las fotos: ▲ ▼ para cambiarlo | Esta é a ordem das fotos: ▲ ▼ para mudar | `photos_cap_hint` |
-| Disposizione · Ora in alto, info sotto · Ora grande, senza info | Layout · Clock on top, info below · Big clock, no info | Anordnung · Uhrzeit oben, Info unten · Große Uhrzeit, ohne Info | Disposition · Heure en haut, infos dessous · Grande heure, sans infos | Disposición · Hora arriba, info debajo · Hora grande, sin info | Disposição · Hora em cima, info embaixo · Hora grande, sem info | `lbl_layout`, `opt_layout_a`, `opt_layout_b` |
-| Font · Font di sistema (solo Ora in alto) | Font · System font (Clock on top only) | Schriftart · Systemschrift (nur Uhrzeit oben) | Police · Police système (Heure en haut) | Fuente · Fuente del sistema (Hora arriba) | Fonte · Fonte do sistema (só Hora em cima) | `lbl_font`, `opt_font_leco` |
-| Font precedente · Font successivo | Previous font · Next font | Vorherige Schriftart · Nächste Schriftart | Police précédente · Police suivante | Fuente anterior · Fuente siguiente | Fonte anterior · Fonte seguinte | `font_prev`, `font_next` |
+| Disposizione · Ora in alto, info sotto · Ora in basso, info sopra · Ora grande, senza info | Layout · Clock on top, info below · Clock at bottom, info above · Big clock, no info | Anordnung · Uhrzeit oben, Info unten · Uhrzeit unten, Info oben · Große Uhrzeit, ohne Info | Disposition · Heure en haut, infos dessous · Heure en bas, infos dessus · Grande heure, sans infos | Disposición · Hora arriba, info debajo · Hora abajo, info encima · Hora grande, sin info | Disposição · Hora em cima, info embaixo · Hora embaixo, info em cima · Hora grande, sem info | `lbl_layout`, `opt_layout_a`, `opt_layout_a_bottom` (**S14/D136**), `opt_layout_b` |
+| Font · Font di sistema (tranne Ora grande) | Font · System font (except Big clock) | Schriftart · Systemschrift (außer Große Uhrzeit) | Police · Police système (sauf Grande heure) | Fuente · Fuente del sistema (no Hora grande) | Fonte · Fonte do sistema (não Hora grande) | `lbl_font`, `opt_font_leco` (**S14/D136**: LECO vale anche con «Ora in basso», la parentesi nomina il solo layout escluso) |
 | Stile cifre · pieno · solo contorno · contorno con ombra · pieno con ombra · {0} (non sul Duo) | Digit style · solid · outline only · outline with shadow · solid with shadow · {0} (not on the Duo) | Ziffernstil · gefüllt · nur Kontur · Kontur mit Schatten · gefüllt mit Schatten · {0} (nicht am Duo) | Style des chiffres · plein · contour seul · contour avec ombre · plein avec ombre · {0} (pas sur le Duo) | Estilo de dígitos · relleno · solo contorno · contorno con sombra · relleno con sombra · {0} (no en el Duo) | Estilo dos dígitos · preenchido · só contorno · contorno com sombra · preenchido com sombra · {0} (não no Duo) | `lbl_digit_style`, `opt_style_solid`, `opt_style_transp`, `opt_style_transp_3d`, `opt_style_solid_3d`, `opt_style_no_flint` |
 | Formato ora · come l'orologio | Time format · as on the watch | Zeitformat · wie auf der Uhr | Format de l'heure · comme la montre | Formato de hora · como el reloj | Formato da hora · como o relógio | `lbl_clock_mode`, `opt_clock_auto` |
 | Zero davanti all'ora · sì con 24 h, no con 12 h · sì (09:05) · no (9:05) | Zero before the hour · yes with 24 h, no with 12 h · yes (09:05) · no (9:05) | Null vor der Stunde · ja bei 24 h, nein bei 12 h · ja (09:05) · nein (9:05) | Zéro devant l'heure · oui en 24 h, non en 12 h · oui (09:05) · non (9:05) | Cero antes de la hora · sí con 24 h, no con 12 h · sí (09:05) · no (9:05) | Zero antes da hora · sim com 24 h, não com 12 h · sim (09:05) · não (9:05) | `lbl_leading_zero`, `opt_leading_zero_auto`, `opt_yes`, `opt_no` |
@@ -184,9 +183,9 @@ fondo a questa sezione.
 | Scuoti il polso per cambiare foto | Shake your wrist for the next photo | Handgelenk schütteln für das nächste Foto | Secouez le poignet pour changer de photo | Sacude la muñeca para cambiar de foto | Sacuda o pulso para trocar de foto | `opt_shake_next` |
 | Colore dell'ora · automatico (dalla foto) · bianco · nero · giallo chiaro · blu scuro | Time color · automatic (from the photo) · white · black · light yellow · dark blue | Farbe der Uhrzeit · automatisch (vom Foto) · weiß · schwarz · hellgelb · dunkelblau | Couleur de l'heure · automatique (selon la photo) · blanc · noir · jaune clair · bleu foncé | Color de la hora · automático (según la foto) · blanco · negro · amarillo claro · azul oscuro | Cor da hora · automática (da foto) · branco · preto · amarelo claro · azul escuro | `lbl_text_color`, `opt_color_auto`, `opt_color_white`, `opt_color_black`, `opt_color_yellow`, `opt_color_blue` |
 | Bordo di contrasto · solo se serve · sempre · mai | Contrast edge · only when needed · always · never | Kontrastrand · nur bei Bedarf · immer · nie | Bord de contraste · seulement si nécessaire · toujours · jamais | Borde de contraste · solo si es necesario · siempre · nunca | Borda de contraste · só se for preciso · sempre · nunca | `lbl_outline`, `opt_outline_auto`, `opt_outline_always`, `opt_never` |
-| Sotto l'ora · passi · batteria · data · telefono scollegato | Under the time · steps · battery · date · phone disconnected | Unter der Uhrzeit · Schritte · Akku · Datum · Telefon getrennt | Sous l'heure · pas · batterie · date · téléphone déconnecté | Debajo de la hora · pasos · batería · fecha · teléfono desconectado | Abaixo da hora · passos · bateria · data · telefone desconectado | `lbl_info_row`, `opt_info_steps`, `opt_info_battery`, `opt_info_date`, `opt_info_bt` |
+| Insieme all'ora · passi · batteria · data · telefono scollegato | With the time · steps · battery · date · phone disconnected | Mit der Uhrzeit · Schritte · Akku · Datum · Telefon getrennt | Avec l'heure · pas · batterie · date · téléphone déconnecté | Con la hora · pasos · batería · fecha · teléfono desconectado | Com a hora · passos · bateria · data · telefone desconectado | `lbl_info_row`, `opt_info_steps`, `opt_info_battery`, `opt_info_date`, `opt_info_bt` |
 | Anteprima · {0}: così si vede con l'ora ({1} è solo un esempio) · Aggiungi una foto e la vedrai qui con l'ora · Aggiungi una foto e la vedrai qui con l'ora: quelle già presenti no | Preview · {0}: this is how it looks with the time ({1} is just an example) · Add a photo and you'll see it here with the time · Add a photo and you'll see it here with the time: not the ones already in your photos | Vorschau · {0}: So sieht es mit der Uhrzeit aus ({1} ist nur ein Beispiel) · Füge ein Foto hinzu, dann siehst du es hier mit der Uhrzeit · Füge ein Foto hinzu, dann siehst du es hier mit der Uhrzeit: die schon vorhandenen nicht | Aperçu · {0} : voici le rendu avec l'heure ({1} n'est qu'un exemple) · Ajoutez une photo et vous la verrez ici avec l'heure · Ajoutez une photo et vous la verrez ici avec l'heure : pas celles déjà présentes | Vista previa · {0}: así se ve con la hora ({1} es solo un ejemplo) · Añade una foto y la verás aquí con la hora · Añade una foto y la verás aquí con la hora: las que ya están, no | Pré-visualização · {0}: é assim que fica com a hora ({1} é só um exemplo) · Adicione uma foto e você vai vê-la aqui com a hora · Adicione uma foto e você vai vê-la aqui com a hora: as que já estão, não | `sec_preview`, `preview_cap_photo`, `preview_cap_none`, `preview_cap_none_album` |
-| Colore automatico: {0} · bordo di contrasto: {1} · Sull'orologio, sotto l'ora, compare quello che hai scelto: {0} · Con le 12 h sull'orologio compare anche PM · Font di sistema: qui non si vedono, sull'orologio sì | Automatic color: {0} · contrast edge: {1} · On the watch, under the time, you see what you chose: {0} · In 12-hour format the watch also shows PM · System font: the digits don't appear here, but they do on the watch | Automatische Farbe: {0} · Kontrastrand: {1} · Auf der Uhr steht unter der Uhrzeit, was du gewählt hast: {0} · Im 12-Stunden-Format zeigt die Uhr auch PM · Systemschrift: Die Ziffern sind hier nicht zu sehen, auf der Uhr schon | Couleur automatique : {0} · bord de contraste : {1} · Sur la montre, sous l'heure, vous voyez ce que vous avez choisi : {0} · Au format 12 h, la montre affiche aussi PM · Police système : les chiffres ne s'affichent pas ici, mais sur la montre oui | Color automático: {0} · borde de contraste: {1} · En el reloj, debajo de la hora, aparece lo que has elegido: {0} · Con el formato de 12 h el reloj muestra también PM · Fuente del sistema: los dígitos no se ven aquí, en el reloj sí | Cor automática: {0} · borda de contraste: {1} · No relógio, abaixo da hora, aparece o que você escolheu: {0} · No formato de 12 h o relógio mostra também PM · Fonte do sistema: os dígitos não aparecem aqui, no relógio sim | `preview_auto`, `preview_note_info`, `preview_note_ampm`, `preview_note_leco` |
+| Colore automatico: {0} · bordo di contrasto: {1} · Sull'orologio, sopra o sotto l'ora, compare quello che hai scelto: {0} · Con le 12 h sull'orologio compare anche PM · Font di sistema: qui non si vedono, sull'orologio sì | Automatic color: {0} · contrast edge: {1} · On the watch, above or below the time, you see what you chose: {0} · In 12-hour format the watch also shows PM · System font: the digits don't appear here, but they do on the watch | Automatische Farbe: {0} · Kontrastrand: {1} · Auf der Uhr steht über oder unter der Uhrzeit, was du gewählt hast: {0} · Im 12-Stunden-Format zeigt die Uhr auch PM · Systemschrift: Die Ziffern sind hier nicht zu sehen, auf der Uhr schon | Couleur automatique : {0} · bord de contraste : {1} · Sur la montre, au-dessus ou en dessous de l'heure, vous voyez ce que vous avez choisi : {0} · Au format 12 h, la montre affiche aussi PM · Police système : les chiffres ne s'affichent pas ici, mais sur la montre oui | Color automático: {0} · borde de contraste: {1} · En el reloj, encima o debajo de la hora, aparece lo que has elegido: {0} · Con el formato de 12 h el reloj muestra también PM · Fuente del sistema: los dígitos no se ven aquí, en el reloj sí | Cor automática: {0} · borda de contraste: {1} · No relógio, acima ou abaixo da hora, aparece o que você escolheu: {0} · No formato de 12 h o relógio mostra também PM · Fonte do sistema: os dígitos não aparecem aqui, no relógio sim | `preview_auto`, `preview_note_info`, `preview_note_ampm`, `preview_note_leco` |
 | Regolazioni della foto | Photo adjustments | Foto anpassen | Réglages de la photo | Ajustes de la foto | Ajustes da foto | `edit_adv_btn` (**UX-3/D114**) |
 | Luminosità · Schiarisci le ombre · Sfumature · nessuna | Brightness · Lighten the shadows · Shading · none | Helligkeit · Schatten aufhellen · Rasterung · keine | Luminosité · Éclaircir les ombres · Tramage · aucun | Brillo · Aclarar las sombras · Tramado · ninguno | Brilho · Clarear as sombras · Pontilhado · nenhum | `lbl_gamma`, `lbl_lift`, `lbl_dither`, `dither_none` |
 | Ottimizza per lo schermo dell'orologio | Optimize for the watch screen | Für den Bildschirm der Uhr optimieren | Optimiser pour l'écran de la montre | Optimizar para la pantalla del reloj | Otimizar para a tela do relógio | `opt_sunlight` |
@@ -237,14 +236,16 @@ segnaposto sostituiti con il valore più lungo che la pagina ci mette davvero �
 reso con la più lunga fra le quattro `opt_style_*` **e i due colori spenti su Duo** della stessa lingua — D86: da
 UX-2 il suffisso «{0} (non sul Duo)» avvolge anche `opt_color_yellow` e `opt_color_blue`) e le `lbl_*` della
 colonna da 9,5 em ≤ **22**. Le etichette di casella (`opt_sunlight`, `opt_shake_next`, `opt_info_*`,
-`opt_info_bt`) e i paragrafi restano fuori dalla lista. La lista `OPTIONS` conta **29** chiavi (`opt_auto` è
-uscita, le quattro «automatico» sono entrate) e `LABELS` **16**.
+`opt_info_bt`) e i paragrafi restano fuori dalla lista. La lista `OPTIONS` conta **30** chiavi (`opt_auto` è
+uscita, le quattro «automatico» sono entrate e in **S14** è entrata `opt_layout_a_bottom`, D136) e `LABELS` **16**;
+da S14 `opt_hours` si misura reso con **«12»** e non più con «3» (D139: la pagina offre 3, 6 e 12 ore).
 Margini più stretti oggi (13/09/2026, fine UX-2): `lbl_lang` **22/22** in it, de, es e pt; `opt_color_auto` in
 fr **28/28**; `opt_layout_a` in fr 28/28; `opt_style_no_flint` in en 36/36. Quattro chiavi a margine zero: una
 parola in più su una di queste e la tripwire si accende. **UX-3 non tocca né le liste né i margini** (D123):
 nessuna delle 11 chiavi nuove finisce in una `<option>` o in una `.rlab` — sono pulsanti, messaggi e didascalie —,
-quindi `OPTIONS` resta a **29** e `LABELS` a **16**, `tools/build_i18n.py` è invariato e le quattro chiavi a
-margine zero restano quelle.
+quindi `OPTIONS` restava a **29** e `LABELS` a **16**, `tools/build_i18n.py` era invariato e le quattro chiavi a
+margine zero restano quelle. **S14** invece tocca la lista: `opt_layout_a_bottom` è un'`<option>` (28 al massimo,
+la più lunga è l'inglese con 27) e `OPTIONS` passa a **30**.
 
 Regole aggiunte da **S11 (D42)** per le due lingue nuove: registro **es «tú»**, **pt «você»** (informale come it «tu»
 e de «du»); lessico neutro, valido in Spagna e in America per lo spagnolo, in Brasile e in Portogallo per il
@@ -328,9 +329,9 @@ foto (Togli / Remove / Entfernen / Retirer / Quitar / Remover, `btn_delete`), un
 mai «mandare»), «l'orologio», «il telefono» (de «Telefon», **D60**), «app Pebble», «Galleria» soggetto quando si
 parla dell'avvio («si avvia lentamente», mai «si accende»). Le `<option>` restano **minuscole** (**D68**): la
 maiuscola solo quando il testo comincia con un nome proprio o con «Ora»/«Font» («Ora in alto, info sotto», «Font di
-sistema (solo Ora in alto)»), e dentro una stessa select lo stile è uniforme. **Deroga tedesca**: in de il
+sistema (tranne Ora grande)»), e dentro una stessa select lo stile è uniforme. **Deroga tedesca**: in de il
 **sostantivo resta maiuscolo** anche in apertura di `<option>` — è ortografia, non stile: «nur Kontur»,
-«Kontur mit Schatten», «Systemschrift (nur Uhrzeit oben)» —, quindi in tedesco l'uniformità dentro la
+«Kontur mit Schatten», «Systemschrift (außer Große Uhrzeit)» —, quindi in tedesco l'uniformità dentro la
 select si giudica sui **non-sostantivi** («gefüllt», «automatisch», «nie», «zufällig» minuscoli). Unica
 select maiuscola in tutte e sei le lingue: quella della Lingua, dove `opt_lang_auto` («Automatica
 (orologio: {0})», de «Automatisch (Uhr: {0})») segue gli **endonimi** «English», «Italiano», «Deutsch»,
@@ -375,6 +376,18 @@ select maiuscola in tutte e sei le lingue: quella della Lingua, dove `opt_lang_a
 >   dell'ora 2 — i due aiuti sotto «Stile cifre» —, aiuto e avvio lento 8, tetto e messaggi 4,
 >   anteprima 5). Unico ritocco di testo: `preview_stale` in **francese** («… c'est le recadrage **dans le
 >   cadre** qui compte», R2 §6.1), che non muove nessun indice.
+> • **S14** (19/09/2026, D136/D137/D141): da **135 a 134** chiavi — entra `opt_layout_a_bottom` («Ora in
+>   basso, info sopra») subito **dopo** `opt_layout_a`, quindi gli indici scalano da lì, ed escono
+>   `font_prev` e `font_next` con le frecce accanto al font —, con **tre riscritte per D141** (indici
+>   fermi, testi nuovi): `opt_font_leco` («tranne Ora grande»: LECO vale anche con «Ora in basso»),
+>   `lbl_info_row` e `preview_note_info`, che con tre disposizioni non possono più dire «sotto l'ora» —
+>   «Accanto all'ora»/«accanto all'ora», prima scelta del 19/09 sera, **non** ha retto la revisione (la riga
+>   info non sta mai di fianco alle cifre: sta **sopra** in «Ora in basso» e **sotto** in «Ora in alto»),
+>   quindi l'etichetta dice «Insieme all'ora» (en «With the time», de «Mit der Uhrzeit», fr «Avec
+>   l'heure», es «Con la hora», pt «Com a hora»; ≤ 22, tripwire delle etichette) e la nota
+>   dell'anteprima, che non ha tetto, è esatta: «Sull'orologio, **sopra o sotto l'ora**, compare quello che
+>   hai scelto: {0}». La tabella passa da 68 a **67 righe**. Misure: `messages.json` 39.776 B, `i18n.js` e
+>   fixture 36.482 B, hash 36.959 caratteri.
 
 ## 4. Compiti per importanza (regola a 4 livelli)
 - **alta → Fable**: questa spec; C (`settings`, `datefmt`, `ui_time` icona e data, `sync.c`); integrazione; gate; PIANO/CONTINUA-QUI/design.

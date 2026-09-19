@@ -41,7 +41,8 @@
  * Parte 4 — S7 (4a-4e), v1.9: 4f-pin autoprova del pin F11 (il consiglio rovesciato deve
  * fallire in tutte e sei le lingue), 4f avviso di avvio lento #slow (soglia openMs) e sezione
  * Aiuto #help (riga help_sync compresa);
- * S8-stile / UX-2: 4g campo «Stile cifre» (digit_style), font 0..5 con le frecce ‹ › (U-10),
+ * S8-stile / UX-2: 4g campo «Stile cifre» (digit_style), font 0..5 nella sola tendina (U-10,
+ * rovesciata da S14/D137),
  * regola D26 (su flint le due opzioni 3D sono spente E nascoste, e il valore scende a 1/0) e
  * «Bordo di contrasto» mai disabilitato (D62/D98).
  * Parte 5 — S10 lingua della pagina (D33/D35/D36): 5a automatica dall'orologio e override dalla
@@ -56,8 +57,8 @@
  * lancia; 6f un giro con il motore vero (src/pkjs/config/preview.js), se e' gia' in cartella.
  * Parte 7 — UX-2 struttura e aspetto: 7a la riga dei KB solo da meta' tetto in su (U-03/D91);
  * 7b la riga «Questo e' l'ordine delle foto» (U-04/D93); 7c «Altre impostazioni» ripiegate,
- * l'apertura derivata dallo stato e la riga «Sotto l'ora» (U-08/D88/D89); 7d le frecce ‹ › che
- * sfogliano i font, giro compreso e LECO saltato (U-10/D87); 7e i quattro «automatico» e le
+ * l'apertura derivata dallo stato e la riga «Sotto l'ora» (U-08/D88/D89); 7d la riga del Font con
+ * la sola tendina e la Disposizione a tre voci (S14/D137/D136, rovescia U-10/D87); 7e i quattro «automatico» e le
  * option che su Duo non esistono, disabled + hidden (U-11/D86). Le altre voci di UX-2 stanno
  * nelle sezioni di sempre: 1g/2c la nota sulle impostazioni (D82), 1h l'anagrafe del dizionario,
  * 2a il markup (§3 del contratto), 4e le famiglie di pulsanti nuove, 4f l'avviso di avvio lento
@@ -122,7 +123,8 @@
  * l'Aiuto (D81), #slowFix resta vuoto; senza stato l'avviso e il messaggio di Salva sono in
  * inglese cablato (D83: status_no_state/msg_no_state_save cancellate); #settingsNote si vede solo
  * se l'orologio ha davvero impostazioni sue (D82: C.DEFAULTS_CRC / C.settingsDiffer, con
- * album.settingsCrc(defaultSettings()) come tripwire); le frecce ‹ › sfogliano i font (D87);
+ * album.settingsCrc(defaultSettings()) come tripwire); la riga del Font ha la sola tendina
+ * (S14/D137, rovescia D87);
  * l'anteprima e' a grandezza naturale (D92: #wfPreview width auto + cv.style.width) e la sua nota
  * non ha piu' coda fissa (D90). Le asserzioni restano pinnate al dizionario (U-02).
  *
@@ -401,6 +403,10 @@ section('1c. normalizeSettings', function () {
   eqJson(C.normalizeSettings(undefined), DEFAULT_SETTINGS, 'normalizeSettings(undefined) = default');
   eqJson(Object.keys(C.normalizeSettings({})), SETTINGS_KEYS, 'normalizeSettings: le chiavi nell\'ordine di album.js');
   eq(C.normalizeSettings({ layout: 5 }).layout, 0, 'layout fuori intervallo: default');
+  /* S14/D136: il terzo layout («Ora in basso») e' il valore 2 dello stesso byte */
+  eq(C.normalizeSettings({ layout: 2 }).layout, 2, 'layout 2 (ora in basso) ammesso');
+  eq(C.normalizeSettings({ layout: 3 }).layout, 0, 'layout 3: default');
+  eq(C.normalizeSettings({ layout: '2' }).layout, 2, 'layout: stringa numerica convertita');
   eq(C.normalizeSettings({ text_color: 4 }).text_color, 4, 'text_color 4 ammesso');
   eq(C.normalizeSettings({ text_color: 5 }).text_color, 0, 'text_color 5: default');
   eq(C.normalizeSettings({ info_row: 16 }).info_row, 15, 'info_row 16: default 15');
@@ -409,6 +415,10 @@ section('1c. normalizeSettings', function () {
   eq(C.normalizeSettings({ interval_min: 0 }).interval_min, 0, 'interval_min 0 (mai) ammesso');
   eq(C.normalizeSettings({ interval_min: 1440 }).interval_min, 1440, 'interval_min 1440 ammesso');
   eq(C.normalizeSettings({ interval_min: 1441 }).interval_min, 30, 'interval_min 1441: 30');
+  /* S14/D139: «ogni 6 h» e «ogni 12 h» */
+  eq(C.normalizeSettings({ interval_min: 360 }).interval_min, 360, 'interval_min 360 (6 h) ammesso');
+  eq(C.normalizeSettings({ interval_min: 720 }).interval_min, 720, 'interval_min 720 (12 h) ammesso');
+  eq(C.normalizeSettings({ interval_min: 361 }).interval_min, 30, 'interval_min 361 (non in INTERVALS): 30');
   eq(C.normalizeSettings({ interval_min: '60' }).interval_min, 60, 'stringa numerica convertita');
   eq(C.normalizeSettings({ shake_next: false }).shake_next, 0, 'booleano false = 0');
   eq(C.normalizeSettings({ shake_next: true }).shake_next, 1, 'booleano true = 1');
@@ -416,6 +426,7 @@ section('1c. normalizeSettings', function () {
   eq(C.normalizeSettings({ font: '' }).font, 0, 'stringa vuota: default');
   eq(C.normalizeSettings({ font: 3, layout: 0 }).font, 3, 'LECO ammesso con layout 0');
   eq(C.normalizeSettings({ font: 3, layout: 1 }).font, 0, 'LECO con layout 1 (tutto schermo): torna ad Anton');
+  eq(C.normalizeSettings({ font: 3, layout: 2 }).font, 3, 'LECO ammesso con layout 2 (ora in basso, S14/D136)');
   eq(C.normalizeSettings({ font: 2, layout: 1 }).font, 2, 'font 2 con layout 1 resta');
   /* S8-stile (D22): i due font nuovi sono 4 e 5, il 6 non esiste */
   eq(C.normalizeSettings({ font: 4 }).font, 4, 'font 4 (nuovo) ammesso');
@@ -441,7 +452,8 @@ section('1c. normalizeSettings', function () {
   eqJson(C.SETTINGS_FIELDS[1], ['font', 0, 5, 0], 'SETTINGS_FIELDS: font 0..5');
   eqJson(C.SETTINGS_FIELDS.map(function (f) { return f[0]; }), SETTINGS_KEYS, 'SETTINGS_FIELDS: nomi e ordine');
   eq(C.SETTINGS_FIELDS.length, N_SETTINGS, 'SETTINGS_FIELDS: ' + N_SETTINGS + ' campi');
-  eqJson(C.INTERVALS, [0, 5, 15, 30, 60, 180, 1440], 'INTERVALS');
+  eqJson(C.INTERVALS, [0, 5, 15, 30, 60, 180, 360, 720, 1440], 'INTERVALS');
+  eqJson(C.SETTINGS_FIELDS[0], ['layout', 0, 2, 0], 'SETTINGS_FIELDS: layout 0..2 (S14/D136)');
   eq(C.MAX_SLOTS, 12, 'MAX_SLOTS 12');
   eq(C.MAX_THUMB_CHARS, 6000, 'MAX_THUMB_CHARS 6000');
   eq(C.MAX_NAME, 64, 'MAX_NAME 64');
@@ -623,8 +635,12 @@ section('1h. UX-2 e UX-3: chiavi uscite e chiavi nuove del dizionario (§4)', fu
   var via2 = ['watch_emery', 'status_no_state', 'msg_no_state_save', 'opt_auto', 'preview_white', 'preview_black'];
   var via3 = ['edit_name', 'edit_time', 'preview_off', 'msg_close_crop',
               'err_no_decoder', 'err_bad_file', 'err_bad_image', 'err_bad_size'];
-  var nuove2 = ['sec_look', 'sec_rotation', 'adv_btn', 'opt_info_bt', 'photos_cap_hint', 'font_prev',
-                'font_next', 'opt_clock_auto', 'opt_leading_zero_auto', 'opt_color_auto',
+  /* S14/D137: le frecce ‹ › accanto al font non ci sono piu' (resta la sola tendina), e con loro
+   * escono le due chiavi che davano il nome ad aria-label e title. Erano DUE delle dodici di
+   * UX-2, in mezzo all'elenco: nuove2 scende a dieci e le posizioni si controllano lo stesso. */
+  var via14 = ['font_prev', 'font_next'];
+  var nuove2 = ['sec_look', 'sec_rotation', 'adv_btn', 'opt_info_bt', 'photos_cap_hint',
+                'opt_clock_auto', 'opt_leading_zero_auto', 'opt_color_auto',
                 'opt_outline_auto', 'preview_cap_none_album'];
   var nuove3 = ['btn_loading', 'msg_del_arm', 'edit_adv_btn', 'preview_stale', 'edit_preview_cap',
                 'msg_sending', 'btn_close', 'btn_cancel_armed', 'unsaved_hint', 'footer_send',
@@ -632,18 +648,25 @@ section('1h. UX-2 e UX-3: chiavi uscite e chiavi nuove del dizionario (§4)', fu
   var mancanti = [], residue = [], i;
   for (i = 0; i < via2.length; i++) { if (I18N.keys.indexOf(via2[i]) >= 0) { residue.push(via2[i]); } }
   for (i = 0; i < via3.length; i++) { if (I18N.keys.indexOf(via3[i]) >= 0) { residue.push(via3[i]); } }
+  for (i = 0; i < via14.length; i++) { if (I18N.keys.indexOf(via14[i]) >= 0) { residue.push(via14[i]); } }
   for (i = 0; i < nuove2.length; i++) { if (I18N.keys.indexOf(nuove2[i]) < 0) { mancanti.push(nuove2[i]); } }
   for (i = 0; i < nuove3.length; i++) { if (I18N.keys.indexOf(nuove3[i]) < 0) { mancanti.push(nuove3[i]); } }
-  eq(residue.join(','), '', 'UX-2/UX-3: le 6 + 8 chiavi cancellate non sono piu\' nel dizionario');
-  eq(mancanti.join(','), '', 'UX-2/UX-3: le 12 + 11 chiavi nuove ci sono');
+  eq(residue.join(','), '', 'UX-2/UX-3/S14: le 6 + 8 + 2 chiavi cancellate non sono piu\' nel dizionario');
+  eq(mancanti.join(','), '', 'UX-2/UX-3: le 10 + 11 chiavi nuove ci sono');
   /* i18n/README.md e contratto §5 A2: le chiavi nuove vanno IN CODA, nell'ordine di §4.
    * L'appartenenza da sola non lo prova (un dizionario con le nuove in testa passerebbe), e
    * l'ordine conta davvero: gli indici sono quel che finisce nell'artefatto. */
   eqJson(I18N.keys.slice(-nuove3.length), nuove3,
          'UX-3: le 11 chiavi nuove sono le ultime, nell\'ordine di §4 (D116)');
   eqJson(I18N.keys.slice(-(nuove2.length + nuove3.length), -nuove3.length), nuove2,
-         'UX-3: e subito prima ci sono le 12 di UX-2, nello stesso ordine di allora');
-  eq(I18N.keys.length, 135, 'UX-3: 132 - 8 + 11 = 135 chiavi (D116)');
+         'S14: e subito prima ci sono le 10 rimaste di UX-2, nello stesso ordine di allora');
+  /* S14/D136: la chiave del terzo layout NON sta in coda ma accanto alle sue sorelle, perche'
+   * buildOpts la legge li' e il glossario di S10 §3 tiene le tre voci sulla stessa riga. */
+  eq(I18N.keys.indexOf('opt_layout_a_bottom'), I18N.keys.indexOf('opt_layout_a') + 1,
+     'S14: opt_layout_a_bottom subito dopo opt_layout_a (D136)');
+  eq(I18N.keys.indexOf('opt_layout_b'), I18N.keys.indexOf('opt_layout_a') + 2,
+     'S14: opt_layout_b resta l\'ultima delle tre (l\'ordine del dizionario non e\' quello della tendina)');
+  eq(I18N.keys.length, 134, 'S14: 135 - 2 + 1 = 134 chiavi (D136/D137)');
   /* le chiavi che restano e che UX-2/UX-3 riusano: nessuna di queste puo' sparire */
   ['sec_help', 'sec_photos', 'sec_settings', 'sec_preview', 'settings_note', 'slow_lead', 'help_sync',
    'watch_flint', 'watch_unknown', 'lbl_interval', 'lbl_info_row', 'lbl_outline', 'opt_color_white',
@@ -1154,7 +1177,7 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
              'editName', 'cropWrap', 'crop', 'zoomRow', 'zoom', 'fit', 'gamma', 'gammaVal', 'lift', 'liftVal',
              'dither', 'sunlight', 'sunlightRow', 'previewMode', 'previewModeRow', 'preview', 'etime',
              'editPrevCap', 'addRow', 'editAdvBtn', 'editAdvBody',
-             'addOk', 'addCancel', 'settings', 'settingsNote', 's_layout', 'fontRow', 'fontPrev', 's_font', 'fontNext',
+             'addOk', 'addCancel', 'settings', 'settingsNote', 's_layout', 'fontRow', 's_font',
              's_clock_mode', 's_leading_zero', 's_interval_min', 's_order', 's_shake_next',
              's_text_color', 's_outline', 's_digit_style', 's_style_hint', 'styleFlintHelp', 's_info_row',
              's_info_row_b0', 's_info_row_b1', 's_info_row_b2', 's_info_row_b3',
@@ -1269,6 +1292,10 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(get('lift').attrs.step, '0.01', 'markup: passo lift 0,01');
   eq(get('lift').attrs.value, '0', 'markup: lift parte da 0');
   eq(get('sunlight').type, 'checkbox', 'markup: #sunlight checkbox');
+  /* S14/D138: la fabbrica e' SPUNTATA, e lo dice il markup (l'attributo checked): la pagina non
+   * la tocca all'avvio, quindi se sparisse di qui nessun altro pin se ne accorgerebbe. */
+  eq(get('sunlight').checked, true, 'markup: #sunlight spuntata di serie (D138)');
+  check(/id="sunlight" checked/.test(PAGE_HTML), 'markup: l\'attributo checked e\' scritto in page.html (D138)');
   eq(get('s_info_row').type, 'hidden', 'markup: #s_info_row nascosto (lo compongono le 4 caselle)');
   eq(get('editor').style.display, 'none', 'markup: editor nascosto all\'inizio');
   eq(get('status').style.display, 'none', 'markup: avviso di stato nascosto');
@@ -1413,7 +1440,7 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   /* D82: la nota sta in cima a #settings ma SOTTO il titolo di sezione (non nell'header) */
   inOrder([['h2 sec_settings', h2s[0]], ['#settingsNote', get('settingsNote')],
            ['h3 sec_look', h3s[0]], ['#s_layout', get('s_layout')],
-           ['#fontPrev', get('fontPrev')], ['#s_font', get('s_font')], ['#fontNext', get('fontNext')],
+           ['#s_font', get('s_font')],
            ['#s_digit_style', get('s_digit_style')], ['#s_style_hint', get('s_style_hint')],
            ['#styleFlintHelp', get('styleFlintHelp')], ['#s_text_color', get('s_text_color')],
            ['#wfPrev', get('wfPrev')], ['#misc', get('misc')]],
@@ -1441,15 +1468,17 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
      'markup: #advBtn ha la freccia ▾ (chiusa)');
   eq(childCls(get('advBtn'), 'arrow').attrs['aria-hidden'], 'true', 'markup: la freccia e\' decorativa (aria-hidden)');
 
-  /* Frecce del font (D87): stessa riga di #s_font, nell\'ordine label, prev, select, next */
-  ['fontPrev', 'fontNext'].forEach(function (id) {
-    eq(get(id).tagName, 'BUTTON', 'markup: #' + id + ' e\' un button');
-    eq(get(id).type, 'button', 'markup: #' + id + ' type=button');
-    eq(get(id).className, 'btn small', 'markup: #' + id + ' e\' un pulsantino (.btn.small)');
-    eq(findById(get('fontRow'), id), get(id), 'markup: #' + id + ' sta nella riga del Font');
-  });
-  eq(get('fontPrev').textContent, '\u2039', 'markup: freccia indietro ‹ (U+2039 letterale)');
-  eq(get('fontNext').textContent, '\u203a', 'markup: freccia avanti › (U+203A letterale)');
+  /* S14/D137: le frecce ‹ › accanto al font non ci sono piu' (rovescia U-10/D87): nella riga
+   * del Font restano la sola etichetta e la sola tendina, e nessun pulsante. */
+  eq(get('fontPrev'), null, 'S14/D137: nessun #fontPrev nel markup');
+  eq(get('fontNext'), null, 'S14/D137: nessun #fontNext nel markup');
+  notContains(PAGE_HTML, 'fontPrev', 'S14/D137: page.html non nomina piu\' fontPrev');
+  notContains(PAGE_HTML, 'fontNext', 'S14/D137: page.html non nomina piu\' fontNext');
+  eq(get('fontRow').children.filter(function (c) { return c.tagName === 'BUTTON'; }).length, 0,
+     'S14/D137: nessun pulsante nella riga del Font');
+  eqJson(get('fontRow').children.map(function (c) { return c.tagName; }), ['LABEL', 'SELECT'],
+     'S14/D137: la riga del Font e\' etichetta + tendina');
+  eq(findById(get('fontRow'), 's_font'), get('s_font'), 'markup: la tendina del Font sta nella sua riga');
 
   /* Intestazione (D91/D83/D82/D81) */
   eq(get('kb').className, 'help', 'markup: #kb e\' una riga grigia (D91)');
@@ -1494,17 +1523,18 @@ section('2a. page.html: id, tag e vincoli del markup', function () {
   eq(declFor('select', 'max-width'), '100%', 'CSS: select max-width 100% (U-16)');
   eq(declFor('select', 'min-width'), '0', 'CSS: select min-width 0 (U-16)');
   eq(declFor('select#s_font', 'flex'), '1 1 140px',
-     'CSS: select#s_font flex 1 1 140px (D87: il select si restringe; l\'a-capo lo fa #fontRow .rlab)');
-  eq(declFor('select#s_font', 'min-width'), '0', 'CSS: select#s_font min-width 0 (D87)');
-  eq(declFor('.btn.small', 'min-width'), '40px', 'CSS: .btn.small min-width 40px (frecce da 40 px, D87)');
+     'CSS: select#s_font flex 1 1 140px (S14/D137: la voce LECO da 30 caratteri manderebbe la tendina a capo da sola a 360-400 px)');
+  eq(declFor('select#s_font', 'min-width'), '0', 'CSS: select#s_font min-width 0 (la tendina puo\' restringersi sotto la voce piu\' lunga)');
+  eq(declFor('.btn.small', 'min-width'), '40px',
+     'CSS: .btn.small min-width 40px (bersaglio per il dito; nato per le frecce del font, D87, tolte da S14/D137)');
   eq(declFor('.chk', 'min-height'), '40px', 'CSS: .chk min-height 40px (U-09)');
   eq(declFor('.chk', 'display'), 'inline-flex', 'CSS: .chk e\' un inline-flex');
   eq(declFor('#misc', 'border-top'), '1px solid #ccd', 'CSS: #misc bordo superiore (D89)');
   check(declFor('#addHelp', 'flex-basis') === '100%', 'CSS: #addHelp va su una riga sua (U-04)');
-  /* G08 (deviazione accettata): l'a-capo della riga del Font non lo fa la flex-basis del select
-   * — il flexbox spezza sulle flex-basis — ma l'etichetta che prenota tutta la prima riga. */
-  eq(declFor('#fontRow .rlab', 'flex-basis'), '100%',
-     'CSS: l\'etichetta del Font prenota la prima riga (D87: senza, a 360/400 px va a capo la sola freccia)');
+  /* S14 (D137): la flex-basis 100% dell'etichetta del Font (G08/D87, nata per le frecce) e' stata
+   * tolta con le frecce: la riga e' come «Disposizione». Tripwire: nessuna regola su #fontRow .rlab. */
+  eq(declFor('#fontRow .rlab', 'flex-basis'), null,
+     'CSS: nessuna flex-basis dedicata all\'etichetta del Font (S14/D137: riga come le altre)');
   /* G26: le misure della struttura nuova (§3 del contratto). Senza pin si possono cambiare o
    * cancellare e il gate se ne accorge solo come altezza totale della pagina. */
   eq(declFor('.opts', 'gap'), '10px', 'CSS: .opts gap 10px (U-09)');
@@ -1577,7 +1607,13 @@ section('2b. avvio con stato completo (emery, dev)', function () {
 
   /* impostazioni scritte nei campi */
   eq(h.el('s_layout').value, '0', 'campo layout');
-  eq(h.el('s_layout').options().length, 2, 'layout: 2 opzioni');
+  eq(h.el('s_layout').options().length, 3, 'layout: 3 opzioni (S14/D136)');
+  /* D136: nella tendina l'ordine e' SEMANTICO — in alto, in basso, grande — e non quello dei
+   * valori: il 2 sta in mezzo perche' e' il gemello del primo, non un terzo modo di fare l'ora. */
+  eqJson(h.el('s_layout').options().map(function (o) { return +o._value; }), [0, 2, 1],
+         'layout: valori 0, 2, 1 (ordine semantico, D136)');
+  eqJson(optTexts(h, 's_layout'), [Tit('opt_layout_a'), Tit('opt_layout_a_bottom'), Tit('opt_layout_b')],
+         'layout: i tre testi dal dizionario, nell\'ordine della tendina');
   eq(h.el('s_font').value, '2', 'campo font');
   eq(h.el('s_font').options().length, 6, 'font: 6 opzioni (S8-stile: 4 e 5 sono i font nuovi)');
   eqJson(h.el('s_font').options().map(function (o) { return +o._value; }), [0, 1, 2, 3, 4, 5],
@@ -1594,15 +1630,16 @@ section('2b. avvio con stato completo (emery, dev)', function () {
   eq(h.el('s_clock_mode').value, '1', 'campo formato ora');
   eq(h.el('s_leading_zero').value, '2', 'campo zero iniziale');
   eq(h.el('s_interval_min').value, '60', 'campo intervallo');
-  eq(h.el('s_interval_min').options().length, 7, 'intervallo: 7 opzioni');
+  eq(h.el('s_interval_min').options().length, 9, 'intervallo: 9 opzioni (S14/D139)');
   eqJson(h.el('s_interval_min').options().map(function (o) { return +o._value; }), C.INTERVALS,
          'intervallo: i valori di INTERVALS');
   /* U-09: i testi vengono dal dizionario con il numero al posto di {0} — 60 minuti dalla chiave
    * dei minuti e 180 minuti dalla chiave delle ORE, con 3 (non 180) dentro la frase. */
   eqJson(optTexts(h, 's_interval_min'),
          [Tit('opt_never'), Tit('opt_minutes', 5), Tit('opt_minutes', 15), Tit('opt_minutes', 30),
-          Tit('opt_minutes', 60), Tit('opt_hours', 3), Tit('opt_one_day')],
-         'intervallo: i 7 testi dal dizionario (60 -> opt_minutes 60, 180 -> opt_hours 3)');
+          Tit('opt_minutes', 60), Tit('opt_hours', 3), Tit('opt_hours', 6), Tit('opt_hours', 12),
+          Tit('opt_one_day')],
+         'intervallo: i 9 testi dal dizionario (60 -> opt_minutes 60, 180/360/720 -> opt_hours 3/6/12)');
   eq(h.el('s_order').value, '1', 'campo ordine');
   eq(h.el('s_text_color').value, '3', 'campo colore testo');
   eq(h.el('s_text_color').options().length, 5, 'colore testo: 5 opzioni');
@@ -1611,13 +1648,10 @@ section('2b. avvio con stato completo (emery, dev)', function () {
   eq(h.el('s_info_row').value, '5', 'riga info: valore composto');
   eqJson([0, 1, 2, 3].map(function (i) { return h.el('s_info_row_b' + i).checked; }), [true, false, true, false],
          'riga info: caselle da info_row 5 (passi + data)');
-  /* U-10/D87: al posto della PNG «12:34» ci sono le frecce, col nome accessibile dal dizionario */
-  eq(attrOf(h.el('fontPrev'), 'aria-label'), Tit('font_prev'), 'freccia indietro: aria-label dal dizionario');
-  eq(attrOf(h.el('fontPrev'), 'title'), Tit('font_prev'), 'freccia indietro: title dal dizionario');
-  eq(attrOf(h.el('fontNext'), 'aria-label'), Tit('font_next'), 'freccia avanti: aria-label dal dizionario');
-  eq(attrOf(h.el('fontNext'), 'title'), Tit('font_next'), 'freccia avanti: title dal dizionario');
-  eq(h.el('fontPrev').disabled, false, 'le frecce non si disabilitano mai');
-  eq(h.el('fontNext').disabled, false, 'le frecce non si disabilitano mai (avanti)');
+  /* S14/D137: le frecce del font sono uscite (rovescia U-10/D87) e la pagina non le cerca piu':
+   * un el('fontPrev') qui dentro farebbe saltare la sezione con un'eccezione del DOM finto. */
+  eq(h.doc.getElementById('fontPrev'), null, 'S14/D137: nessuna freccia indietro nella pagina viva');
+  eq(h.doc.getElementById('fontNext'), null, 'S14/D137: nessuna freccia avanti nella pagina viva');
 
   /* dithering e righe dipendenti dal formato */
   eqJson(h.el('dither').options().map(function (o) { return o._value; }), ['fs', 'bayer', 'none'],
@@ -1747,10 +1781,14 @@ section('2d. tessere: riordino ed eliminazione', function () {
 
 section('2e. aggiunta di una foto con codifica vera (emery)', function () {
   var h = loadPage({ state: stateEmery(), search: DEV_SEARCH }), G = h.G, ed = G.editor;
-  var exp = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false });
+  var exp = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true });
   h.chooseFile('foto di prova città.jpg');
   eq(G.editorOpen, true, 'scelto il file: editor aperto');
   eq(h.disp('editor'), '', 'editor visibile');
+  /* S14/D138: «Ottimizza per lo schermo» e' spuntata di serie, quindi la foto nuova nasce
+   * adattata al vetro e «Regolazioni della foto» resta chiuso (e' il valore di fabbrica). */
+  eq(h.el('sunlight').checked, true, 'D138 all\'apertura dell\'editor la casella e\' spuntata');
+  eq(h.disp('editAdvBody'), 'none', 'D138 ...e il blocco delle regolazioni resta chiuso');
   /* UX-3 (D107): il footer non si spegne piu' — prende le due parole dell'editor */
   eq(h.el('save').disabled, false, 'D107 con l\'editor aperto Salva resta premibile');
   eq(h.txt('save'), Tit('btn_add_ok'), 'D107 ...e dice «Usa questa foto»');
@@ -1916,24 +1954,25 @@ section('2f. editor: Annulla, gamma/lift, dithering, anteprima, sunlight', funct
   eq(h.el('crop').width, 204, 'D113 cornice: larghezza utile 260 meno le due corsie da 28 px');
   eq(h.el('crop').height, Math.round(204 * 228 / 200), 'cornice: altezza in rapporto');
   h.timers.run();
-  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }).crc, 'default: fs, gamma 1, lift 0');
+  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }).crc,
+     'default: fs, gamma 1, lift 0, «Ottimizza» spuntata (S14/D138)');
 
   h.range('gamma', 1.5);
   eq(h.txt('gammaVal'), '1,50', 'etichetta gamma con la virgola');
   h.timers.run();
-  eq(ed.last.crc, expectEmery({ gamma: 1.5, lift: 0, dither: 'fs', sunlight: false }).crc, 'gamma 1,5 applicata');
+  eq(ed.last.crc, expectEmery({ gamma: 1.5, lift: 0, dither: 'fs', sunlight: true }).crc, 'gamma 1,5 applicata');
   h.range('lift', 0.2);
   eq(h.txt('liftVal'), '0,20', 'etichetta lift');
   h.timers.run();
-  eq(ed.last.crc, expectEmery({ gamma: 1.5, lift: 0.2, dither: 'fs', sunlight: false }).crc, 'lift 0,20 applicato');
+  eq(ed.last.crc, expectEmery({ gamma: 1.5, lift: 0.2, dither: 'fs', sunlight: true }).crc, 'lift 0,20 applicato');
   h.range('gamma', 1); h.range('lift', 0); h.timers.run();
 
   h.select('dither', 'bayer');
   h.timers.run();
-  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'bayer', sunlight: false }).crc, 'Bayer 4x4');
+  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'bayer', sunlight: true }).crc, 'Bayer 4x4');
   h.select('dither', 'none');
   h.timers.run();
-  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'none', sunlight: false }).crc, 'nessun dithering');
+  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'none', sunlight: true }).crc, 'nessun dithering');
   h.select('dither', 'fs');
 
   /* UX-3 (D105): nel canvas dell'editor non c'e' piu' il solo dithering della foto ma la
@@ -1950,12 +1989,17 @@ section('2f. editor: Annulla, gamma/lift, dithering, anteprima, sunlight', funct
   h.select('previewMode', 'sun');
   eq(lastCall(h).sunlight, true, 'D105 e si torna a «come sul vetro»');
 
+  /* S14/D138: la casella nasce SPUNTATA, quindi la prova va al contrario — spegnendola il
+   * dithering perde la LUT del vetro, riaccendendola la ritrova. */
+  eq(h.el('sunlight').checked, true, 'D138 «Ottimizza per il vetro» spuntata di serie');
+  h.checkbox('sunlight', false);
+  h.timers.run();
+  eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }).crc,
+     '"Ottimizza per il vetro" spenta: dithering senza LUT');
   h.checkbox('sunlight', true);
   h.timers.run();
   eq(ed.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }).crc,
-     '"Ottimizza per il vetro": LUT sunlight nel dithering');
-  h.checkbox('sunlight', false);
-  h.timers.run();
+     '"Ottimizza per il vetro" riaccesa: LUT sunlight nel dithering');
 
   var nTiles = G.tiles.length;
   h.click('addCancel');
@@ -2200,7 +2244,7 @@ section('2j. Salva in modalita\' dev (POST /save + token di ritorno)', function 
   eq(body.photos.length, 1, 'corpo: una foto nuova');
   eq(body.photos[0].len, 34200, 'corpo: len raw6');
   eq(body.photos[0].data.length, 45600, 'corpo: data completa');
-  eq(body.photos[0].crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }).crc, 'corpo: crc');
+  eq(body.photos[0].crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }).crc, 'corpo: crc');
   eqJson(body, G.lastPayload, 'corpo = GalPage.lastPayload');
   eq(h.navs.length, 0, 'nessuna navigazione prima della risposta');
 
@@ -2964,8 +3008,8 @@ section('3j. #27 dopo un resample fallito e poi riuscito si salva la codifica nu
   var h = loadPage({ state: mkState({ settingsSet: true }), search: DEV_SEARCH, imgW: 800, imgH: 600 }), G = h.G, ed = G.editor, env = h.env;
   var cv = h.el('crop'), crc0, crc1;
   h.chooseFile('r.jpg'); h.timers.run();
-  crc0 = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }, 0).crc;
-  crc1 = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }, 1).crc;
+  crc0 = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }, 0).crc;
+  crc1 = expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }, 1).crc;
   check(crc1 !== crc0, '#27 i due seed di pixel danno crc diversi (test sensibile)');
   eq(ed.last.crc, crc0, '#27 prima codifica (seed 0)');
   env.pixelSeed = 1; env.imageDataThrow = 1;                /* il ritaglio cambia, il primo resample fallisce */
@@ -2985,7 +3029,7 @@ section('3j. #27 dopo un resample fallito e poi riuscito si salva la codifica nu
   h2.range('zoom', 2); h2.timers.run();
   eq(ed2.last, null, '#27 variante: nessuna codifica dopo il fallimento');
   h2.range('zoom', 2.5); h2.timers.run();
-  eq(ed2.last && ed2.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }, 2).crc, '#27 variante: il debounce successivo ricodifica');
+  eq(ed2.last && ed2.last.crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }, 2).crc, '#27 variante: il debounce successivo ricodifica');
   h2.select('previewMode', 'nominal');
   eq(h2.el('preview')._put.w, 400, '#27 variante: anteprima ridisegnata');
 });
@@ -3201,7 +3245,7 @@ section('4b. #11 la foto si aggiunge anche senza miniatura', function () {
   eq(h.G.added[0].thumb, undefined, '#11 nessuna miniatura nell\'entry');
   eqJson(Object.keys(h.G.added[0]), ['slot', 'photo_id', 'fmt', 'len', 'crc', 'data', 'name'],
          '#11 chiavi dell\'entry senza thumb');
-  eq(h.G.added[0].crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: false }).crc,
+  eq(h.G.added[0].crc, expectEmery({ gamma: 1, lift: 0, dither: 'fs', sunlight: true }).crc,
      '#11 i byte della foto sono quelli veri (la miniatura non c\'entra)');
   check(!('thumb' in h.G.buildPayload().photos[0]), '#11 payload: nessuna chiave thumb');
   eq(h.G.editorOpen, false, '#11 editor chiuso');
@@ -3396,12 +3440,15 @@ function inEditor(el) { return [nd('body'), nd('section', null, 'editor'), nd('p
 function inPhotos(el) { return [nd('body'), nd('section', null, 'photos'), nd('p', 'row'), el]; }
 function inHelp(el) { return [nd('body'), nd('section', null, 'help'), nd('p', 'row'), el]; }
 /* UX-2: le tre catene nuove del contratto §5 A1(3) — l'avviso di avvio lento (D81), una riga
- * qualunque delle impostazioni (le frecce del font, D87) e il blocco Lingua/«Altre impostazioni»
+ * qualunque delle impostazioni (la riga del Font, che dopo S14/D137 ha la sola tendina) e il
+ * blocco Lingua/«Altre impostazioni»
  * (D88/D89). Servono al motore di cascata: un pulsante nuovo = una voce in FAM_BTN. */
 function inSlow(el) { return [nd('body'), nd('header', null, 'head'), nd('div', 'warn', 'slow'), nd('p', 'row'), el]; }
-/* G25: il <p> delle frecce ha id="fontRow" — senza id nella catena, una regola futura del tipo
- * «#fontRow .btn.small» (1,2,0) batterebbe quella dei disabilitati (0,2,0) e riaccenderebbe un
- * pulsante spento senza che il motore se ne accorga. */
+/* G25: la riga delle impostazioni ha id="fontRow" — senza id nella catena, una regola futura
+ * del tipo «#fontRow .btn.small» (1,2,0) batterebbe quella dei disabilitati (0,2,0) e
+ * riaccenderebbe un pulsante spento senza che il motore se ne accorga. Dopo S14/D137 dentro
+ * #fontRow non c'e' piu' nessun pulsante (le frecce sono sparite: pin §2a), ma la catena resta
+ * il caso «riga con un id» del motore e la prova di specificita' vale identica. */
 function inSettingsRow(el) { return [nd('body'), nd('section', null, 'settings'), nd('p', 'row', 'fontRow'), el]; }
 function inMisc(el) { return [nd('body'), nd('section', null, 'settings'), nd('div', null, 'misc'), nd('p', 'row'), el]; }
 function inTile(el) {
@@ -3446,11 +3493,11 @@ var FAM_BTN = [
   { nome: 'occhio nella tessera scelta (.tile.pv .eye)', on: inTileEye(nd('button', 'eye'), 'tile new pv'),
     off: inTileEye(nd('button', 'eye', null, { disabled: '' }), 'tile new pv'),
     offDead: '.tile.pv .eye[disabled]' },
-  /* UX-2: i tre pulsantini nuovi (D87 frecce del font, D88 «Altre impostazioni», D81 «Aiuto»
-   * dentro l'avviso). Non si disabilitano mai, ma ogni famiglia nuova vuole la sua voce qui.
-   * Le frecce della tessera restano ULTIME: il caso 4e legge FAM_BTN[length - 1]. */
-  { nome: 'frecce del font (.btn.small in #settings)', on: inSettingsRow(nd('button', 'btn small', 'fontPrev')),
-    off: inSettingsRow(nd('button', 'btn small', 'fontPrev', { disabled: '' })) },
+  /* UX-2: i pulsantini nuovi (D88 «Altre impostazioni», D81 «Aiuto» dentro l'avviso). Non si
+   * disabilitano mai, ma ogni famiglia nuova vuole la sua voce qui.
+   * S14/D137: la voce delle frecce del font e' uscita con i due pulsanti (la riga del Font ha
+   * ora la sola tendina); le frecce della TESSERA restano ULTIME, perche' il caso 4e legge
+   * FAM_BTN[length - 1] e vuole una famiglia che lo stato spento ce l'ha davvero. */
   { nome: 'Altre impostazioni (.btn.small in #misc)', on: inMisc(nd('button', 'btn small', 'advBtn')),
     off: inMisc(nd('button', 'btn small', 'advBtn', { disabled: '' })) },
   { nome: 'Aiuto nell\'avviso (.btn.small in #slow)', on: inSlow(nd('button', 'btn small', 'slowHelpBtn')),
@@ -3704,11 +3751,12 @@ section('4e. #41 pulsanti disabilitati: contrasto >= 3:1 in cima alla cascata', 
   eq(cssWinner(rules, addOn, 'outline'), null,
      '#41 #file:focus + #add non si applica al pulsante a riposo (pseudo-classe ignorata, niente cascata rubata)');
   eq(cssWinner(rules, addOn, 'opacity'), null, '#41 e non gli mette nessuna opacity');
-  /* select#s_font (1,0,1) vale per la sola select, non per le frecce accanto */
+  /* select#s_font (1,0,1) vale per la sola select, non per gli altri nodi della sua riga
+   * (S14/D137: i due pulsanti ‹ › non ci sono piu', ma l'etichetta si'). */
   var fontSel = [nd('body'), nd('section', null, 'settings'), nd('p', 'row', 'fontRow'), nd('select', null, 's_font')];
-  check(cssWinner(rules, fontSel, 'flex') !== null, '#41 select#s_font ha la sua regola flex (D87)');
-  eq(cssWinner(rules, inSettingsRow(nd('button', 'btn small', 'fontPrev')), 'flex'), null,
-     '#41 la regola di select#s_font non arriva alle frecce');
+  check(cssWinner(rules, fontSel, 'flex') !== null, '#41 select#s_font ha la sua regola flex (S14/D137: flex-basis 140 px)');
+  eq(cssWinner(rules, inSettingsRow(nd('label', 'rlab')), 'flex'), null,
+     '#41 nessuna regola flex arriva all\'etichetta della riga del Font');
   eqJson(specificity('select#s_font'), [1, 0, 1], '#41 specificita\' di select#s_font');
   /* .chk (U-09) vale sulle label con casella e non tocca «Aggiungi foto» */
   w = cssWinner(rules, inPhotos(nd('label', 'chk')), 'min-height');
@@ -4423,7 +4471,7 @@ section('5b. lingua: id e valori stabili, niente segnaposto, decimali (D35/D36)'
     hp.select('s_lang', codes[i]);
     eqJson(scan(h.root, []), [], 'lingua ' + codes[i] + ': nessun nodo vuoto o con segnaposto');
     n = optTexts(h, 's_interval_min');
-    eq(n.length, 7, 'lingua ' + codes[i] + ': 7 intervalli');
+    eq(n.length, 9, 'lingua ' + codes[i] + ': 9 intervalli (S14/D139)');
     check(n.every(function (t) { return t && t.indexOf('{') < 0; }), 'lingua ' + codes[i] + ': intervalli scritti');
     check(h.txt('photosCap').indexOf('12') >= 0,
           'lingua ' + codes[i] + ': album vuoto, il contatore dice 12 ("' + h.txt('photosCap') + '")');
@@ -4439,18 +4487,16 @@ section('5b. lingua: id e valori stabili, niente segnaposto, decimali (D35/D36)'
   eq(h.el('helpBtn').title, Ten('help_why'), 'data-i18n-title: anche l\'attributo title si traduce');
   eqJson(optTexts(h, 'previewMode'), [Ten('opt_prev_sun'), Ten('opt_prev_nominal')],
          'anteprima: opzioni in inglese');
-  /* UX-2 D87: le frecce del font non hanno testo da tradurre (‹ ›), ma il loro nome accessibile
-   * (aria-label e title) viene dal dizionario come tutto il resto e segue la lingua. */
+  /* S14/D136: la terza voce di «Disposizione» e' testo di dizionario come le altre due e segue
+   * la lingua; le frecce del font, che qui avevano i loro due aria-label, non ci sono piu' (D137). */
   h.select('s_lang', '2');
-  eq(attrOf(h.el('fontPrev'), 'aria-label'), Tit('font_prev'), 'frecce: aria-label indietro in italiano');
-  eq(attrOf(h.el('fontNext'), 'aria-label'), Tit('font_next'), 'frecce: aria-label avanti in italiano');
-  eq(attrOf(h.el('fontPrev'), 'title'), Tit('font_prev'), 'frecce: title indietro in italiano');
+  eqJson(optTexts(h, 's_layout'), [Tit('opt_layout_a'), Tit('opt_layout_a_bottom'), Tit('opt_layout_b')],
+         'layout: le tre voci in italiano');
   h.select('s_lang', '3');
-  eq(attrOf(h.el('fontPrev'), 'aria-label'), Tde('font_prev'), 'frecce: aria-label indietro in tedesco');
-  eq(attrOf(h.el('fontNext'), 'aria-label'), Tde('font_next'), 'frecce: aria-label avanti in tedesco');
-  eq(attrOf(h.el('fontNext'), 'title'), Tde('font_next'), 'frecce: title avanti in tedesco');
-  eq(h.el('fontPrev').textContent, '\u2039', 'frecce: il glifo ‹ non cambia con la lingua');
-  eq(h.el('fontNext').textContent, '\u203a', 'frecce: il glifo › non cambia con la lingua');
+  eqJson(optTexts(h, 's_layout'), [Tde('opt_layout_a'), Tde('opt_layout_a_bottom'), Tde('opt_layout_b')],
+         'layout: le tre voci in tedesco');
+  eqJson(h.el('s_layout').options().map(function (o) { return +o._value; }), [0, 2, 1],
+         'layout: i valori non cambiano con la lingua (D136)');
   /* UX-2 D89/U-16: le sei option degli endonimi portano lang="xx", cosi' lo screen reader le
    * pronuncia nella loro lingua; «Automatica», che e' nella lingua della pagina, no. */
   eqJson(h.el('s_lang').options().slice(1).map(function (o) { return attrOf(o, 'lang'); }), C.LANGS,
@@ -4589,6 +4635,18 @@ section('6a. S12 anteprima: che cosa riceve il motore, canvas 2x, didascalia sen
            'D102 sola casella «telefono scollegato»: la nota elenca quella e basta');
     hb.select('s_layout', '0');
     contains(hb.txt('wfPrevNote'), noteInfo(15), 'D90 tornando in layout A la nota torna');
+    /* S14/D136: «Ora in basso» e' un layout A — l'anteprima non disegna la riga info nemmeno
+     * li', quindi la nota deve dirlo come in «Ora in alto» (in page.js il confronto «!== 1»). */
+    hb.select('s_layout', '2');
+    contains(hb.txt('wfPrevNote'), noteInfo(15), 'D136 layout 2 (ora in basso): la nota sulla riga info c\'e\'');
+    eq(lastCall(hb).settings.layout, 2, 'D136 e il motore ha ridisegnato con layout 2');
+    hb.select('s_layout', '1');
+    notContains(hb.txt('wfPrevNote'), Tpre('preview_note_info'),
+                'D136 controprova: con «Ora grande» la nota sparisce di nuovo');
+    var he = loadPage({ state: mkState({ settingsSet: true, masks: fakeMasks(),
+                                         settings: { layout: 2, info_row: 5 } }), search: DEV_SEARCH });
+    eqJson(pvNoteParts(he), [noteInfo(5)],
+           'D136 all\'avvio con layout 2 e due caselle: la nota elenca quelle due');
   })();
   eq(h.G.pvSlot, null, 'nessuna foto scelta con l\'occhio');
   eq(h.G.pvError, null, 'nessun errore dell\'anteprima');
@@ -5044,6 +5102,12 @@ section('7c. U-08 (D88/D89): «Altre impostazioni» ripiegate e la riga «Sotto 
   eq(adv({ layout: 0, info_row: 7 }).disp('advBody'), '', 'D88 layout A con la riga info ritoccata: aperto');
   eq(adv({ layout: 1, info_row: 7 }).disp('advBody'), 'none',
      'D88 layout B: la riga info non si vede e non conta, blocco chiuso');
+  /* S14/D136: «Ora in basso» e' l'altro layout A — la riga info c'e' (sopra le cifre), quindi
+   * una riga ritoccata deve aprire il blocco come con «Ora in alto». */
+  eq(adv({ layout: 2, info_row: 7 }).disp('advBody'), '',
+     'D88/D136 layout 2 con la riga info ritoccata: aperto');
+  eq(adv({ layout: 2, info_row: 15 }).disp('advBody'), 'none',
+     'D88/D136 layout 2 con la riga info di fabbrica: chiuso');
   eq(adv({ layout: 1 }).disp('advBody'), 'none', 'D88 solo il layout cambiato: chiuso (non sta li\' dentro)');
   eq(adv({ layout: 0, info_row: 15 }).disp('advBody'), 'none', 'D88 riga info di fabbrica: chiuso');
   eq(adv({ font: 5, digit_style: 2 }).disp('advBody'), 'none',
@@ -5068,6 +5132,12 @@ section('7c. U-08 (D88/D89): «Altre impostazioni» ripiegate e la riga «Sotto 
   h3.select('s_layout', '0');
   eq(h3.disp('infoRow'), '', 'D89 tornando in layout A la riga torna');
   eq(h3.G.buildPayload().settings.info_row, 7, 'D89 e i bit sono ancora quelli');
+  /* S14/D136: e in «Ora in basso» (2) la riga c'e' come in «Ora in alto»: a nasconderla e' il
+   * solo layout B, cioe' il confronto che in page.js e' diventato «!== 1». */
+  h3.select('s_layout', '2');
+  eq(h3.disp('infoRow'), '', 'D89/D136 layout 2 (ora in basso): riga «Sotto l\'ora» visibile');
+  eq(h3.G.buildPayload().settings.layout, 2, 'D136 il payload porta il layout 2');
+  eq(h3.G.buildPayload().settings.info_row, 7, 'D136 e i bit della riga info sono sempre quelli');
   eqJson([0, 1, 2, 3].map(function (i) { return h3.el('s_info_row_b' + i).checked; }),
          [true, true, true, false], 'D89 le caselle di info_row 7');
   /* U-08: la quarta casella non dice piu' «Bluetooth» ma «telefono scollegato» */
@@ -5076,64 +5146,68 @@ section('7c. U-08 (D88/D89): «Altre impostazioni» ripiegate e la riga «Sotto 
          'U-08: le quattro caselle con i testi del dizionario (la quarta e\' opt_info_bt)');
 });
 
-section('7d. U-10 (D87): le frecce ‹ › sfogliano i font', function () {
+section('7d. S14 (D137/D136): il Font ha la sola tendina, la Disposizione tre voci', function () {
   var h = loadPage({ state: mkState({ settingsSet: true, masks: fakeMasks(), settings: { layout: 0, font: 0 } }),
-                     search: DEV_SEARCH }), n;
-  eq(h.el('s_font').value, '0', 'partenza: Anton');
-  ['1', '2', '3', '4', '5', '0'].forEach(function (v) {
-    h.click('fontNext');
-    eq(h.el('s_font').value, v, 'freccia avanti: font ' + v + ' (giro compreso)');
-  });
-  ['5', '4', '3', '2', '1', '0'].forEach(function (v) {
-    h.click('fontPrev');
-    eq(h.el('s_font').value, v, 'freccia indietro: font ' + v + ' (giro compreso)');
-  });
-  /* ogni tocco e' un cambio di impostazione: anteprima, contatore e payload seguono */
+                     search: DEV_SEARCH }), n, kb;
+  /* D137 rovescia U-10/D87: i due pulsanti ‹ › facevano quello che la tendina gia' faceva e
+   * costavano ~800 B di pagina. Qui si prova che non sono rimasti pezzi in giro — markup, CSS,
+   * codice, dizionario — e che la tendina da sola fa tutto il giro che facevano loro. */
+  eq(h.doc.getElementById('fontPrev'), null, 'D137 nessun #fontPrev nella pagina viva');
+  eq(h.doc.getElementById('fontNext'), null, 'D137 nessun #fontNext nella pagina viva');
+  notContains(SRC['page.js'], 'cycleFont', 'D137 page.js non ha piu\' cycleFont');
+  notContains(SRC['page.js'], 'arrowLabel', 'D137 page.js non ha piu\' arrowLabel/fontArrowLabels');
+  notContains(SRC['page.js'], 'fontPrev', 'D137 page.js non nomina piu\' fontPrev');
+  notContains(SRC['page.js'], 'fontNext', 'D137 page.js non nomina piu\' fontNext');
+  notContains(PAGE_CSS, 'fontPrev', 'D137 page.css non ha piu\' la regola delle frecce');
+  notContains(PAGE_CSS, 'fontNext', 'D137 page.css: nemmeno #fontNext');
+  eq(declOf(PAGE_CSS, '.btn', 'line-height'), '1.2', 'D137 controprova: la .btn di D121 resta com\'era');
+  eq(I18N.keys.indexOf('font_prev'), -1, 'D137 la chiave font_prev e\' uscita dal dizionario');
+  eq(I18N.keys.indexOf('font_next'), -1, 'D137 e anche font_next');
+  /* la riga del Font: etichetta e tendina, niente pulsanti, e la tendina ha ancora i sei font */
+  eq(h.el('fontRow').children.filter(function (c) { return c.tagName === 'BUTTON'; }).length, 0,
+     'D137 nella riga del Font non c\'e\' nessun pulsante');
+  eq(h.el('s_font').options().length, 6, 'D137 la tendina ha sempre i sei font');
+  /* la tendina passa da settingsChanged come prima le frecce: anteprima, payload, contatore e
+   * applyRules (LECO spegne lo stile). Sono le stesse prove di D87, fatte sul controllo vero. */
   n = h.env.previewCalls.length;
-  h.click('fontNext');
-  eq(h.el('s_font').value, '1', 'un tocco: font 1');
-  check(h.env.previewCalls.length > n, 'D87 il tocco ridisegna l\'anteprima');
-  eq(lastCall(h).settings.font, 1, 'D87 e al motore va il font nuovo');
-  eq(h.G.buildPayload().settings.font, 1, 'D87 il payload porta il font nuovo');
-  eq(h.kbNum(), C.payloadKb(h.G.buildPayload()), 'D87 il contatore KB e\' ricalcolato');
-  /* layout B: LECO e' disabilitato e la freccia lo salta (D87: solo le option non disabled) */
-  h.select('s_font', '2'); h.select('s_layout', '1');
-  eq(h.el('s_font_leco').disabled, true, 'layout B: LECO disabilitato');
-  eq(h.el('s_font').value, '2', 'controprova: si parte da Barlow');
-  h.click('fontNext');
-  eq(h.el('s_font').value, '4', 'D87 la freccia salta LECO (3) e va a Francois One (4)');
-  h.click('fontPrev');
-  eq(h.el('s_font').value, '2', 'D87 e al contrario torna a Barlow, saltando di nuovo LECO');
-  h.select('s_font', '5');
-  h.click('fontNext');
-  eq(h.el('s_font').value, '0', 'D87 dal 5 si torna al 0 (giro)');
-  h.click('fontPrev');
-  eq(h.el('s_font').value, '5', 'D87 e dal 0 si va al 5');
-  /* D87 dice «poi settingsChanged()», non «poi renderPreview()»: l'anteprima da sola non
-   * basta. Le due prove che li distinguono sono applyRules (in layout A la freccia arriva a
-   * LECO e lo stile deve spegnersi: senza applyRules la select resta accesa su LECO) e
-   * updateKb (il contatore viene riscritto da capo, anche quando il numero non cambia). */
-  h.select('s_layout', '0'); h.select('s_font', '2');
-  h.click('fontNext');
-  eq(h.el('s_font').value, '3', 'D87 in layout A la freccia arriva a LECO');
-  eq(h.el('s_digit_style').disabled, true, 'D87 il tocco passa da applyRules (LECO spegne lo stile)');
-  eq(h.el('s_digit_style').value, '0', 'D87 e applyRules riporta lo stile a 0');
+  h.select('s_font', '1');
+  check(h.env.previewCalls.length > n, 'la scelta del font ridisegna l\'anteprima');
+  eq(lastCall(h).settings.font, 1, '...e al motore va il font nuovo');
+  eq(h.G.buildPayload().settings.font, 1, '...il payload porta il font nuovo');
+  eq(h.kbNum(), C.payloadKb(h.G.buildPayload()), '...e il contatore KB e\' ricalcolato');
+  h.select('s_font', '3');
+  eq(h.el('s_digit_style').disabled, true, 'la scelta passa da applyRules (LECO spegne lo stile)');
+  eq(h.el('s_digit_style').value, '0', '...e applyRules riporta lo stile a 0');
   h.el('kb').textContent = 'XXX';                  /* il contatore deve essere riscritto */
-  h.click('fontNext');
+  h.select('s_font', '4');
   check(Trx('kb_line', '\\d+', '\\d+', true).test(h.txt('kb')),
-        'D87 il tocco rifa il contatore KB (updateKb): "' + h.txt('kb') + '"');
-  eq(h.el('fontPrev').disabled, false, 'D87 freccia indietro sempre attiva (il giro non finisce mai)');
-  eq(h.el('fontNext').disabled, false, 'D87 freccia avanti sempre attiva');
-  /* UX-3 rev (G17): sono gli unici due pulsanti a corpo 22 px e con la .btn di D121
-   * (line-height 1.2 + 8 px di padding) venivano alti 22 x 1,2 + 16 + 2 = 44,4 px — il
-   * min-height da 40 non li trattiene —, cioe' 2,2 px sopra e sotto la select. Con line-height 1
-   * tornano ai 40x40 del bersaglio (regola #10) e #fontRow da 73,4 a 69 px. */
-  ['#fontPrev', '#fontNext'].forEach(function (sel) {
-    eq(declOf(PAGE_CSS, sel, 'line-height'), '1',
-       'G17 ' + sel + ' torna alta 40 px (22 + 16 + 2), come il bersaglio della regola #10');
-    eq(declOf(PAGE_CSS, sel, 'font-size'), '22px', 'G17 ' + sel + ': il corpo di D87 non cambia');
-  });
-  eq(declOf(PAGE_CSS, '.btn', 'line-height'), '1.2', 'G17 controprova: gli altri .btn restano a 1.2');
+        'la scelta rifa il contatore KB (updateKb): "' + h.txt('kb') + '"');
+
+  /* D136: la terza voce di «Disposizione». Vale 2, sta IN MEZZO nella tendina (alto, basso,
+   * grande) ed e' un layout A a tutti gli effetti: LECO ammesso e riga info al suo posto. */
+  eqJson(h.el('s_layout').options().map(function (o) { return +o._value; }), [0, 2, 1],
+         'D136 la tendina ha tre voci, nell\'ordine 0, 2, 1');
+  eqJson(optTexts(h, 's_layout'), [Tit('opt_layout_a'), Tit('opt_layout_a_bottom'), Tit('opt_layout_b')],
+         'D136 e i tre testi vengono dal dizionario');
+  n = h.env.previewCalls.length;
+  kb = h.kbNum();
+  h.select('s_layout', '2');
+  eq(h.el('s_font_leco').disabled, false, 'D136 con «Ora in basso» LECO resta scegliibile (come in alto)');
+  eq(h.disp('infoRow'), '', 'D136 e la riga «Sotto l\'ora» si vede');
+  check(h.env.previewCalls.length > n, 'D136 il cambio di layout ridisegna l\'anteprima');
+  eq(lastCall(h).settings.layout, 2, 'D136 al motore dell\'anteprima va layout 2');
+  eq(h.G.buildPayload().settings.layout, 2, 'D136 e il payload porta layout 2');
+  eq(h.kbNum(), C.payloadKb(h.G.buildPayload()), 'D136 contatore KB ricalcolato anche qui');
+  eq(kb, h.kbNum(), 'D136 controprova: il layout non cambia i KB (e\' un byte delle impostazioni)');
+  /* LECO con «Ora in basso»: la pagina non lo riporta ad Anton (lo fa solo il layout B) */
+  h.select('s_font', '3');
+  eq(h.el('s_font').value, '3', 'D136 LECO scelto con layout 2 resta LECO');
+  eq(h.G.buildPayload().settings.font, 3, 'D136 e il payload porta font 3 con layout 2');
+  h.select('s_layout', '1');
+  eq(h.el('s_font').value, '0', 'controprova: passando a «Ora grande» LECO torna ad Anton (D21)');
+  eq(h.el('s_font_leco').disabled, true, '...e l\'opzione LECO si spegne');
+  h.select('s_layout', '2');
+  eq(h.el('s_font_leco').disabled, false, 'tornando a «Ora in basso» LECO si riaccende');
 });
 
 section('7e. U-11 (D86): i quattro «automatico» e i colori che su Duo non esistono', function () {
@@ -5560,7 +5634,12 @@ section('8c. U-06 (D113-D115): cornice con le corsie, «Regolazioni della foto»
   eq(edOpen(function (p) { p.range('gamma', 1.5); p.timers.run(); }), '', 'D114 gamma 1,50: aperto da solo');
   eq(edOpen(function (p) { p.range('lift', 0.1); p.timers.run(); }), '', 'D114 lift 0,10: aperto da solo');
   eq(edOpen(function (p) { p.select('dither', 'bayer'); p.timers.run(); }), '', 'D114 dithering diverso: aperto');
-  eq(edOpen(function (p) { p.checkbox('sunlight', true); p.timers.run(); }), '', 'D114 «Ottimizza per il vetro»: aperto');
+  /* S14/D138: la fabbrica di «Ottimizza per lo schermo» e' SPUNTATA, quindi a far aprire il
+   * blocco alla foto seguente e' la casella SPENTA (prima era il contrario). */
+  eq(edOpen(function (p) { p.checkbox('sunlight', false); p.timers.run(); }), '',
+     'D114/D138 «Ottimizza per lo schermo» spenta: aperto');
+  eq(edOpen(function (p) { p.checkbox('sunlight', false); p.timers.run(); p.checkbox('sunlight', true); p.timers.run(); }),
+     'none', 'D114/D138 spenta e riaccesa: torna il valore di fabbrica, resta chiuso');
   eq(edOpen(function (p) { p.select('previewMode', 'nominal'); }), '', 'D114 colori nominali: aperto');
 
   /* D114/D116: i tempi dell'editor solo in dev, in inglese cablato */

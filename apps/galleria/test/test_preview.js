@@ -5,8 +5,10 @@
  * luma.c (colore automatico) per l'anteprima "onesta" della config page. Qui si confronta con:
  *   - test/fixture_preview.js (generata da test/gen_preview_fixture.py con le funzioni di
  *     tools/gen_digits.py e tools/photo_prep.py): posizioni di "12:34" per 2 piattaforme x 5 font x
- *     2 layout, CRC32 della mappa di indici 0..3 di ogni glifo ricostruita dalle maschere di
- *     src/pkjs/digit_masks.js, decisioni luma delle due foto demo (= resources/photos/README.md);
+ *     3 layout (A in alto, B ora grande, C "ora in basso" di S14/D136), CRC32 della mappa di indici
+ *     0..3 di ogni glifo ricostruita dalle maschere di src/pkjs/digit_masks.js, decisioni luma delle
+ *     due foto demo sulle tre fasce (= resources/photos/README.md) e le due immagini sintetiche che
+ *     pinnano il contorno al 15 % esatto (D140);
  *   - le foto demo vere (resources/photos/demo_*.raw6|raw1, lette con fs, CRC pinnati);
  *   - casi sintetici scritti a mano (mappe 7x7 e 3x3, soglie di luma esatte, campionamento, isteresi,
  *     palette D21/D26 per stile e piattaforma, round trip unpack6/pack6 e unpack1/pack1, render).
@@ -120,6 +122,17 @@ function countIdx(map, v) {
   return n;
 }
 
+/* il caso della fixture (piattaforma, font, layout 'A' | 'B' | 'C'): niente indici, che cambiano
+ * a ogni layout nuovo */
+function caseOf(plat, font, layout) {
+  var i, c;
+  for (i = 0; i < fx.cases.length; i++) {
+    c = fx.cases[i];
+    if (c.platform === plat && c.font === font && c.layout === layout) { return c; }
+  }
+  throw new Error('fixture ' + plat + ' ' + font + ' ' + layout);
+}
+
 /* pixel RGB dell'RGBA scalato in (x, y) di schermo (angolo in alto a sinistra del blocco s x s) */
 function pixelAt(r, x, y, s) {
   var o = ((y * s) * r.width + x * s) * 4;
@@ -149,14 +162,15 @@ function findIdx(map, w, v) {
   eq(V.LUMA_Y_WHITE_BAD, fx.luma.white_bad, 'soglia bianco 77');
   eq(V.LUMA_Y_BLACK_BAD, fx.luma.black_bad, 'soglia nero 25');
   eq(V.LUMA_Y_CROSSOVER, fx.luma.crossover, 'crossover 46');
-  eq(V.LUMA_HALO_PCT, fx.luma.halo_pct, 'contorno > 15 %');
+  eq(V.LUMA_HALO_PCT, fx.luma.halo_pct, 'contorno >= 15 % (D140)');
+  eq(fx.version, 'v2', 'fixture v2 (layout C, band_y, synth)');
   eq(V.FIT_MARGIN, 2, 'FIT_MARGIN 2');
   eq(V.MAX_GLYPHS, 5, 'MAX_GLYPHS 5');
   eq(V.RING_GAPS.join(','), '2,1,0,-1', 'RING_GAPS');
   ['emery', 'flint'].forEach(function (plat) {
     var L = V.LAYOUT[plat], F = fx.layout[plat], k;
     for (k in F) {
-      if (k === 'fmt' || k === 'band_a' || k === 'band_b') { continue; }
+      if (k === 'fmt' || k === 'band_a' || k === 'band_b' || k === 'band_c_y') { continue; }
       eq(L[k], F[k], 'LAYOUT.' + plat + '.' + k);
     }
   });
@@ -167,6 +181,18 @@ function findIdx(map, w, v) {
   eq(V.layoutRows('raw1', 0, M.flint.anton, '1').lumaH, 76, "platformOf('raw1')");
   eq(V.layoutRows('flint', 0, M.flint.anton, '1').lumaH, 76, "platformOf('flint')");
   expectError(function () { V.layoutRows(3, 0, M.emery.anton, '1'); }, 'platformOf(3)');
+  /* D136: isBottom riconosce il layout 2 nelle stesse forme lasche di isB (2, 'C', 'c') */
+  eq(V.isBottom(2) + '/' + V.isBottom('C') + '/' + V.isBottom('c'), 'true/true/true', "isBottom: 2, 'C', 'c'");
+  eq(V.isBottom(0) + '/' + V.isBottom(1) + '/' + V.isBottom('a') + '/' + V.isBottom('b') + '/' +
+     V.isBottom('2') + '/' + V.isBottom(undefined), 'false/false/false/false/false/false',
+     'isBottom: solo il layout 2 (mai A, mai B, mai la stringa "2")');
+  /* origine della fascia: 0 in alto e in "ora grande", h - fascia in basso (fixture band_c_y) */
+  eq(V.layoutRows('emery', 0, M.emery.anton, '1').lumaY, 0, 'lumaY: layout A = 0');
+  eq(V.layoutRows('emery', 1, M.emery.anton, '1').lumaY, 0, 'lumaY: layout B = 0');
+  eq(V.layoutRows('emery', 2, M.emery.anton, '1').lumaY, fx.layout.emery.band_c_y, 'lumaY: emery C = 122');
+  eq(V.layoutRows('flint', 2, M.flint.anton, '1').lumaY, fx.layout.flint.band_c_y, 'lumaY: flint C = 92');
+  eq(V.layoutRows('emery', 2, M.emery.anton, '1').lumaH, 106, 'layout C: fascia alta come in A');
+  eq(V.layoutRows('emery', 2, M.emery.anton, '1').size, 'a', 'layout C: taglia A');
 }());
 
 /* ---------------------------------------------------------------- 2. base64url ---- */
@@ -293,7 +319,7 @@ function findIdx(map, w, v) {
       });
     });
   });
-  eq(cases, 90, '90 glifi nella fixture');
+  eq(cases, 140, '140 glifi nella fixture (20 casi A/C x 5 + 10 casi B x 4)');
   /* su flint (S 0) nessun glifo ha l'indice 3 */
   for (i in M.flint) {
     if (Object.prototype.hasOwnProperty.call(M.flint, i)) {
@@ -306,11 +332,13 @@ function findIdx(map, w, v) {
 /* ---------------------------------------------------------------- 5. griglia e posizioni ---- */
 
 (function () {
-  var n = 0, size, r, i, j, q, h, gl, rows, red, k, wide;
+  var n = 0, size, r, i, j, q, h, gl, rows, red, k, wide, lnum, lstr;
+  eq(fx.cases.length, 30, '30 casi nella fixture (2 piattaforme x 5 font x 3 layout)');
   fx.cases.forEach(function (c) {
     size = M[c.platform][c.font][c.size];
     r = V.layoutRows(c.fmt, c.layout, M[c.platform][c.font], fx.time);
     eq(r.lumaH, c.band_h, c.platform + ' ' + c.font + ' ' + c.layout + ': fascia di luma');
+    eq(r.lumaY, c.band_y, c.platform + ' ' + c.font + ' ' + c.layout + ': origine della fascia');
     eq(r.size, c.size, c.platform + ' ' + c.layout + ': taglia');
     eq(r.rows.length, c.rows.length, c.platform + ' ' + c.font + ' ' + c.layout + ': numero di righe');
     for (i = 0; i < c.rows.length; i++) {
@@ -330,12 +358,40 @@ function findIdx(map, w, v) {
       }
     }
     /* la voce della taglia passata direttamente e gli alias di fmt danno lo stesso risultato */
-    eq(JSON.stringify(V.layoutRows(c.platform, c.layout === 'B' ? 1 : 0, size, fx.time).rows),
+    lnum = c.layout === 'B' ? 1 : (c.layout === 'C' ? 2 : 0);
+    lstr = c.layout === 'B' ? 'b' : (c.layout === 'C' ? 'c' : 'a');
+    eq(JSON.stringify(V.layoutRows(c.platform, lnum, size, fx.time).rows),
        JSON.stringify(r.rows), c.platform + ' ' + c.font + ' ' + c.layout + ': voce della taglia + fmt nome');
-    eq(JSON.stringify(V.layoutRows(c.platform === 'emery' ? 1 : 2, c.layout === 'B' ? 'b' : 'a', size, fx.time).rows),
+    eq(JSON.stringify(V.layoutRows(c.platform === 'emery' ? 1 : 2, lstr, size, fx.time).rows),
        JSON.stringify(r.rows), c.platform + ' ' + c.font + ' ' + c.layout + ': fmt numerico');
   });
-  eq(n, 660, '660 campi di posizione confrontati');
+  eq(n, 1000, '1.000 campi di posizione confrontati');
+
+  /* D136 "ora in basso": la riga e' la A specchiata nel box del RIEMPIMENTO, cioe' identica in x e
+   * con il fondo del riempimento sempre a h - a_fill_y (219 su emery, 161 su flint) per tutti i
+   * font; i numeri sono quelli di S14 §2.3. */
+  [['emery', 'anton', 151, 153], ['emery', 'bebas', 151, 153], ['emery', 'barlow', 156, 158],
+   ['emery', 'francois', 156, 158], ['emery', 'staatliches', 152, 154],
+   ['flint', 'anton', 118, 119], ['flint', 'bebas', 118, 119], ['flint', 'barlow', 120, 121],
+   ['flint', 'francois', 119, 120], ['flint', 'staatliches', 118, 119]].forEach(function (t) {
+    var plat = t[0], f = t[1], L = V.LAYOUT[plat], sz = M[plat][f].a;
+    var a = V.layoutRows(plat, 0, M[plat][f], fx.time).rows[0];
+    var b = V.layoutRows(plat, 2, M[plat][f], fx.time).rows[0];
+    eq(b.y, t[2], plat + ' ' + f + ' C: riga 0 della strip');
+    eq(b.y + sz.ring, t[3], plat + ' ' + f + ' C: riga del riempimento');
+    eq(b.y + sz.ring + sz.digit_h, L.h - L.a_fill_y, plat + ' ' + f + ' C: fondo del riempimento');
+    eq(JSON.stringify(b.glyphs), JSON.stringify(a.glyphs), plat + ' ' + f + ' C: glifi identici ad A (cambia solo la riga)');
+    eq(b.total + '/' + b.x0 + '/' + b.ring_gap, a.total + '/' + a.x0 + '/' + a.ring_gap, plat + ' ' + f + ' C: stessa griglia di A');
+    eq(a.y, L.a_fill_y - sz.ring, plat + ' ' + f + ' A: riga in alto invariata');
+  });
+  /* specchio sul RIEMPIMENTO, non sulla strip: con l'ombra (emery S 2) i due danno righe diverse */
+  eq(V.layoutRows('emery', 2, M.emery.anton, fx.time).rows[0].y,
+     228 - 9 - M.emery.anton.a.digit_h - M.emery.anton.a.ring, 'C emery: h - a_fill_y - digit_h - ring');
+  check(228 - (9 - M.emery.anton.a.ring) - M.emery.anton.a.strip_h !==
+        V.layoutRows('emery', 2, M.emery.anton, fx.time).rows[0].y, 'C emery: lo specchio della strip darebbe un altra riga');
+  /* metriche senza digit_h (sintetiche): il modulo non si rompe, specchia un box alto 0 */
+  eq(V.layoutRows('emery', 2, { ring: 2, shadow: 2, glyphs: { '1': { w: 27 } } }, '1').rows[0].y, 217,
+     'C senza digit_h: 228 - 9 - 0 - 2');
 
   /* commento di prv_place_row_fit: 24 h con spazio 2 per tutti i font, Francois «00:44» 193 px, Anton 183 */
   eq(V.layoutRows('emery', 0, M.emery.francois.a, '00:44').rows[0].total, 193, 'Francois One A «00:44» 193 px');
@@ -416,16 +472,18 @@ function findIdx(map, w, v) {
 /* ---------------------------------------------------------------- 6. luma ---- */
 
 (function () {
-  var W = 200, H = 228, idx, r, i, x, y, n, bits;
+  var W = 200, H = 228, idx, r, i, x, y, n, bits, la, lc, band;
 
-  /* foto demo: le decisioni di resources/photos/README.md (fixture) su fascia A e B */
+  /* foto demo: le decisioni di resources/photos/README.md (fixture) su fascia A, B e C */
   fx.photos.forEach(function (p) {
     var raw = readPhoto(p.file), px;
     eq(raw.length, p.bytes, p.file + ': byte');
     eqHex(P.crc32(raw), p.crc, p.file + ': CRC32');
     px = (p.fmt === 'raw6') ? V.unpack6(raw, p.w, p.h) : V.unpack1(raw, p.w, p.h);
     p.bands.forEach(function (b) {
-      var lm = (p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, b.h) : V.luma1(px, p.w, p.h, b.h);
+      /* la fascia in alto si passa come altezza, quella in basso (D136) come rettangolo da b.y */
+      var band = b.y > 0 ? { x: 0, y: b.y, w: p.w, h: b.h } : b.h;
+      var lm = (p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, band) : V.luma1(px, p.w, p.h, band);
       var who = p.name + ' ' + p.platform + ' ' + b.layout;
       eq(lm.valid, true, who + ': valid');
       eq(lm.samples, b.samples, who + ': campioni');
@@ -436,10 +494,17 @@ function findIdx(map, w, v) {
       eq(lm.bad_pct, b.bad_pct, who + ': bad_pct');
       eq(lm.halo, b.halo, who + ': contorno');
       /* la fascia come rettangolo esplicito da' lo stesso risultato */
-      eq(JSON.stringify((p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, { x: 0, y: 0, w: p.w, h: b.h })
-                                           : V.luma1(px, p.w, p.h, { x: 0, y: 0, w: p.w, h: b.h })),
+      eq(JSON.stringify((p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, { x: 0, y: b.y, w: p.w, h: b.h })
+                                           : V.luma1(px, p.w, p.h, { x: 0, y: b.y, w: p.w, h: b.h })),
          JSON.stringify(lm), who + ': fascia come rettangolo');
     });
+    /* D136: la fascia in basso guarda pixel diversi da quella in alto (stesso numero di campioni) */
+    la = (p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, p.bands[0].h) : V.luma1(px, p.w, p.h, p.bands[0].h);
+    band = { x: 0, y: p.bands[2].y, w: p.w, h: p.bands[2].h };
+    lc = (p.fmt === 'raw6') ? V.luma8(px, p.w, p.h, band) : V.luma1(px, p.w, p.h, band);
+    eq(la.samples, lc.samples, p.name + ' ' + p.platform + ': stessi campioni in alto e in basso');
+    check(JSON.stringify(la) !== JSON.stringify(lc), p.name + ' ' + p.platform + ': luma della fascia in basso diversa da quella in alto');
+    eq(p.bands[2].y, p.h - p.bands[2].h, p.name + ' ' + p.platform + ': fascia in basso ancorata al fondo');
   });
 
   /* soglie esatte: Y 77 (indice 53) NON e' chiaro, Y 80 (10) si'; Y 25 (32) NON e' scuro, Y 14 (4) si' */
@@ -475,18 +540,20 @@ function findIdx(map, w, v) {
   for (y = 0; y < H; y++) { for (x = 0; x < W; x++) { if ((x & 1) || (y & 1)) { idx[y * W + x] = 63; } } }
   r = V.luma8(idx, W, H, 106);
   eq(r.bad_white + '/' + r.mean + '/' + r.samples, '0/0/5300', 'posizioni dispari ignorate');
-  /* soglia del contorno: 15 % esatto -> no, 16 % -> si' (795 e 848 campioni chiari su 5.300) */
+  /* soglia del contorno (D140): 15 % esatto -> SI', 14 % -> no (795, 794 e 848 chiari su 5.300) */
   function brightFirst(k) {
     fillAll(0); n = 0;
     for (y = 0; y < 106 && n < k; y += 2) { for (x = 0; x < W && n < k; x += 2) { idx[y * W + x] = 63; n++; } }
     return V.luma8(idx, W, H, 106);
   }
   r = brightFirst(795);
-  eq(r.bad_white + '/' + r.white + '/' + r.bad_pct + '/' + r.halo, '15/true/15/false', '15 % di conflitto: senza contorno');
+  eq(r.bad_white + '/' + r.white + '/' + r.bad_pct + '/' + r.halo, '15/true/15/true', '15 % di conflitto: contorno (D140)');
   r = brightFirst(848);
   eq(r.bad_white + '/' + r.white + '/' + r.bad_pct + '/' + r.halo, '16/true/16/true', '16 % di conflitto: contorno');
-  /* percentuali troncate: 794 -> 14 */
-  eq(brightFirst(794).bad_white, 14, '794 / 5300 -> 14 %');
+  /* percentuali troncate: 794 -> 14, e a 14 % il contorno resta spento */
+  r = brightFirst(794);
+  eq(r.bad_white + '/' + r.bad_pct + '/' + r.halo, '14/14/false', '794 / 5300 -> 14 %: senza contorno');
+  eq(brightFirst(742).bad_white + '/' + brightFirst(742).halo, '14/false', '742 / 5300 = 14 % esatto: senza contorno');
   /* fascia: origine spostata, ritaglio all altezza del bitmap, fascia vuota */
   fillAll(0); idx[0] = 63;
   r = V.luma8(idx, W, H, { x: 2, y: 2, w: 10, h: 10 });
@@ -523,14 +590,38 @@ function findIdx(map, w, v) {
   r = V.luma1(bits, 144, 168, 0);
   eq(r.valid + '/' + r.halo, 'false/true', 'flint fascia vuota: contorno comunque');
   eq(V.luma1(bits, 144, 168, 168).samples, 6048, 'flint fascia B: 72 x 84');
+
+  /* immagini sintetiche della fixture (D140 + D136): conflitto al 15 % e al 14 % misurato sulla
+   * sola fascia in basso, con photo_prep come riferimento */
+  eq(fx.synth.length, 2, '2 immagini sintetiche nella fixture');
+  fx.synth.forEach(function (c) {
+    var a = new Uint8Array(c.w * c.h), k = 0, yy, xx, lm;
+    for (yy = 0; yy < a.length; yy++) { a[yy] = c.bg; }
+    for (yy = c.band_y; yy < c.band_y + c.band_h && k < c.bright; yy += 2) {
+      for (xx = 0; xx < c.w && k < c.bright; xx += 2) { a[yy * c.w + xx] = c.fg; k++; }
+    }
+    eq(k, c.bright, 'synth ' + c.name + ': ' + c.bright + ' pixel chiari nella fascia');
+    lm = V.luma8(a, c.w, c.h, { x: 0, y: c.band_y, w: c.w, h: c.band_h });
+    eq(lm.samples, c.samples, 'synth ' + c.name + ': campioni');
+    eq(lm.bad_white, c.bad_white, 'synth ' + c.name + ': bad_white');
+    eq(lm.bad_black, c.bad_black, 'synth ' + c.name + ': bad_black');
+    eq(lm.mean, c.mean, 'synth ' + c.name + ': Y medio');
+    eq(lm.white, c.white, 'synth ' + c.name + ': bianco');
+    eq(lm.bad_pct, c.bad_pct, 'synth ' + c.name + ': bad_pct');
+    eq(lm.halo, c.halo, 'synth ' + c.name + ': contorno (D140: bad_pct >= 15)');
+    /* gli stessi pixel letti dalla fascia in ALTO: nessun conflitto (campionamento da y = band_y) */
+    eq(V.luma8(a, c.w, c.h, c.band_h).bad_white, 0, 'synth ' + c.name + ': la fascia in alto non li vede');
+  });
 }());
 
 /* ---------------------------------------------------------------- 7. palette (prv_apply_text_style, D21/D26) ---- */
 
 (function () {
-  var lumaW = { valid: true, white: true, bad_white: 20, bad_black: 80 };    /* bianco con conflitto > 15 */
-  var lumaWok = { valid: true, white: true, bad_white: 15, bad_black: 80 };  /* bianco, conflitto 15: no */
+  var lumaW = { valid: true, white: true, bad_white: 20, bad_black: 80 };    /* bianco con conflitto >= 15 */
+  var lumaW15 = { valid: true, white: true, bad_white: 15, bad_black: 80 };  /* bianco, conflitto 15: SI' (D140) */
+  var lumaW14 = { valid: true, white: true, bad_white: 14, bad_black: 80 };  /* bianco, conflitto 14: no */
   var lumaB = { valid: true, white: false, bad_white: 90, bad_black: 3 };    /* nero senza conflitto */
+  var lumaB15 = { valid: true, white: false, bad_white: 90, bad_black: 15 };
   var lumaBbad = { valid: true, white: false, bad_white: 90, bad_black: 16 };
   var none = V.lumaReset(), p;
 
@@ -560,12 +651,15 @@ function findIdx(map, w, v) {
   eqRgb(pal(4, 0, 0, lumaW, 'emery').bg, [255, 255, 255], 'Oxford: alone bianco');
   /* alone */
   eq(pal(0, 0, 0, lumaW, 'emery').halo, true, 'auto emery: 20 % > 15 -> contorno');
-  eq(pal(0, 0, 0, lumaWok, 'emery').halo, false, 'auto emery: 15 % -> niente');
+  eq(pal(0, 0, 0, lumaW15, 'emery').halo, true, 'auto emery: 15 % -> contorno (D140)');
+  eq(pal(0, 0, 0, lumaW14, 'emery').halo, false, 'auto emery: 14 % -> niente');
   eq(pal(0, 0, 0, lumaB, 'emery').halo, false, 'auto emery nero: 3 % -> niente');
+  eq(pal(0, 0, 0, lumaB15, 'emery').halo, true, 'auto emery nero: 15 % -> contorno (D140)');
   eq(pal(0, 0, 0, lumaBbad, 'emery').halo, true, 'auto emery nero: 16 % -> contorno');
-  eq(pal(1, 0, 0, lumaB, 'emery').halo, true, 'bianco forzato su foto chiara: bad_white 90 > 15 -> contorno');
-  eq(pal(2, 0, 0, lumaW, 'emery').halo, true, 'nero forzato su foto scura: bad_black 80 > 15 -> contorno');
-  eq(pal(4, 0, 0, lumaWok, 'emery').halo, true, 'Oxford (scuro): bad_black 80 -> contorno');
+  eq(pal(1, 0, 0, lumaB, 'emery').halo, true, 'bianco forzato su foto chiara: bad_white 90 >= 15 -> contorno');
+  eq(pal(2, 0, 0, lumaW, 'emery').halo, true, 'nero forzato su foto scura: bad_black 80 >= 15 -> contorno');
+  eq(pal(4, 0, 0, lumaW15, 'emery').halo, true, 'Oxford (scuro): bad_black 80 -> contorno');
+  eq(pal(0, 0, 0, lumaW14, 'flint').halo, true, 'flint: contorno anche al 14 % (luma valida)');
   eq(pal(0, 0, 0, lumaB, 'flint').halo, true, 'flint auto: sempre con luma valida');
   eq(pal(0, 2, 0, lumaW, 'flint').halo, false, 'flint mai');
   eq(pal(0, 1, 0, none, 'emery').halo, true, 'sempre');
@@ -601,7 +695,7 @@ function findIdx(map, w, v) {
   var idx1 = V.unpack6(raw1, 200, 228), bitsf2 = V.unpack1(rawf2, 144, 168);
   var base = { fmt: 1, w: 200, h: 228, raw: raw1, masks: M, time: '12:34', sunlight: true, scale: 2 };
   var st0 = { layout: 0, font: 0, digit_style: 0, text_color: 0, outline: 0, clock_mode: 0 };
-  var r, c, size, map, pos, fxA = fx.cases[0], gl2 = fxA.rows[0].glyphs[1], x, y, o, ok, i, photo;
+  var r, c, size, map, pos, fxA = caseOf('emery', 'anton', 'A'), gl2 = fxA.rows[0].glyphs[1], x, y, o, ok, i, photo, fxC;
 
   function opts(over, s) {
     var k, out = {};
@@ -679,17 +773,51 @@ function findIdx(map, w, v) {
   /* LECO in B: l'orologio usa Anton (prv_load_strips) */
   r = V.render(opts({}, settings({ font: 3, layout: 1 })));
   eq(r.drawn + '/' + r.notes.join(','), 'true/', 'render LECO in B: Anton');
-  eq(JSON.stringify(r.rows.map(function (rw) { return rw.y; })), JSON.stringify(fx.cases[1].rows.map(function (rw) { return rw.y; })), 'render LECO in B: righe di Anton B');
+  eq(JSON.stringify(r.rows.map(function (rw) { return rw.y; })),
+     JSON.stringify(caseOf('emery', 'anton', 'B').rows.map(function (rw) { return rw.y; })), 'render LECO in B: righe di Anton B');
   /* layout B: due righe, fascia intera, luma della fixture band B */
   r = V.render(opts({}, settings({ layout: 1, font: 4 })));
-  c = fx.cases[7];   /* emery francois B */
-  eq(c.font + c.layout, 'francoisB', 'fixture[7] = francois B');
+  c = caseOf('emery', 'francois', 'B');
   eq(r.lumaH, 228, 'render B: fascia intera');
   eq(r.rows.length, 2, 'render B: due righe');
   eq(JSON.stringify(r.rows.map(function (rw) { return [rw.y, rw.x0, rw.total]; })),
      JSON.stringify(c.rows.map(function (rw) { return [rw.y, rw.x0, rw.total]; })), 'render B francois: righe = fixture');
   photo = fx.photos[0].bands[1];
   eq(r.luma.bad_white + '/' + r.luma.bad_black + '/' + r.luma.mean, photo.bad_white + '/' + photo.bad_black + '/' + photo.mean, 'render B: luma demo_1 B');
+  /* layout 2 "ora in basso" (D136): stessa riga di A specchiata in fondo, fascia di luma da 122 */
+  r = V.render(opts({}, settings({ layout: 2 })));
+  fxC = caseOf('emery', 'anton', 'C');
+  eq(r.lumaH + '/' + r.lumaY, '106/122', 'render C: fascia 106 px da y 122');
+  eq(r.rows.length, 1, 'render C: una riga');
+  eq(r.rows[0].y, fxC.rows[0].y, 'render C: riga 151 = fixture');
+  eq(JSON.stringify(r.rows[0].glyphs.map(function (g) { return [g.ch, g.x, g.adv, g.gx]; })),
+     JSON.stringify(fxC.rows[0].glyphs.map(function (g) { return [g.ch, g.x, g.adv, g.gx]; })), 'render C: posizioni = fixture');
+  photo = fx.photos[0].bands[2];
+  eq(r.luma.bad_white + '/' + r.luma.bad_black + '/' + r.luma.mean + '/' + r.luma.bad_pct + '/' + r.luma.halo,
+     photo.bad_white + '/' + photo.bad_black + '/' + photo.mean + '/' + photo.bad_pct + '/' + photo.halo,
+     'render C: luma demo_1 sulla fascia in basso');
+  check(r.luma.mean !== fx.photos[0].bands[0].mean, 'render C: luma diversa da quella della fascia in alto');
+  /* i pixel: il riempimento del "2" e' bianco alla riga specchiata, e dove stava in "ora in alto"
+   * ora c'e' la foto */
+  pos = findIdx(map, gl2.w, 1);
+  x = gl2.gx + pos.x; y = fxC.rows[0].y + pos.y;
+  eqRgb(pixelAt(r, x, y, 2), [255, 255, 255], 'render C: riempimento bianco in fondo');
+  y = fxA.rows[0].y + pos.y;
+  eqRgb(pixelAt(r, x, y, 2), P.SUN_RGB[idx1[y * 200 + x]], 'render C: la fascia in alto e solo foto');
+  /* LECO in basso: sola foto, ma la fascia resta quella in basso */
+  r = V.render(opts({}, settings({ layout: 2, font: 3 })));
+  eq(r.drawn + '/' + r.notes.join(',') + '/' + r.lumaY, 'false/leco/122', 'render C LECO: niente cifre, fascia in basso');
+  /* flint: riga 118, fascia da 92 */
+  r = V.render(opts({ fmt: 2, w: 144, h: 168, raw: rawf1 }, settings({ layout: 2, font: 5 })));
+  fxC = caseOf('flint', 'staatliches', 'C');
+  eq(r.lumaH + '/' + r.lumaY, '76/92', 'render C flint: fascia 76 px da y 92');
+  eq(r.rows[0].y, fxC.rows[0].y, 'render C flint: riga 118 = fixture');
+  photo = fx.photos[1].bands[2];
+  eq(r.luma.bad_white + '/' + r.luma.mean + '/' + r.luma.white,
+     photo.bad_white + '/' + photo.mean + '/' + photo.white, 'render C flint: luma demo_1 in basso');
+  /* "ora grande" non si specchia mai: layout 1 resta con lumaY 0 (D136: bottom solo in A) */
+  eq(V.render(opts({}, settings({ layout: 1 }))).lumaY, 0, 'render B: lumaY 0');
+  eq(V.render(opts({}, settings({ layout: 0 }))).lumaY, 0, 'render A: lumaY 0');
   /* 12 h: avvertenza AM/PM (le celle restano quelle delle 24 h) */
   r = V.render(opts({}, settings({ clock_mode: 1 })));
   eq(r.notes.join(','), 'ampm', 'render 12 h: avvertenza');
@@ -752,8 +880,7 @@ function findIdx(map, w, v) {
   expectError(function () { V.render(opts({ fmt: 2, w: 144, h: 168, raw: new Uint8Array(100) })); }, 'render raw1 corto');
   /* flint: demo_2 B, staatliches trasparente: nero automatico con contorno (sempre), 288x336 */
   r = V.render(opts({ fmt: 2, w: 144, h: 168, raw: rawf2 }, settings({ font: 5, layout: 1, digit_style: 2 })));
-  c = fx.cases[19];
-  eq(c.platform + c.font + c.layout, 'flintstaatlichesB', 'fixture[19] = flint staatliches B');
+  c = caseOf('flint', 'staatliches', 'B');
   eq(r.width + 'x' + r.height, '288x336', 'render flint x2');
   photo = fx.photos[3].bands[1];
   eq(r.luma.white + '/' + r.luma.bad_white + '/' + r.luma.bad_black + '/' + r.luma.mean + '/' + r.luma.halo,

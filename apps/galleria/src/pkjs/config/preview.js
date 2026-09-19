@@ -7,7 +7,7 @@
  *               (nucleo = w - S centrato nel passo, ombra che sporge a destra);
  *   luma.c      LUMA_SUN, luma_compute_8bit / luma_compute_1bit, prv_decide SENZA isteresi
  *               (decisione a freddo: campionamento 1 px su 2 dall'origine della fascia, soglie
- *               77 / 25 / 46, contorno > 15 %).
+ *               77 / 25 / 46, contorno >= 15 %, D140).
  * Le cifre arrivano come maschere a 1 bit del solo riempimento (state.masks, D45: digit_masks.js
  * filtrato dal PKJS: un glifo con il solo w conta per la griglia e non viene disegnato); anello e
  * ombra si ricostruiscono con la regola di D20 (glyphMap). Le foto sono i raw6/raw1 della pagina
@@ -41,7 +41,7 @@
     25, 28, 39, 59, 39, 42, 53, 73, 90, 94, 104, 125, 185, 189, 201, 219,
     60, 62, 74, 94, 74, 77, 87, 108, 125, 129, 140, 160, 218, 223, 234, 255
   ];
-  /* luma.h: Y > 77 ostile al bianco, Y < 25 ostile al nero, parita' -> bianco se Y medio < 46, contorno > 15 % */
+  /* luma.h: Y > 77 ostile al bianco, Y < 25 ostile al nero, parita' -> bianco se Y medio < 46, contorno >= 15 % (D140) */
   var Y_WHITE = 77, Y_BLACK = 25, Y_CROSS = 46, HALO_PCT = 15;
   /* impostazione font -> chiave di digit_masks.js (= gal_font_strip; LECO = 3 nessuna strip) */
   var FONT_KEYS = ['anton', 'bebas', 'barlow', null, 'francois', 'staatliches'];
@@ -137,7 +137,7 @@
       }
     }
     decide(r, n, s, nb, nd);
-    r.halo = r.bad_pct > HALO_PCT;
+    r.halo = r.bad_pct >= HALO_PCT;
     return r;
   }
 
@@ -273,23 +273,29 @@
   /* la taglia da metrics: una voce {strip_h, ring, shadow, cell_w, glyphs} oppure la voce del font {a, b} */
   function sizeOf(m, B) { return (m && m.glyphs) ? m : (m ? m[B ? 'b' : 'a'] : null); }
   function isB(l) { return l === 1 || l === 'B' || l === 'b'; }
+  /* D136 "ora in basso": layout 2 = A specchiato nella sua fascia, ancorata al fondo */
+  function isBottom(l) { return l === 2 || l === 'C' || l === 'c'; }
+  /* origine y della fascia (band_y del C: 0 salvo "ora in basso") */
+  function lumaTop(L, bot, h) { return bot ? L.h - h : 0; }
 
   /* layoutRows (prv_layout_time, MODE_A_SPRITE / MODE_B_SPRITE, celle 24 h, senza AM/PM):
    *   A: riga unica di MAX_GLYPHS glifi con a_cell / a_colon, blocco centrato ((w - total) / 2, mai < 0),
    *      y = a_fill_y - ring; fascia di luma = info_y + info_h + 2;
    *   B: ore fino al primo ':' e minuti dopo (2 glifi), celle b_cell con b_gap, ogni riga centrata
-   *      (nessun clamp), y = b_hh_fill_y - ring / b_mm_fill_y - ring; fascia di luma = schermo intero.
-   * -> { rows: [{ y, total, x0, ring_gap, glyphs: [{ ch, g, w, x, adv, gx }] }], lumaH, size } */
+   *      (nessun clamp), y = b_hh_fill_y - ring / b_mm_fill_y - ring; fascia di luma = schermo intero;
+   *   C (D136): come A specchiata nella fascia in basso, riempimento a h - a_fill_y - digit_h
+   *      (fondo del riempimento sempre a h - a_fill_y) e fascia di luma da lumaY = h - lumaH.
+   * -> { rows: [{ y, total, x0, ring_gap, glyphs: [{ ch, g, w, x, adv, gx }] }], lumaH, lumaY, size } */
   function layoutRows(fmt, layout, metrics, time) {
     var p = platformOf(fmt), L = LAYOUT[p], B = isB(layout), sz = sizeOf(metrics, B), s = String(time || '');
-    var R, rows = [], row, x0, n, lumaH;
+    var R, rows = [], row, x0, n, lumaH, bot = !B && isBottom(layout);
     if (!sz || !sz.glyphs) { throw new Error('metriche ' + (B ? 'B' : 'A')); }
     R = sz.ring | 0;
     if (!B) {
       row = placeRowFit(sz, s, MAX_GLYPHS, L.a_cell, L.a_colon, 0, 0, L.w);
       x0 = cdiv(L.w - row.total, 2);
       if (x0 < 0) { x0 = 0; }
-      rows.push(shiftRow(sz, row, x0, L.a_fill_y - R));
+      rows.push(shiftRow(sz, row, x0, bot ? L.h - L.a_fill_y - (sz.digit_h | 0) - R : L.a_fill_y - R));
       lumaH = L.info_y + L.info_h + 2;
     } else {
       n = s.indexOf(':');
@@ -300,7 +306,7 @@
       rows.push(shiftRow(sz, row, cdiv(L.w - row.total, 2), L.b_mm_fill_y - R));
       lumaH = L.h;
     }
-    return { rows: rows, lumaH: lumaH, size: B ? 'b' : 'a' };
+    return { rows: rows, lumaH: lumaH, lumaY: lumaTop(L, bot, lumaH), size: B ? 'b' : 'a' };
   }
 
   function rgb(k, sun) {
@@ -309,7 +315,7 @@
   }
 
   /* prv_apply_text_style: colore (auto -> luma.white), alone (sempre / mai / auto: emery luma valida e
-   * % in conflitto con il colore EFFETTIVO > 15, flint luma valida), stile D21 (pieno: riempimento fg,
+   * % in conflitto con il colore EFFETTIVO >= 15, flint luma valida), stile D21 (pieno: riempimento fg,
    * anello bg se alone; trasparente: riempimento nullo, anello fg; 3D: in piu' ombra bg; flint mai
    * ombra, D26). Indici della palette a 64 (null = GColorClear) e RGB con SUN_RGB (sun, default) o PAL_RGB */
   function palette(st, lm, fmt, sun) {
@@ -320,7 +326,7 @@
     if (f) { fg = f[bw ? 1 : 0]; light = !!f[2]; }
     else { light = !!lm.white; fg = light ? 63 : 0; }
     bg = light ? 0 : 63;
-    halo = ol === 1 || (ol !== 2 && !!lm.valid && (bw || (light ? lm.bad_white : lm.bad_black) > HALO_PCT));
+    halo = ol === 1 || (ol !== 2 && !!lm.valid && (bw || (light ? lm.bad_white : lm.bad_black) >= HALO_PCT));
     tr = style === 1 || style === 2;
     fi = tr ? null : fg;
     ri = tr ? fg : (halo ? bg : null);
@@ -351,19 +357,20 @@
 
   /* render(o): o = { fmt, w, h, raw (Uint8Array raw6/raw1 o null), settings, masks (state.masks), time,
    * sunlight (default true), scale (default 1) } ->
-   * { rgba (Uint8ClampedArray w*s x h*s), width, height, luma, pal, drawn, rows, notes, lumaH }.
+   * { rgba (Uint8ClampedArray w*s x h*s), width, height, luma, pal, drawn, rows, notes, lumaH, lumaY }.
    * Foto (o grigio 21 senza foto) + cifre dell'ora campione nel font/stile/layout/colore delle impostazioni;
    * drawn = false per LECO in layout A (in B l'orologio usa Anton, come prv_load_strips) o maschere assenti;
    * notes: 'no_photo', 'ampm' (formato 12 h: la pagina non mostra AM/PM), 'leco', 'no_masks'. */
   function render(o) {
     var p = platformOf(o.fmt), L = LAYOUT[p], bw = p === 'flint', W = o.w > 0 ? o.w | 0 : L.w, H = o.h > 0 ? o.h | 0 : L.h;
     var s = (o.scale | 0) > 0 ? o.scale | 0 : 1, sun = o.sunlight === undefined ? true : !!o.sunlight, st = o.settings || {};
-    var B = isB(st.layout), time = (typeof o.time === 'string' && o.time) ? o.time : '12:34', notes = [], px, lm, rgba, pal;
+    var B = isB(st.layout), bot = !B && isBottom(st.layout), time = (typeof o.time === 'string' && o.time) ? o.time : '12:34', notes = [], px, lm, rgba, pal;
     var lumaH = B ? H : L.info_y + L.info_h + 2, fk = FONT_KEYS[st.font | 0], sz, rows = null, drawn = false, cache = {};
+    var lumaY = lumaTop(L, bot, lumaH), band = lumaY > 0 ? { x: 0, y: lumaY, w: W, h: lumaH } : lumaH;
     var i, j, r, gl, g, m;
     if (o.raw && o.raw.length) {
       px = bw ? unpack1(o.raw, W, H) : unpack6(o.raw, W, H);
-      lm = bw ? luma1(px, W, H, lumaH) : luma8(px, W, H, lumaH);
+      lm = bw ? luma1(px, W, H, band) : luma8(px, W, H, band);
       rgba = bw ? P.preview1Rgba(px, W, H, s) : P.previewRgba(px, W, H, sun, s);
     } else {
       lm = lumaReset();
@@ -380,7 +387,7 @@
     if (!fk) { notes.push('leco'); }
     else if (!sz || !sz.glyphs) { notes.push('no_masks'); }
     else {
-      rows = layoutRows(p, B ? 1 : 0, sz, time).rows;
+      rows = layoutRows(p, B ? 1 : (bot ? 2 : 0), sz, time).rows;
       for (i = 0; i < rows.length; i++) {
         r = rows[i];
         for (j = 0; j < r.glyphs.length; j++) {
@@ -393,7 +400,7 @@
         }
       }
     }
-    return { rgba: rgba, width: W * s, height: H * s, luma: lm, pal: pal, drawn: drawn, rows: rows, notes: notes, lumaH: lumaH };
+    return { rgba: rgba, width: W * s, height: H * s, luma: lm, pal: pal, drawn: drawn, rows: rows, notes: notes, lumaH: lumaH, lumaY: lumaY };
   }
 
   /* API (spec S12 1.2) + costanti pinnate dai test; il resto e' interno */
@@ -401,6 +408,6 @@
     VERSION: 'S12.3', LAYOUT: LAYOUT, RING_GAPS: RING_GAPS, FIT_MARGIN: FIT_MARGIN, MAX_GLYPHS: MAX_GLYPHS, LUMA_SUN: LUMA_SUN,
     LUMA_Y_WHITE_BAD: Y_WHITE, LUMA_Y_BLACK_BAD: Y_BLACK, LUMA_Y_CROSSOVER: Y_CROSS, LUMA_HALO_PCT: HALO_PCT, FONT_KEYS: FONT_KEYS, GREY_IDX: GREY,
     unpack6: unpack6, unpack1: unpack1, lumaReset: lumaReset, luma8: luma8, luma1: luma1, decodeMask: decodeMask, glyphMap: glyphMap,
-    gridSteps: gridSteps, fillWidth: fillWidth, layoutRows: layoutRows, palette: palette, render: render
+    gridSteps: gridSteps, fillWidth: fillWidth, isBottom: isBottom, layoutRows: layoutRows, palette: palette, render: render
   };
 }));

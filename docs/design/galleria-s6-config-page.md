@@ -1,6 +1,6 @@
 # Galleria — specifica S6: config page (crop, quantizzazione, anteprima, impostazioni)
 
-> **Stato (17/09/2026)**: v1.1 del **30/08/2026** (1.0 del 29/08 + precisazioni dall'implementazione, segnate «impl.») **più 9 revisioni fino al 14/09/2026** (S7, v1.9, S8-stile, S9-prep, S10, S12, UX-2, UX-3, UX-4: sono le sezioni «Revisione» in fondo al file). La pagina di **oggi** è quella delle revisioni **UX-2/UX-3/UX-4** e del piano `docs/design/galleria-s13-ux-casual.md` §13–§15; restano contratto vivo §1–§4, di §5 l'elenco delle API e il blocco «Regole, id stabili e miniatura», §7, §8 e §9 (contratto dei test, aggiornato ai bersagli di oggi), mentre §5 bis, §6 e §10–§12 raccontano la sessione S6 com'era, con l'esito annotato in testa. Specifica operativa della sessione S6 (`apps/galleria/PIANO.md` §4 S6). Integra `docs/design/galleria.md` §6 (che a fine sessione ne riporterà la sintesi) e §5.1 (album e payload, S5b). Il riferimento byte-esatto della pipeline immagine è `tools/photo_prep.py` v1 (`tools/README.md` §9), **non** gli snippet di `docs/ricerca/galleria/05-colore-quantizzazione.md` (che per flint descrivono un packing diverso: il formato dell'orologio è raw1 = 1BitPalette MSB-first, 18 B/riga, 3.024 B, come in `photo_prep.pack1`).
+> **Stato (19/09/2026)**: v1.1 del **30/08/2026** (1.0 del 29/08 + precisazioni dall'implementazione, segnate «impl.») **più 10 revisioni fino al 19/09/2026** (S7, v1.9, S8-stile, S9-prep, S10, S12, UX-2, UX-3, UX-4, **S14**: sono le sezioni «Revisione» in fondo al file). La pagina di **oggi** è quella delle revisioni **UX-2/UX-3/UX-4** più le quattro modifiche di **S14** (D136–D141: tre disposizioni, Font senza frecce, «Ottimizza» di serie, due intervalli) e del piano `docs/design/galleria-s13-ux-casual.md` §13–§15 con la sua §16; restano contratto vivo §1–§4, di §5 l'elenco delle API e il blocco «Regole, id stabili e miniatura», §7, §8 e §9 (contratto dei test, aggiornato ai bersagli di oggi), mentre §5 bis, §6 e §10–§12 raccontano la sessione S6 com'era, con l'esito annotato in testa. Specifica operativa della sessione S6 (`apps/galleria/PIANO.md` §4 S6). Integra `docs/design/galleria.md` §6 (che a fine sessione ne riporterà la sintesi) e §5.1 (album e payload, S5b). Il riferimento byte-esatto della pipeline immagine è `tools/photo_prep.py` v1 (`tools/README.md` §9), **non** gli snippet di `docs/ricerca/galleria/05-colore-quantizzazione.md` (che per flint descrivono un packing diverso: il formato dell'orologio è raw1 = 1BitPalette MSB-first, 18 B/riga, 3.024 B, come in `photo_prep.pack1`).
 
 Percorsi relativi a `apps/galleria/` salvo indicazione. Tutto il codice della pagina è **ES5** (var, function, niente arrow/let/const/class/template literal/spread), con typed array e API canvas (la pagina gira nella WebView di configurazione dell'app Pebble: Android Chrome ≥ 80, iOS WKWebView ≥ 16; e in Firefox/Chrome desktop dal dev server). Nella pagina **niente `localStorage`/`sessionStorage`/cookie** (origine opaca del `data:` URL: l'accesso lancia SecurityError) e nessuna risorsa esterna (font, CDN, immagini remote): tutto inlinato.
 
@@ -137,10 +137,10 @@ GalPipeline = {
 
 ```js
 GalPageCore = {
-  SETTINGS_FIELDS: [[nome, min, max, default] × 12]   // S8-stile e S10: digit_style e lang comprese (page_core.js:28-32)  (= album.js SETTINGS_FIELDS: layout 0-1/0, font 0-5/0, clock_mode 0-2/0, leading_zero 0-2/0,
-                     text_color 0-4/0, outline 0-2/0, interval_min 0-1440/30 (valori ammessi 0,5,15,30,60,180,1440), order 0-1/0, shake_next 0-1/1, info_row 0-15/15,
+  SETTINGS_FIELDS: [[nome, min, max, default] × 12]   // S8-stile e S10: digit_style e lang comprese (page_core.js:28-32)  (= album.js SETTINGS_FIELDS: layout 0-2/0 (🔁 S14/D136: 0-1 fino al 18/09/2026), font 0-5/0, clock_mode 0-2/0, leading_zero 0-2/0,
+                     text_color 0-4/0, outline 0-2/0, interval_min 0-1440/30 (valori ammessi 0,5,15,30,60,180,360,720,1440 — 🔁 S14/D139: 360 e 720 aggiunti il 19/09/2026), order 0-1/0, shake_next 0-1/1, info_row 0-15/15,
                      digit_style 0-3/0 (S8-stile) e lang 0-6/0 (S10/D31 byte 13, S11/D39: 5 es, 6 pt), in coda: l'ordine dell'array non è quello dei byte),
-  INTERVALS: [0, 5, 15, 30, 60, 180, 1440],  MAX_SLOTS: 12,  MAX_THUMB_CHARS: 6000,  MAX_NAME: 64,
+  INTERVALS: [0, 5, 15, 30, 60, 180, 360, 720, 1440],  MAX_SLOTS: 12,   // S14/D139: 360 e 720  MAX_THUMB_CHARS: 6000,  MAX_NAME: 64,
   decodeState(hashString) → state normalizzato (default per ogni campo mancante; mai lancia; `ok:false` + `error` se l'hash non è valido),
   b64urlToBytes(str) → Uint8Array,  utf8Decode(bytes) → string,   // per l'hash
   normalizeSettings(obj) → {12 campi} (fuori intervallo ⇒ default del campo; interval_min non in INTERVALS ⇒ 30; font 3 con layout 1 ⇒ font 0; font 3 (LECO) ⇒ digit_style 0),
@@ -174,10 +174,10 @@ GalPageCore = {
    - caricamento con `createImageBitmap(file, {imageOrientation: 'from-image'})` dentro try/catch e fallback `new Image()` + `URL.createObjectURL` (+ `revokeObjectURL`); file non decodificabile ⇒ messaggio, editor chiuso;
    - **cornice fissa** con rapporto 200:228 (larghezza = min(larghezza utile, 300) px), immagine che **si sposta e si ingrandisce sotto** la cornice: `view = {scale, tx, ty}` (crop sorgente = `{x: -tx/scale, y: -ty/scale, w: Fw/scale, h: Fh/scale}`), vincoli: la cornice è sempre coperta (scale ≥ cover, traslazione limitata); drag con Pointer Events (`pointerdown/move/up`, `setPointerCapture`; fallback touch/mouse se `PointerEvent` manca), pinch con due puntatori (scala attorno al punto medio), rotellina (scala attorno al cursore), slider zoom `#zoom` (1×…4× rispetto a cover) e pulsante "Adatta" (cover centrato). Con `fmt === 2` sopra la cornice si disegna il rettangolo **flint** = `flintRect` (sotto-rettangolo centrato 144:168) tratteggiato; con `fmt === 1` non si mostra;
    - **ridimensionamento** del crop a 200×228 (e, per flint, del sotto-rettangolo a 144×168) con dimezzamenti successivi su canvas (`docs/ricerca/galleria/05` §1.2 A: `drawImage` a metà finché ≥ 2×, poi passo finale; `imageSmoothingEnabled = true`, `imageSmoothingQuality = 'high'` dove esiste) su **fondo bianco** (`fillStyle = '#fff'` prima di `drawImage`), `getContext('2d', {willReadFrequently: true})`; ricalcolato solo quando cambia il crop (drag/zoom), con debounce 150 ms;
-   - controlli: "Luminosità (gamma)" slider 0,50–2,00 passo 0,05 default 1,00 (**valore = gamma**: < 1 schiarisce); "Schiarisci le ombre (lift)" slider 0–0,30 passo 0,01 default 0; **Dithering**: `fmt 1` ⇒ Floyd–Steinberg / Bayer 4×4 / Nessuno (default FS), `fmt 2` ⇒ Floyd–Steinberg / Atkinson / Nessuno (default FS); checkbox "Ottimizza per il vetro" (solo `fmt 1`, default OFF ⇒ LUT sunlight nel dithering); toggle anteprima "come sul vetro" (default ON: colori `SUN_RGB`) / "colori nominali" (`PAL_RGB`) — solo anteprima, non cambia i byte;
+   - controlli: "Luminosità (gamma)" slider 0,50–2,00 passo 0,05 default 1,00 (**valore = gamma**: < 1 schiarisce); "Schiarisci le ombre (lift)" slider 0–0,30 passo 0,01 default 0; **Dithering**: `fmt 1` ⇒ Floyd–Steinberg / Bayer 4×4 / Nessuno (default FS), `fmt 2` ⇒ Floyd–Steinberg / Atkinson / Nessuno (default FS); checkbox "Ottimizza per il vetro" (solo `fmt 1`, default OFF ⇒ LUT sunlight nel dithering) — 🔁 **oggi «Ottimizza per lo schermo dell'orologio», default ON** (S14/D138, 19/09/2026: `checked` nel markup; rovescia D6 del design); toggle anteprima "come sul vetro" (default ON: colori `SUN_RGB`) / "colori nominali" (`PAL_RGB`) — solo anteprima, non cambia i byte;
    - **anteprima ×2** (`#preview`, canvas 400×456 o 288×336, CSS `width: 100%; max-width: 400px; image-rendering: pixelated`), ricalcolata con debounce 150 ms a ogni cambio di slider/opzione (encode < 100 ms);
    - pulsanti "Aggiungi all'album" (⇒ `encode*` finale, `photo_id`, miniatura §4.6, tessera `new`, editor chiuso, contatore aggiornato) e "Annulla" (editor chiuso, nulla aggiunto). Un solo editor per volta; si può aggiungere finché ci sono slot liberi.
-4. **Impostazioni** (`#settings`, id `s_<campo>`): Layout (select: "Un terzo con riga info" 0 / "Tutto schermo" 1); Font (select: Anton 0, Bebas Neue 1, Barlow Condensed 2, "LECO (sistema, solo layout Un terzo)" 3, "Francois One" 4, "Staatliches" 5 — S8-stile: l'opzione 3 è disabilitata e, se selezionata, torna a 0 quando il layout è 1); con `GalPreviews` presente, accanto al font l'anteprima PNG del font scelto (chiavi `anton`/`bebas`/`barlow`/`francois`/`staatliches`, le stesse di `gen_font_previews.py`; senza chiave l'immagine resta nascosta); **Stile cifre** (`s_digit_style`, subito dopo il Font: pieno 0 / trasparente (solo contorno) 1 / trasparente 3D (contorno + ombra) 2 / pieno 3D (con ombra) 3; disabilitato e riportato a 0 con il font LECO, che non ha sprite); Formato ora (auto 0 / 12 h 1 / 24 h 2); Zero iniziale (auto 0 / sì 1 / no 2); Intervallo foto (select: mai 0, 5 min, 15 min, 30 min, 1 h, 3 h, 1 giorno); Ordine (sequenziale 0 / casuale 1); Scossa = foto successiva (checkbox → 0/1); Colore testo (auto 0, bianco 1, nero 2, giallo pastello 3, blu Oxford 4); Contorno (auto 0, sempre 1, mai 2; **disabilitato**, con il valore conservato, quando lo stile cifre è 1 o 2: negli stili trasparenti l'anello c'è sempre); Riga info: 4 checkbox (passi bit0, batteria bit1, data bit2, Bluetooth bit3 → `info_row`). Con `settingsSet === false` una riga dice "Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi".
+4. **Impostazioni** (`#settings`, id `s_<campo>`): Layout (select: "Un terzo con riga info" 0 / "Tutto schermo" 1 — 🔁 oggi «Disposizione» con **tre** voci: «Ora in alto, info sotto» 0, «Ora in basso, info sopra» **2**, «Ora grande, senza info» 1, in quest'ordine, S14/D136); Font (select: Anton 0, Bebas Neue 1, Barlow Condensed 2, "LECO (sistema, solo layout Un terzo)" 3, "Francois One" 4, "Staatliches" 5 — S8-stile: l'opzione 3 è disabilitata e, se selezionata, torna a 0 quando il layout è 1); con `GalPreviews` presente, accanto al font l'anteprima PNG del font scelto (chiavi `anton`/`bebas`/`barlow`/`francois`/`staatliches`, le stesse di `gen_font_previews.py`; senza chiave l'immagine resta nascosta); **Stile cifre** (`s_digit_style`, subito dopo il Font: pieno 0 / trasparente (solo contorno) 1 / trasparente 3D (contorno + ombra) 2 / pieno 3D (con ombra) 3; disabilitato e riportato a 0 con il font LECO, che non ha sprite); Formato ora (auto 0 / 12 h 1 / 24 h 2); Zero iniziale (auto 0 / sì 1 / no 2); Intervallo foto (select: mai 0, 5 min, 15 min, 30 min, 1 h, 3 h, 1 giorno — 🔁 oggi «Ogni quanto» con **9** voci: «ogni 6 h» 360 e «ogni 12 h» 720 fra 3 h e «ogni giorno (alle 4:00)», S14/D139); Ordine (sequenziale 0 / casuale 1); Scossa = foto successiva (checkbox → 0/1); Colore testo (auto 0, bianco 1, nero 2, giallo pastello 3, blu Oxford 4); Contorno (auto 0, sempre 1, mai 2; **disabilitato**, con il valore conservato, quando lo stile cifre è 1 o 2: negli stili trasparenti l'anello c'è sempre); Riga info: 4 checkbox (passi bit0, batteria bit1, data bit2, Bluetooth bit3 → `info_row`). Con `settingsSet === false` una riga dice "Impostazioni non ancora salvate: l'orologio usa le sue finché non salvi".
 5. **Aiuto** (`#help`, v1.9, in fondo alla pagina, prima del piè di pagina): sezione **sempre visibile** con un pulsante `#helpBtn` (`.btn.small`, `aria-expanded`/`aria-controls`) intitolato "Galleria si avvia lentamente?" che apre e chiude `#helpBody` (ripiegato di default; niente `<details>`: il toggle è esplicito, si prova nel DOM finto dei test e non dipende dal supporto del browser). Dentro: la stessa procedura in 4 passi dell'avviso e una riga (`#helpWhy`) che spiega **perché** succede (l'orologio tiene da parte anche i dati vecchi finché la memoria non è piena e la watchface deve rileggerli a ogni avvio) e che **con questa versione capita molto più di rado**.
 6. **Piè di pagina** (`#footer`, sticky in basso): "Salva" (`#save`, primario; disabilitato sopra il tetto o mentre l'editor è aperto), "Annulla" (`#cancel`), messaggio `#msg`.
 
@@ -617,9 +617,11 @@ Questa sezione è la **struttura di riferimento di oggi** e vince sull'elenco di
    §«Revisione UX-3» in fondo.
 4. **Impostazioni** (`#settings`): `h2`, nota `#settingsNote` grigia mostrata **solo se vera**
    (D82: `!settingsSet && C.settingsDiffer(watch)`, con `DEFAULTS_CRC = 0x7EE7` in `page_core.js`);
-   `h3` **«Aspetto dell'ora»** (`sec_look`) con Disposizione, **riga del Font** (`#fontRow`:
-   etichetta, `#fontPrev` «‹», `select#s_font`, `#fontNext` «›» — D87, `cycleFont(dir)` salta le
-   option `disabled` e gira), Stile cifre, i due aiuti (`#s_style_hint` con stile a contorno e font
+   `h3` **«Aspetto dell'ora»** (`sec_look`) con Disposizione (🔁 **S14/D136: tre voci**,
+   «Ora in alto» 0, «Ora in basso» 2, «Ora grande» 1), **riga del Font** (`#fontRow`:
+   etichetta, ~~`#fontPrev` «‹»~~, `select#s_font`, ~~`#fontNext` «›»~~ — D87, `cycleFont(dir)` salta le
+   option `disabled` e gira; 🔁 **S14/D137: le frecce e `cycleFont` non ci sono più**, resta la sola
+   tendina — «Revisione S14» in fondo), Stile cifre, i due aiuti (`#s_style_hint` con stile a contorno e font
    0–2, `#styleFlintHelp` solo su Duo), Colore dell'ora; poi **«Anteprima»** (`#wfPrev`) a
    **grandezza naturale** (D92: `cv.style.width = (r.width / 2) + 'px'` = 200 px CSS su emery,
    144 su flint, backing ×2 invariato) con una didascalia a tre stati e note solo quando vere
@@ -627,8 +629,9 @@ Questa sezione è la **struttura di riferimento di oggi** e vince sull'elenco di
    visibile (D49; le sei option degli endonimi portano `lang="xx"`) e il pulsante **«Altre
    impostazioni»** (`#advBtn`, `aria-expanded`/`aria-controls`, freccia ▾/▴) che apre `#advBody`:
    Formato ora, Zero davanti all'ora, Bordo di contrasto (**mai disabilitato**, D62/D98) e la riga
-   `#infoRow` «Sotto l'ora» con quattro caselle (`role="group"`/`aria-labelledby="infoRowLbl"`),
-   nascosta con «Ora grande» ma con i bit **conservati** nel payload. `#advBody` si apre da solo
+   `#infoRow` ~~«Sotto l'ora»~~ → 🔁 **«Insieme all'ora»** (S14/D141) con quattro caselle
+   (`role="group"`/`aria-labelledby="infoRowLbl"`), nascosta con «Ora grande» — 🔁 S14/D136: la regola
+   è `layout !== 1`, quindi la riga c'è anche con «Ora in basso» — ma con i bit **conservati** nel payload. `#advBody` si apre da solo
    all'avvio se uno di quei valori non è di fabbrica o se lo stato manca (D88).
 5. **Aiuto** (`#help`) e **piè di pagina** (`#footer`): invariati (il footer tocca a UX-3).
    🔁 **Rifatto da UX-3** (D107/D120/D121): i due pulsanti cambiano nome invece di spegnersi e sotto
@@ -716,7 +719,9 @@ per lo schermo dell'orologio», Colori e `#etime`.
   (`preview_unavailable`, canvas nascosto).
 - **«Regolazioni della foto»** (**D114**) nasce chiusa, ma i suoi valori restano da una foto
   all'altra: se gamma, lift, dithering, «Ottimizza» o «Colori» non sono più di fabbrica il blocco si
-  apre **da solo** (altrimenti una foto scurita sarebbe un effetto senza causa visibile). `#etime`
+  apre **da solo** (🔁 **S14/D138**, 19/09/2026: la fabbrica di «Ottimizza per lo schermo dell'orologio»
+  è diventata **spuntata**, quindi il blocco si apre quando la casella è **spenta**:
+  `… || !el('sunlight').checked || …`) (altrimenti una foto scurita sarebbe un effetto senza causa visibile). `#etime`
   (tempi di resample/encode) si vede **solo** con `G.state.dev` ed è una stringa inglese cablata:
   `edit_time` esce dal dizionario.
 
@@ -842,3 +847,48 @@ mai superati sull'iPhone e i **198–201 k** già aperti su Android: è la prova
 `build_i18n.py --selftest` **32**, dev server **257**; a `make -C test` si aggiunge **`glosscheck`**
 (`tools/galleria_gloss_check.py`, D132: il glossario di `galleria-s10-i18n.md` §3, ora **completo a 135
 chiavi**, confrontato chiave per chiave con `messages.json`).
+
+## Revisione S14 (19/09/2026) — tre disposizioni, via le frecce del font, «Ottimizza» di serie, due intervalli
+
+Sessione **S14** (`galleria-s14-feature-v1.md`, **D136–D141**). Nella pagina cambiano quattro cose; il resto
+(struttura di UX-2, flusso della foto di UX-3, anteprima di S12) è invariato.
+
+1. **Font senza frecce** (**D137**, rovescia U-10/D63/D87): la riga torna «etichetta [select]».
+   Escono dal markup `#fontPrev`/`#fontNext`, da `page.js` `arrowLabel`, `fontArrowLabels` (e la sua chiamata
+   in `applyLang`), `cycleFont` e le due `on()` del blocco D87, da `page.css` la regola
+   `#fontPrev, #fontNext { font-size: 22px; line-height: 1 }` con il suo commento **e**
+   `#fontRow .rlab { flex-basis: 100% }` (nata per le frecce); **resta** `select#s_font { flex: 1 1 140px;
+   min-width: 0 }`, perché l'option «System font (except Big clock)» dà alla tendina ~244 px di larghezza
+   intrinseca e senza quella `flex-basis` il flexbox manderebbe la riga a capo prima di restringere: misurato al
+   gate, la riga sta **su una riga (40 px) a 400 e a 360 px**
+   (`galleria/s14_page400_settings.png`, `galleria/s14_page360_settings.png`). Via anche le chiavi
+   `font_prev`/`font_next` e la voce delle frecce del font in `FAM_BTN`: il caso §4e di `test_page.js` legge
+   `FAM_BTN[length − 1]`, che ora è la famiglia delle **frecce della tessera** (`.tbtns button`) — una che lo
+   stato spento ce l'ha davvero.
+2. **Terza disposizione** (**D136**): `o.layout = [[0, opt_layout_a], [2, opt_layout_a_bottom], [1, opt_layout_b]]`
+   (ordine alto → basso → grande); i tre confronti `layout === 0` (riga delle caselle `#infoRow`, nota
+   `preview_note_info`, `advOpen`) diventano **`!== 1`**, mentre `leco.disabled = (layout === 1)` e la
+   normalizzazione `font 3 + layout 1 → font 0` restano come sono: il **LECO è ammesso** anche con «Ora in
+   basso». `page_core.js`: `SETTINGS_FIELDS` con `['layout', 0, 2, 0]`. L'anteprima disegna la disposizione
+   nuova (`preview.js`, `isBottom()`/`lumaY`; `galleria/s14_page400_prev.png`).
+3. **«Ottimizza per lo schermo dell'orologio» spuntata di serie** (**D138**, rovescia D6 del design):
+   `<input type="checkbox" id="sunlight" checked>`; `openEditor` apre «Regolazioni della foto» quando la casella
+   è **spenta** (D114 rovesciata); `encodeNow`, `renderPreview` e `show(el('sunlightRow'), …)` invariati. Le foto
+   già sull'orologio non cambiano e le test card di `gen_test_cards.py` si passano spegnendola
+   (`galleria/s14_page400_editor_adv.png`).
+4. **Due intervalli in più** (**D139**): `[360, opt_hours(6)]` e `[720, opt_hours(12)]` fra «ogni 3 h» e
+   «ogni giorno (alle 4:00)», con la chiave esistente `opt_hours` (nessuna chiave i18n nuova; «toutes les 12 h»
+   = 15 caratteri, dentro la tripwire da 28 di D70).
+
+**Lessico** (**D141**): `lbl_info_row` «Sotto l'ora» → **«Insieme all'ora»**, `preview_note_info` «sopra o sotto
+l'ora», `opt_font_leco` **«Font di sistema (tranne Ora grande)»**; chiave nuova `opt_layout_a_bottom`, via
+`font_prev`/`font_next`: **134 chiavi × 6 lingue** (`messages.json` 39.776 B, `i18n.js` = `fixture_i18n.js`
+36.482 B, sei dizionari nell'hash 36.959 caratteri).
+
+**Numeri**: HTML inlinato **85.058 B** (−418 rispetto a fine UX-4), modulo `config_page.js` **87.832 B**; tetto
+98.304 B, avviso soft 86.016 B → margine **958 B** sotto l'avviso e 13.246 B sotto il tetto. `test_page.js`
+**2.694** sui sorgenti e **2.719** sull'inlinato; `test_preview.js` **2.511** con **37** mutanti uccisi;
+`test_devpage.js` **340**; dev server `--selftest` **266**; `build_config_page.py --selftest` **106**,
+`build_i18n.py --selftest` **32**, `galleria_gloss_check.py --selftest` **45**. In `pagecheck` entra una
+**tripwire nuova** (D140): `grep` di `>= LUMA_HALO_PCT` in `src/c/ui_time.c` e `src/c/luma.c`, perché le cinque
+copie della regola dell'alone restino uguali.

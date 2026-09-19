@@ -29,7 +29,8 @@ void settings_set_defaults(GalSettings *s) {
 }
 
 static bool prv_interval_valid(uint16_t v) {
-  return v == 0 || v == 5 || v == 15 || v == 30 || v == 60 || v == 180 || v == 1440;
+  /* S14 (D139): 360 e 720 (multipli dei minuti locali dall'epoca: 1440 lo è di entrambi, rotazione stateless invariata) */
+  return v == 0 || v == 5 || v == 15 || v == 30 || v == 60 || v == 180 || v == 360 || v == 720 || v == 1440;
 }
 
 bool settings_validate(const GalSettings *s) {
@@ -37,7 +38,7 @@ bool settings_validate(const GalSettings *s) {
     return false;
   }
   return s->schema == GAL_SETTINGS_SCHEMA
-      && s->layout <= GAL_LAYOUT_B
+      && s->layout <= GAL_LAYOUT_LAST              /* S14 (D136): 0 A, 1 B, 2 A in basso */
       && s->font < GAL_FONT_COUNT
       && s->clock_mode <= GAL_CLOCK_24H
       && s->leading_zero <= GAL_LZ_OFF
@@ -58,7 +59,7 @@ bool settings_validate(const GalSettings *s) {
  * ammessa) e GALLERIA_DEBUG_ORDER=1 (casuale) valgono solo in RAM e vengono applicati per ultimi. */
 static void prv_debug_overrides(void) {
 #ifdef GALLERIA_DEBUG_LAYOUT
-  s_settings.layout = GALLERIA_DEBUG_LAYOUT;             /* 0 A, 1 B */
+  s_settings.layout = GALLERIA_DEBUG_LAYOUT;             /* 0 A, 1 B, 2 A in basso (S14/D136) */
 #endif
 #ifdef GALLERIA_DEBUG_FONT
   s_settings.font = GALLERIA_DEBUG_FONT;                 /* 0 Anton, 1 Bebas, 2 Barlow, 3 LECO, 4 Francois One, 5 Staatliches */

@@ -3,7 +3,8 @@ r"""gen_test_cards.py — v1 (S8, 30/08/2026): test card per il gate sull'orolog
 (docs/design/galleria-s8-hardware.md §2.5, obiettivi O5 "colore automatico" e O6 "LUT sunlight").
 
 Scrive PNG RGB 200x228 fatti SOLO di colori esatti della palette del firmware (canali 0/85/170/255)
-così che, con "dithering nessuno", gamma 1, lift 0 e "Ottimizza per il vetro" OFF nella config page,
+così che, con "dithering nessuno", gamma 1, lift 0 e "Ottimizza per lo schermo dell'orologio" OFF
+(da S14/D138 va SPENTA a mano: e' spuntata di serie) nella config page,
 la quantizzazione q(v) = min(3, (v + 42) // 85) sia l'IDENTITÀ: quello che si vede sul PNG è, pixel
 per pixel, quello che finisce nel raw6 sull'orologio. Ogni card realizza una condizione precisa
 della regola di apps/galleria/src/c/luma.h (bianco/nero, alone, pareggio, isteresi), così che la
@@ -28,9 +29,9 @@ che, dopo il ridimensionamento 195 -> 144, cadano su colonne di uscita ESATTE:
 verificato byte per byte dal --selftest, che rilegge il .raw1 prodotto da photo_prep.py.
 
 Le card valgono solo se la config page NON le ritocca (dithering "Nessuno", gamma 1, lift 0,
-"Ottimizza per il vetro" SPENTO, nessuno zoom): l'avviso completo è in SEND_HINT e lo stampano sia
-la generazione sia --check, perché con la casella del vetro accesa palette64 perde 41 tasselli su
-64 e O6 verrebbe fatto su una card corrotta.
+"Ottimizza per lo schermo dell'orologio" SPENTA, nessuno zoom): l'avviso completo è in SEND_HINT
+e lo stampano sia la generazione sia --check, perché con quella casella accesa palette64 perde 41
+tasselli su 64 e O6 verrebbe fatto su una card corrotta.
 
 Uso:
   python3 tools/gen_test_cards.py                       # scrive le card in ~/galleria-gate/cards/
@@ -80,7 +81,7 @@ LUMA_Y_WHITE_BAD = 77       # Y > 77  -> pixel ostile al testo bianco
 LUMA_Y_BLACK_BAD = 25       # Y < 25  -> pixel ostile al testo nero
 LUMA_Y_CROSSOVER = 46       # parità di contrasto: a pari "bad" decide il Y medio
 LUMA_HYSTERESIS = 10        # punti di vantaggio per cambiare colore (NON usato dalla previsione a freddo)
-LUMA_HALO_PCT = 15          # bad_pct > 15 % -> contorno
+LUMA_HALO_PCT = 15          # S14/D140: bad_pct >= 15 % -> contorno (era > 15 %)
 
 # Indici usati dalle card (verificati contro LUMA_SUN: vedi il --selftest).
 IDX_BLACK = 0               # #000000  Y 0
@@ -101,16 +102,21 @@ DEFAULT_OUT = os.path.join('~', 'galleria-gate', 'cards')
 # page non le ritocca, ed è la dimenticanza più facile e più cara. Misurato il 30/08/2026 con
 # `photo_prep.py --dither none --sunlight` su palette64: 41 tasselli su 64 cambiano indice (43
 # colori distinti invece di 64) e la fascia A dà 17/40, Y medio 46 invece di 32/37, Y 67.
+# S14/D138: "Ottimizza per lo schermo dell'orologio" è ora spuntata DI SERIE per le foto nuove,
+# quindi per le card va SPENTA a mano (prima era già spenta e bastava non toccarla).
 SEND_HINT = '''Come inviare le card dalla config page (ALTRIMENTI I NUMERI ATTESI NON VALGONO):
-  dithering "Nessuno", gamma 1, lift 0, "Ottimizza per il vetro" SPENTO (com'è oggi di default),
-  nessuno zoom né spostamento nell'editor (la card è già 200x228: pulsante "Adatta", intera).
-  - "Ottimizza per il vetro" acceso: palette64 perde 41 tasselli su 64 (43 colori invece di 64) e
+  dithering "Nessuno", gamma 1, lift 0, "Ottimizza per lo schermo dell'orologio" da SPEGNERE A MANO
+  (S14/D138: è spuntata di serie), nessuno zoom né spostamento nell'editor
+  (la card è già 200x228: pulsante "Riparti da capo", intera).
+  - "Ottimizza per lo schermo dell'orologio" acceso (fino a UX-1 si chiamava "Ottimizza per il
+    vetro"): palette64 perde 41 tasselli su 64 (43 colori invece di 64) e
     l'esperimento O6 verrebbe fatto su una card corrotta (fascia A: 17/40, Y 46 invece
     di 32/37, Y 67);
   - zoom o ritaglio anche di 1 px: la pagina ricampiona con LANCZOS e ogni percentuale cambia.
     Se la riga luma(photo) sul vetro non coincide con la tabella è successo questo: riaprire
-    l'editor con la cornice più larga possibile e premere "Adatta" (l'orientamento del telefono
-    non conta: la cornice è comunque limitata a 300 px).
+    l'editor con la cornice più larga possibile e premere "Riparti da capo" (btn_fit/#fit, fino a
+    UX-3 si chiamava "Adatta"; l'orientamento del telefono non conta: la cornice è comunque
+    limitata a 300 px).
   - su flint la stessa voce "Nessuno" vale per il dithering a 1 bit (qui: --bw-dither none).'''
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,14 +129,15 @@ LUMA_H = os.path.join(REPO_ROOT, 'apps', 'galleria', 'src', 'c', 'luma.h')
 
 def decide(n_bright, n_dark, sum_y, n):
     """prv_decide() di luma.c a freddo (nessuna isteresi: r->valid = false, come dopo luma_reset).
-    Percentuali intere, pareggio deciso dal Y medio, contorno se bad_pct > LUMA_HALO_PCT."""
+    Percentuali intere, pareggio deciso dal Y medio, contorno se bad_pct >= LUMA_HALO_PCT
+    (S14/D140: confronto NON stretto, il 15 % esatto accende gia' l'alone)."""
     bad_white = n_bright * 100 // n
     bad_black = n_dark * 100 // n
     mean = sum_y // n
     white = (bad_white < bad_black) if bad_white != bad_black else (mean < LUMA_Y_CROSSOVER)
     bad_pct = bad_white if white else bad_black
     return {'bad_white': bad_white, 'bad_black': bad_black, 'mean': mean, 'samples': n,
-            'fg': 'BIANCO' if white else 'NERO', 'halo': 'SI' if bad_pct > LUMA_HALO_PCT else 'no'}
+            'fg': 'BIANCO' if white else 'NERO', 'halo': 'SI' if bad_pct >= LUMA_HALO_PCT else 'no'}
 
 
 def stats_emery(grid, band_h):
@@ -236,7 +243,7 @@ def _da_bianco(p):
     prv_decide() con r->valid = true e r->white = true, cioè l'isteresi di luma.c."""
     flip = p['bad_white'] >= p['bad_black'] + LUMA_HYSTERESIS
     bad = p['bad_black'] if flip else p['bad_white']
-    return ('NERO' if flip else 'BIANCO'), ('SI' if bad > LUMA_HALO_PCT else 'no')
+    return ('NERO' if flip else 'BIANCO'), ('SI' if bad >= LUMA_HALO_PCT else 'no')
 
 
 def _fascia(card, band, etichetta):
@@ -276,13 +283,14 @@ def build_cards():
           for x in range(0, EMERY_W, 10)]
     cards.append(Card('c6_tie_halo', 'emery',
                       'strisce 10 px idx 21 #555555 (Y 23) / idx 42 #AAAAAA (Y 104): pareggio '
-                      '50/50, media 63 -> nero con alone (50 % > 15 %)',
+                      '50/50, media 63 -> nero con alone (50 % >= 15 %)',
                       c6, [EMERY_BAND_H], {EMERY_BAND_H: (50, 50, 63, 'NERO', 'SI')},
                       cols={IDX_GRAY55: 50, IDX_GRAY_AA: 50}))
 
     # c7a/b/c: fondo nero + N strisce bianche da 2 px (1 colonna campionata l'una) distribuite:
-    # il testo resta bianco, l'alone si accende solo sopra il 15 %.
-    for name, n, step, halo in (('c7a_halo12', 12, 16, 'no'), ('c7b_halo15', 15, 12, 'no'),
+    # il testo resta bianco, l'alone si accende dal 15 % in su (S14/D140: c7b, 15 % esatto, e' il
+    # caso al limite e passa da 'no' a 'SI'; c7a al 12 % resta senza alone).
+    for name, n, step, halo in (('c7a_halo12', 12, 16, 'no'), ('c7b_halo15', 15, 12, 'SI'),
                                 ('c7c_halo18', 18, 10, 'SI')):
         rects = [(4 + step * i, 0, 2, EMERY_H, IDX_WHITE) for i in range(n)]
         mean = n * 255 // 100
@@ -297,14 +305,16 @@ def build_cards():
     # righe 106..227 tutte nere. In layout B (fascia 228) entrambe danno BIANCO senza alone; in
     # layout A (fascia 106) la previsione A FREDDO è nero per entrambe, ma sull'orologio, arrivando
     # da B, l'isteresi di 10 punti tiene c8a sul bianco (20 < 15 + 10) e lascia passare c8b (30 >= 25).
+    # S14/D140: a freddo tutte e due danno NERO con bad_black 15 esatto -> alone acceso (era 'no').
     for name, wcols, bandA, band228, note in (
-            ('c8a_hyst_hold', 20, (20, 15, 98, 'NERO', 'no'), (9, 60, 45, 'BIANCO', 'no'),
+            ('c8a_hyst_hold', 20, (20, 15, 98, 'NERO', 'SI'), (9, 60, 45, 'BIANCO', 'no'),
              "sull'orologio: caricare in layout B (bianco, alone spento), poi passare al layout A "
              "-> resta BIANCO con alone (bad_white 20 < bad_black 15 + isteresi 10). La previsione "
              "di photo_prep è a freddo (nessuna isteresi) e vale NERO: è il valore in tabella."),
-            ('c8b_hyst_flip', 30, (30, 15, 116, 'NERO', 'no'), (13, 60, 54, 'BIANCO', 'no'),
-             "sull'orologio: da layout B (bianco) a layout A -> passa a NERO senza alone "
-             "(30 >= 15 + 10). A freddo photo_prep dice già NERO.")):
+            ('c8b_hyst_flip', 30, (30, 15, 116, 'NERO', 'SI'), (13, 60, 54, 'BIANCO', 'no'),
+             "sull'orologio: da layout B (bianco) a layout A -> passa a NERO con alone "
+             "(30 >= 15 + 10 per il colore; bad_black 15 >= 15 per l'alone, S14/D140). A freddo "
+             "photo_prep dice già NERO con alone.")):
         rects = [(0, 0, wcols * 2, EMERY_BAND_H, IDX_WHITE),
                  (wcols * 2, 0, 30, EMERY_BAND_H, IDX_BLACK),
                  (wcols * 2 + 30, 0, EMERY_W - wcols * 2 - 30, EMERY_BAND_H, IDX_VIOLET)]
@@ -694,6 +704,40 @@ def selftest():
     t.check(len(CARDS) == 18 and len([c for c in CARDS if c.plat == 'flint']) == 5,
             '18 card, 5 delle quali flint (ha dato %d/%d)'
             % (len(CARDS), len([c for c in CARDS if c.plat == 'flint'])))
+
+    # --- S14/D140: la soglia dell'alone e' un confronto NON stretto (>=). Su 100 campioni il colore
+    # scelto e' quello con meno pixel ostili, e bad_pct e' la sua percentuale: (P, P+1) tiene il
+    # testo BIANCO con bad_pct = P, (P+1, P) lo porta a NERO sempre con bad_pct = P.
+    for bad_pct, atteso in ((0, 'no'), (14, 'no'), (LUMA_HALO_PCT, 'SI'), (16, 'SI'), (50, 'SI')):
+        pr = decide(bad_pct, bad_pct + 1, 0, 100)
+        t.check(pr['fg'] == 'BIANCO' and pr['bad_white'] == bad_pct and pr['halo'] == atteso,
+                'decide(): testo bianco, bad_pct %d -> alone %s (S14/D140: >= %d) (ha dato %s)'
+                % (bad_pct, atteso, LUMA_HALO_PCT, pr['halo']))
+        pr = decide(bad_pct + 1, bad_pct, 255 * 100, 100)
+        t.check(pr['fg'] == 'NERO' and pr['bad_black'] == bad_pct and pr['halo'] == atteso,
+                'decide(): testo nero, bad_pct %d -> alone %s (S14/D140)' % (bad_pct, atteso))
+    # _da_bianco() (isteresi, layout B -> A) usa la stessa soglia: bad 15 esatto -> alone.
+    # Senza flip (15 < 10 + 10) il testo resta BIANCO e bad_pct = bad_white.
+    t.check(_da_bianco({'bad_white': LUMA_HALO_PCT, 'bad_black': 10}) == ('BIANCO', 'SI'),
+            '_da_bianco(): resta BIANCO con bad_white 15 esatto -> alone (S14/D140)')
+    t.check(_da_bianco({'bad_white': 14, 'bad_black': 10}) == ('BIANCO', 'no'),
+            '_da_bianco(): resta BIANCO con bad_white 14 -> nessun alone (S14/D140)')
+    t.check(_da_bianco({'bad_white': 30, 'bad_black': LUMA_HALO_PCT}) == ('NERO', 'SI'),
+            '_da_bianco(): flip a NERO con bad_black 15 esatto -> alone (S14/D140)')
+    # l'isteresi resta un confronto >= sui 10 punti: 23 non basta, 24 si'
+    t.check(_da_bianco({'bad_white': 23, 'bad_black': 14}) == ('BIANCO', 'SI'),
+            '_da_bianco(): 23 < 14 + 10, resta BIANCO e 23 >= 15 -> alone')
+    t.check(_da_bianco({'bad_white': 24, 'bad_black': 14}) == ('NERO', 'no'),
+            '_da_bianco(): 24 >= 14 + 10, flip a NERO e 14 < 15 -> nessun alone')
+    # gli attesi delle card al limite: c7b (15 %) e c8a/c8b (bad_black 15) hanno l'alone
+    for name, band in (('c7b_halo15', EMERY_BAND_H), ('c8a_hyst_hold', EMERY_BAND_H),
+                       ('c8b_hyst_flip', EMERY_BAND_H)):
+        card = [c for c in CARDS if c.name == name][0]
+        t.check(card.expect[band][4] == 'SI',
+                '%s fascia %d: alone atteso SI (S14/D140, bad_pct %d)'
+                % (name, band, LUMA_HALO_PCT))
+    t.check([c for c in CARDS if c.name == 'c7a_halo12'][0].expect[EMERY_BAND_H][4] == 'no',
+            'c7a_halo12: al 12 %% l\'alone resta spento (la soglia non e\' scesa)')
 
     # --- geometria. Emery: strisce di larghezza pari da x pari (il campionamento è 1 px su 2).
     # Flint: i bordi PARI stanno nel bitmap 144x168 di uscita, non nella card (in mezzo c'è il

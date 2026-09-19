@@ -77,8 +77,10 @@ python3 tools/photo_prep.py --out apps/galleria/resources/photos --name demo_2 \
 ```
 
 Tutte le altre opzioni sono ai valori di **default**: crop centrato, `--dither fs`, `--bw-dither fs`,
-`--gamma 1.0`, `--lift 0`, spazio RGB crudo (**niente `--sunlight`**: decisione D6 di
-`docs/design/galleria.md`, default OFF). Il ritaglio centrato più grande possibile è
+`--gamma 1.0`, `--lift 0`, spazio RGB crudo (**niente `--sunlight`**: nel tool il flag resta opt-in;
+la decisione D6 «default OFF» di `docs/design/galleria.md` valeva anche per la casella «Ottimizza per
+lo schermo dell'orologio» della config page, che dal 19/09/2026 è invece spuntata di serie
+(S14/D138), ma le demo restano quelle rigenerabili con i comandi qui sopra, senza `--sunlight`). Il ritaglio centrato più grande possibile è
 
 | Foto | Ritaglio emery (200:228) | Ritaglio flint (144:168) |
 |---|---|---|
@@ -113,7 +115,13 @@ EOF
 Previsione fatta dal tool con la stessa regola di `src/c/luma.h` (campionamento 1 px su 2); serve a
 controllare che la watchface scelga il colore giusto senza dover leggere il bitmap a mano. Layout **A** =
 fascia dell'ora (`y 0..105` su emery, `y 0..75` su flint, default di `--stats`); layout **B** = schermo
-intero (`--band-h 228,168`, `y 0..227` / `y 0..167`).
+intero (`--band-h 228,168`, `y 0..227` / `y 0..167`); layout **C** = «Ora in basso» (S14/D136), la
+**stessa fascia di A ancorata al fondo** (`y 122..227` su emery, `y 92..167` su flint) — dal 19/09/2026
+`--stats` stampa anche questa riga, per ogni piattaforma dove sotto la fascia resta spazio.
+
+I numeri della fascia C non si ricavano a occhio dagli altri due: sono quelli pinnati in
+`test/fixture_preview.js` (sezione `photos[].bands[]`, voci `layout: 'C'`), calcolati con
+`photo_prep.stats_emery/stats_flint(…, y0)`.
 
 | Foto | Layout | Piattaforma (campioni) | `bad_white` | `bad_black` | Y medio | Testo | Contorno |
 |---|---|---|---|---|---|---|---|
@@ -121,12 +129,19 @@ intero (`--band-h 228,168`, `y 0..227` / `y 0..167`).
 | demo_1 | A | flint (2.736) | 21 % bianchi | 78 % neri | 54 | **BIANCO** | sì (sempre) |
 | demo_1 | B | emery (11.400) | 1 % | 92 % | 19 | **BIANCO** | no |
 | demo_1 | B | flint (6.048) | 22 % bianchi | 77 % neri | 57 | **BIANCO** | sì (sempre) |
+| demo_1 | C | emery (5.300) | 2 % | 90 % | 20 | **BIANCO** | no |
+| demo_1 | C | flint (2.736) | 21 % bianchi | 78 % neri | 55 | **BIANCO** | sì (sempre) |
 | demo_2 | A | emery (5.300) | 95 % | 0 % | 134 | **NERO** | no |
 | demo_2 | A | flint (2.736) | 86 % bianchi | 13 % neri | 221 | **NERO** | sì (sempre) |
 | demo_2 | B | emery (11.400) | 84 % | 6 % | 133 | **NERO** | no |
 | demo_2 | B | flint (6.048) | 76 % bianchi | 23 % neri | 195 | **NERO** | sì (sempre) |
+| demo_2 | C | emery (5.300) | 77 % | 11 % | 139 | **NERO** | no |
+| demo_2 | C | flint (2.736) | 70 % bianchi | 29 % neri | 178 | **NERO** | sì (sempre) |
 
-Il colore **non cambia** fra layout A e B su nessuna delle due piattaforme: era un criterio di scelta.
+Il colore **non cambia** fra i layout A, B e C su nessuna delle due piattaforme: era un criterio di
+scelta (la fascia in basso è arrivata dopo, con S14, e non lo ha smentito). Su emery il contorno
+automatico resta spento anche sulla fascia bassa: il conflitto più alto è l'11 % di `demo_2` in C,
+sotto la soglia del 15 % (che dal 19/09/2026 basta raggiungere, D140).
 
 **Verifica in emulatore** (gate S9‑prep, 05/09/2026 17:14–17:17, build normale, album vuoto → demo): le
 righe `luma` della watchface riportano gli stessi numeri del tool. Per `demo_1`:
@@ -142,8 +157,9 @@ gate `docs/design/galleria/s9_emery_a_anton_chiara.png` e `s9_flint_a_anton_chia
 
 > **Nota su flint**: il contorno è **sempre acceso per scelta di design** (`src/c/luma.h`,
 > `docs/design/galleria.md` §3.3) — non è una proprietà della foto. Su emery il contorno automatico si
-> accende solo oltre il 15 % di conflitto: nessuna delle due demo ci arriva, quindi per vederlo si usa
-> l'hook `GALLERIA_DEFINES="GALLERIA_DEBUG_OUTLINE=1" pebble build`.
+> accende **dal 15 % di conflitto compreso** (S14/D140: prima bisognava superarlo): nessuna delle due
+> demo ci arriva in nessuna delle tre fasce, quindi per vederlo si usa l'hook
+> `GALLERIA_DEFINES="GALLERIA_DEBUG_OUTLINE=1" pebble build`.
 
 ## Formato dei file
 

@@ -10,7 +10,8 @@ Staatliches il **04/09/2026** (sessione S8-stile, `docs/design/galleria-s8-stile
 > `tools/gen_digits.py`, più le foto demo `raw`). Restano nel repo solo come sorgente riproducibile
 > della generazione: nessun byte di questi file finisce sull'orologio. Sull'orologio ci sono i PNG
 > palettizzati (`DIGITS_ANTON_A/B`, `DIGITS_BEBAS_A/B`, `DIGITS_BARLOW_A/B`, `DIGITS_FRANCOIS_A/B`,
-> `DIGITS_STAATLICHES_A/B`); il font di sistema LECO 60 (`font` = 3, solo layout A) non ha risorse.
+> `DIGITS_STAATLICHES_A/B`); il font di sistema LECO 60 (`font` = 3, solo con «Ora in alto» e
+> «Ora in basso» — `layout` 0 e 2 —, mai con «Ora grande»; S14/D136) non ha risorse.
 
 ## Inventario
 
@@ -28,8 +29,9 @@ Staatliches il **04/09/2026** (sessione S8-stile, `docs/design/galleria-s8-stile
 | `OFL-Staatliches.txt` | — | licenza di Staatliches | OFL 1.1 | 4.386 B | `72afba97d1ac9409a9fd3bb91a02a639427ca1988977909dad273e293a508d7e` |
 
 Ordine dei font nelle impostazioni (`GalSettings.font`, design §4.1, **D22**): **0 = Anton** (default),
-**1 = Bebas Neue**, **2 = Barlow Condensed Bold**, **3 = LECO 60** di sistema (solo layout A, nessuna
-strip), **4 = Francois One**, **5 = Staatliches**. L'**indice di strip** è invece
+**1 = Bebas Neue**, **2 = Barlow Condensed Bold**, **3 = LECO 60** di sistema (solo con «Ora in alto»
+e «Ora in basso», `layout` 0 e 2, mai con «Ora grande» — S14/D136, nella pagina «Font di sistema
+(tranne Ora grande)» —; nessuna strip), **4 = Francois One**, **5 = Staatliches**. L'**indice di strip** è invece
 `font < 3 ? font : font − 1` → 0 Anton, 1 Bebas, 2 Barlow, **3 Francois One**, **4 Staatliches**:
 è l'ordine delle chiavi `anton`/`bebas`/`barlow`/`francois`/`staatliches` in `tools/gen_digits.py`,
 delle righe di `DIGITS_METRICS[5][2]` e `DIGITS_RESOURCE_IDS[5][2]` in `src/c/digit_metrics.h`.

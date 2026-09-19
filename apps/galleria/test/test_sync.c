@@ -1279,6 +1279,35 @@ static void test_env_settings(void) {
   env_case("clock+font", base, s, 1, 1, 0, 0, 0);
   s = base; s.text_color = GAL_TEXT_BLACK; s.layout = GAL_LAYOUT_B;
   env_case("colore+layout", base, s, 0, 1, 0, 0, 0);   /* layout vince: style non viene chiamata */
+  /* --- S14 (D136): layout 2 «Ora in basso» = ui_time_layout_changed come B, in OGNI verso (il confronto e' sui
+   * byte: 0 <-> 2, 1 <-> 2); identico -> solo il redraw prudente; vince su colore/stile, convive con il tick --- */
+  s = base; s.layout = GAL_LAYOUT_A_BOTTOM;
+  env_case("layout A -> A basso", base, s, 0, 1, 0, 0, 0);
+  env_case("layout A basso -> A", s, base, 0, 1, 0, 0, 0);
+  {
+    GalSettings b2 = base; b2.layout = GAL_LAYOUT_B;
+    env_case("layout A basso -> B", s, b2, 0, 1, 0, 0, 0);
+    env_case("layout B -> A basso", b2, s, 0, 1, 0, 0, 0);
+  }
+  env_case("layout A basso -> A basso", s, s, 0, 0, 0, 1, 0);
+  {
+    GalSettings s2 = base; s2.text_color = GAL_TEXT_BLACK; s2.digit_style = GAL_STYLE_OUTLINE; s2.layout = GAL_LAYOUT_A_BOTTOM;
+    env_case("colore+stile+layout basso", base, s2, 0, 1, 0, 0, 0);
+    s2 = base; s2.clock_mode = GAL_CLOCK_12H; s2.layout = GAL_LAYOUT_A_BOTTOM;
+    env_case("clock+layout basso", base, s2, 1, 1, 0, 0, 0);
+    s2 = base; s2.font = GAL_FONT_LECO; s2.layout = GAL_LAYOUT_A_BOTTOM;
+    env_case("LECO+layout basso", base, s2, 0, 1, 0, 0, 0);    /* una sola layout_changed anche con due campi */
+  }
+  /* --- S14 (D139): 360 e 720 sono intervalli validi e, come gli altri, notificano il modello --- */
+  s = base; s.interval_min = 360;
+  env_case("intervallo 360", base, s, 0, 0, 0, 1, 1);
+  {
+    GalSettings s7 = base; s7.interval_min = 720;
+    env_case("intervallo 360 -> 720", s, s7, 0, 0, 0, 1, 1);
+    env_case("intervallo 720 -> 720", s7, s7, 0, 0, 0, 1, 0);
+    s7.layout = GAL_LAYOUT_A_BOTTOM;
+    env_case("intervallo 720 + layout basso", base, s7, 0, 1, 0, 0, 1);
+  }
   s = base; s.interval_min = 60;
   env_case("intervallo", base, s, 0, 0, 0, 1, 1);      /* il modello ricalcola lo slot */
   s = base; s.order = GAL_ORDER_RANDOM;
@@ -1329,6 +1358,8 @@ static void test_env_settings(void) {
   env_case_l("lang+clock", base, s, 1, 1, 0, 0, 1, 0);               /* lang PRIMA del tick */
   s = base; s.lang = GAL_LANG_FR; s.layout = GAL_LAYOUT_B;
   env_case_l("lang+layout", base, s, 1, 0, 1, 0, 0, 0);              /* il redraw completo del layout vince */
+  s = base; s.lang = GAL_LANG_FR; s.layout = GAL_LAYOUT_A_BOTTOM;
+  env_case_l("lang+layout basso", base, s, 1, 0, 1, 0, 0, 0);        /* S14: idem con «Ora in basso» */
   s = base; s.lang = GAL_LANG_DE; s.text_color = GAL_TEXT_YELLOW;
   env_case_l("lang+colore", base, s, 1, 0, 0, 1, 0, 0);
   s = base; s.lang = GAL_LANG_EN; s.interval_min = 60;
@@ -1550,6 +1581,136 @@ static void test_settings_message(void) {
   CHECK_EQ(shim_ui_full_redraw_calls(), 1);
   ack_all();
   storage_flush();
+
+  /* --- S14 (D136): byte 1 del blob = layout. 2 («Ora in basso») via SETTINGS -> OK, applicato, ui_time_layout_changed
+   * UNA volta (come B), niente style/tick/lang; 3 e 255 -> BAD_FORMAT e il layout resta 2; lo stesso blob di nuovo ->
+   * OK senza layout_changed (solo il redraw prudente). (D139): byte 7..8 = interval_min little endian: 720 (0xD0 0x02)
+   * e 360 (0x68 0x01) -> OK, 361 e 719 -> BAD_FORMAT. Il HELLO successivo porta il CRC nuovo. --- */
+  shim_ui_reset_counters();
+  s = *settings_get();
+  s.layout = GAL_LAYOUT_A_BOTTOM;
+  s.crc16 = 0;
+  memcpy(blob, &s, sizeof(blob));
+  CHECK_EQ(blob[1], 2);                            /* posizione sul filo: byte 1 */
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(last()->reply_to, SYNC_MSG_SETTINGS);
+  CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(shim_ui_layout_calls(), 1);
+  CHECK_EQ(shim_ui_style_calls(), 0);
+  CHECK_EQ(shim_ui_tick_calls(), 0);
+  CHECK_EQ(shim_ui_lang_calls(), 0);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 0);
+  ack_all();
+  storage_flush();
+  js_ready();
+  m = shim_am_last_sent();
+  CHECK(m != NULL);
+  if (m) {
+    CHECK_EQ(m->msg, SYNC_MSG_HELLO);
+    CHECK_EQ(m->crc, crc16_ccitt((const uint8_t *)settings_get(), (uint32_t)(sizeof(GalSettings) - 2)));
+    CHECK(m->crc != 0x7EE7);
+  }
+  ack_all();
+  /* layout 3: BAD_FORMAT, resta 2, nessuna notifica */
+  shim_ui_reset_counters();
+  blob[1] = 3;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(last()->reply_to, SYNC_MSG_SETTINGS);
+  CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* layout 255: idem */
+  shim_ui_reset_counters();
+  blob[1] = 255;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* lo stesso blob con layout 2: OK, layout identico -> nessuna layout_changed, solo il redraw prudente */
+  shim_ui_reset_counters();
+  blob[1] = GAL_LAYOUT_A_BOTTOM;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(shim_ui_layout_calls(), 0);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  CHECK_EQ(shim_ui_time_calls(), 1);
+  CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  ack_all();
+  storage_flush();
+  /* 720 (byte 7 = 0xD0, byte 8 = 0x02): OK, nessuna layout/style, redraw prudente */
+  shim_ui_reset_counters();
+  blob[7] = 0xD0;
+  blob[8] = 0x02;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->interval_min, 720);
+  CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(shim_ui_layout_calls(), 0);
+  CHECK_EQ(shim_ui_style_calls(), 0);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  ack_all();
+  storage_flush();
+  /* 361 (0x69 0x01): BAD_FORMAT, resta 720 */
+  shim_ui_reset_counters();
+  blob[7] = 0x69;
+  blob[8] = 0x01;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->interval_min, 720);
+  CHECK_EQ(shim_ui_time_calls(), 0);
+  ack_all();
+  storage_flush();
+  /* 719 (0xCF 0x02): BAD_FORMAT */
+  shim_ui_reset_counters();
+  blob[7] = 0xCF;
+  blob[8] = 0x02;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_BAD_FORMAT);
+  CHECK_EQ(settings_get()->interval_min, 720);
+  ack_all();
+  storage_flush();
+  /* 360 (0x68 0x01): OK */
+  shim_ui_reset_counters();
+  blob[7] = 0x68;
+  blob[8] = 0x01;
+  in_msg(SYNC_MSG_SETTINGS);
+  CHECK(shim_in_bytes(MESSAGE_KEY_SETTINGS, blob, sizeof(blob)));
+  CHECK(deliver());
+  CHECK_EQ(last()->code, SYNC_CODE_OK);
+  CHECK_EQ(settings_get()->interval_min, 360);
+  CHECK_EQ(shim_ui_full_redraw_calls(), 1);
+  ack_all();
+  storage_flush();
+  /* il record in persist porta layout 2 e 360 (il debounce e' gia' stato svuotato dal flush) */
+  {
+    GalSettings back;
+    CHECK(storage_read_settings(&back));
+    CHECK_EQ(back.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(back.interval_min, 360);
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&back));
+    CHECK_EQ(back.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(back.interval_min, 360);
+  }
 }
 
 /* --- sync_deinit --- */

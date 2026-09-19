@@ -122,7 +122,7 @@
   function buildOpts() {
     var o = { lang: [[0, T('opt_lang_auto', C.langName(G.state.lang_auto))]] }, i;
     for (i = 0; i < C.LANGS.length; i++) { o.lang.push([i + 1, C.langName(C.LANGS[i]), null, C.LANGS[i]]); }
-    o.layout = [[0, T('opt_layout_a')], [1, T('opt_layout_b')]];
+    o.layout = [[0, T('opt_layout_a')], [2, T('opt_layout_a_bottom')], [1, T('opt_layout_b')]];
     o.font = [[0, 'Anton'], [1, 'Bebas Neue'], [2, 'Barlow Condensed'], [3, T('opt_font_leco'), 's_font_leco'],
               [4, 'Francois One'], [5, 'Staatliches']];
     o.digit_style = [[0, T('opt_style_solid')], [1, T('opt_style_transp')],
@@ -134,7 +134,7 @@
     o.leading_zero = [[0, T('opt_leading_zero_auto')], [1, T('opt_yes')], [2, T('opt_no')]];
     o.interval_min = [[0, T('opt_never')], [5, T('opt_minutes', 5)], [15, T('opt_minutes', 15)],
                       [30, T('opt_minutes', 30)], [60, T('opt_minutes', 60)], [180, T('opt_hours', 3)],
-                      [1440, T('opt_one_day')]];
+                      [360, T('opt_hours', 6)], [720, T('opt_hours', 12)], [1440, T('opt_one_day')]];
     o.order = [[0, T('opt_order_seq')], [1, T('opt_order_random')]];
     /* giallo e blu hanno un id perche' su flint non esistono (D86: applyUnavailable li spegne) */
     o.text_color = [[0, T('opt_color_auto')], [1, T('opt_color_white')], [2, T('opt_color_black')],
@@ -173,7 +173,6 @@
      * schermo e' in bianco e nero, e per un orologio sconosciuto resta la frase sul formato. */
     el('watch').textContent = (p === 'emery') ? 'Pebble Time 2' : (p === 'flint') ? T('watch_flint')
                               : T('watch_unknown', fmt === 2 ? T('watch_fmt_bw') : T('watch_fmt_color'));
-    fontArrowLabels();
     showTone();
     helpTexts();
     /* D109/D107: i due testi che NON stanno nel markup — il pulsante «Aggiungi foto», che
@@ -181,14 +180,6 @@
      * pulsanti del footer, che cambiano nome con lo stato — si riscrivono qui in coda. */
     renderAdd();
     footerButtons();
-  }
-  /* D87: le frecce del font non hanno testo da tradurre («‹» e «›» stanno nel markup): il nome
-   * sta in aria-label per chi legge con la voce e in title per chi ci passa sopra, e va rifatto a
-   * ogni cambio di lingua come tutto il resto. */
-  function arrowLabel(b, t) { if (b) { b.setAttribute('aria-label', t); b.setAttribute('title', t); } }
-  function fontArrowLabels() {
-    arrowLabel(el('fontPrev'), T('font_prev'));
-    arrowLabel(el('fontNext'), T('font_next'));
   }
   var SELECTS = ['lang', 'layout', 'font', 'digit_style', 'clock_mode', 'leading_zero', 'interval_min', 'order', 'text_color', 'outline'];
   /* D86 (U-10/U-11): voci che sul Pebble 2 Duo (flint) non esistono — le due cifre con ombra 3D
@@ -231,24 +222,13 @@
     /* S9 R13: su flint l'anello e' 1 px (D26) e sul dithering si legge male: avviso in piu',
      * solo con lo stile trasparente (sv 1: su flint il 2 e' gia' sceso a 1). */
     show(el('styleFlintHelp'), !!G.state && G.state.platform === 'flint' && sv === 1);
-    /* D89: «Sotto l'ora» esiste solo con «Ora in alto»; nel layout B la riga sparisce ma i bit
-     * restano quelli che sono (il payload li conserva: si ritrovano tornando al layout A). */
-    show(el('infoRow'), layout === 0);
+    /* D89 (S14/D136): «Sotto l'ora» esiste con «Ora in alto» e «Ora in basso», i due layout A
+     * (in basso la riga sta SOPRA le cifre, ma sono le stesse quattro caselle); nel layout B la
+     * riga sparisce ma i bit restano quelli che sono (il payload li conserva: si ritrovano
+     * tornando a un layout A). */
+    show(el('infoRow'), layout !== 1);
     /* S12 D46: font, stile, layout, colore e contorno si vedono subito */
     renderPreview();
-  }
-  /* D87: le frecce accanto al font passano all'option seguente o precedente fra quelle
-   * disponibili (in layout B «Font di sistema» e' disabled) e girano in tondo: dall'ultima si
-   * torna alla prima. Poi il giro normale di settingsChanged — anteprima, KB, payload —, lo
-   * stesso che farebbe il menu a tendina. */
-  function cycleFont(dir) {
-    var sel = el('s_font'), o = sel.children, n = o.length, i, k, j;
-    for (i = 0; i < n; i++) { if (o[i].value === sel.value) { break; } }
-    if (i >= n) { i = 0; }
-    for (k = 1; k < n; k++) {
-      j = ((i + dir * k) % n + n) % n;
-      if (!o[j].disabled) { sel.value = o[j].value; settingsChanged(); return; }
-    }
   }
   /* contatore KB e tetto anche sulle impostazioni; la Lingua (D36) ricostruisce testi e tessere.
    * D93: anche la riga sull'ordine delle foto dipende da qui (ordine, intervallo, scossa). */
@@ -470,11 +450,12 @@
       else if (n[i] === 'no_masks') { out.push(T('preview_note_no_masks')); }
     }
     /* D102 (era D90): l'anteprima non disegna la riga info, e lo dice solo quando quella riga
-     * sull'orologio c'e' davvero — layout A e almeno una casella accesa —, elencando le SOLE
-     * caselle accese nell'ordine dei bit. L'elenco fisso di prima prometteva la data (o la
-     * batteria) a chi le aveva tolte e taceva la quarta casella: le etichette sono quelle del
-     * gruppo «Sotto l'ora», quindi niente chiavi nuove e niente testi doppi da tradurre. */
-    if (st.layout === 0 && (st.info_row & 15) !== 0) {
+     * sull'orologio c'e' davvero — un layout A (in alto o in basso, S14/D136) e almeno una
+     * casella accesa —, elencando le SOLE caselle accese nell'ordine dei bit. L'elenco fisso di
+     * prima prometteva la data (o la batteria) a chi le aveva tolte e taceva la quarta casella:
+     * le etichette sono quelle del gruppo «Sotto l'ora», quindi niente chiavi nuove e niente
+     * testi doppi da tradurre. */
+    if (st.layout !== 1 && (st.info_row & 15) !== 0) {
       /* Le quattro etichette si chiedono per esteso, una chiamata ciascuna: il passo i18n
        * dell'inliner sostituisce con l'indice solo le chiavi scritte LETTERALI nella
        * chiamata, e un nome di chiave chiuso in un array resterebbe tale nella pagina. */
@@ -892,9 +873,11 @@
     fitView();
     /* D114: «Regolazioni della foto» nasce chiuso, ma i suoi valori restano da una foto
      * all'altra: se uno non e' piu' quello di fabbrica il blocco si apre da solo, altrimenti
-     * l'effetto (una foto scurita, un dithering diverso) sarebbe senza causa visibile. */
+     * l'effetto (una foto scurita, un dithering diverso) sarebbe senza causa visibile.
+     * S14/D138: la fabbrica di «Ottimizza per lo schermo» ora e' SPUNTATA, quindi a farlo
+     * aprire e' la casella SPENTA. */
     setEditAdvOpen(+el('gamma').value !== 1 || +el('lift').value !== 0 || el('dither').value !== 'fs' ||
-                   !!el('sunlight').checked || el('previewMode').value !== 'sun');
+                   !el('sunlight').checked || el('previewMode').value !== 'sun');
     scrollToEditor();
   }
   function closeEditor() {
@@ -1128,11 +1111,12 @@
     show(el('settingsNote'), !s.settingsSet && C.settingsDiffer(s.watch));
     writeSettings(s.settings);
     /* D88: «Altre impostazioni» si apre da solo se dentro c'e' qualcosa di diverso dalla
-     * fabbrica — le caselle «Sotto l'ora» contano solo con «Ora in alto», dove si vedono — o se
-     * lo stato non e' arrivato (l'unico caso in cui conviene mostrare tutto). Si calcola UNA
-     * volta, all'avvio: da li' in poi comanda il pulsante, la pagina non ha memoria. */
+     * fabbrica — le caselle «Sotto l'ora» contano solo nei due layout A (S14/D136: in alto e in
+     * basso), dove si vedono — o se lo stato non e' arrivato (l'unico caso in cui conviene
+     * mostrare tutto). Si calcola UNA volta, all'avvio: da li' in poi comanda il pulsante, la
+     * pagina non ha memoria. */
     advOpen = s.settings.clock_mode !== 0 || s.settings.leading_zero !== 0 || s.settings.outline !== 0 ||
-              (s.settings.layout === 0 && s.settings.info_row !== 15) || !s.ok;
+              (s.settings.layout !== 1 && s.settings.info_row !== 15) || !s.ok;
     setAdvOpen(advOpen);
     show(el('sunlightRow'), fmt === 1); show(el('previewModeRow'), fmt === 1);
     /* D114: i tempi del ritaglio solo sul dev server */
@@ -1140,9 +1124,6 @@
     renderTiles();
     for (i = 0; i < SELECTS.length; i++) { on(el('s_' + SELECTS[i]), 'change', settingsChanged); }
     for (i = 0; i < 5; i++) { on(el(i < 4 ? 's_info_row_b' + i : 's_shake_next'), 'change', settingsChanged); }
-    /* D87 */
-    on(el('fontPrev'), 'click', function () { cycleFont(-1); });
-    on(el('fontNext'), 'click', function () { cycleFont(1); });
     on(el('file'), 'change', function () { var f = this.files && this.files[0]; if (f) { openEditor(f); } });
     on(el('save'), 'click', save); on(el('cancel'), 'click', cancel);
     bindGestures();

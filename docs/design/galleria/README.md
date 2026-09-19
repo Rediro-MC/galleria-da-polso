@@ -4,11 +4,12 @@ Screenshot dell'emulatore, della config page (Firefox headless) e — per
 `s8_02_emery_a_anton_reale.png` — del Pebble Time 2 reale, raccolti gate per gate: `s1_*`, `s2_*`,
 `s3_*`, `s4_*`, `s5a_*`, `s5b_*`, `s6_*`, `s7_*`, `s8perf_*`, `s8stile_*`, `s8_02_…_reale`, `s9_*`,
 `rev19_*`, `s10_*`, `s11_*`, `s12_*`, `s13_ux_before_*`, `s13_ux3_*`, `s13_ux4_*`, `store040_*`
-(18/09/2026, non da un gate). Servono da prova visiva delle sessioni descritte in
+(18/09/2026, non da un gate), `s14_*`. Servono da prova visiva delle sessioni descritte in
 `../../../apps/galleria/PIANO.md` e nei documenti di design accanto a questa cartella; non entrano nel
 `.pbw`; **otto** di essi (elenco in `../../../apps/galleria/store/README.md`: sei `s9_*` e i due
 `store040_*`) sono le sorgenti degli asset dello store. Al 17/09/2026 erano **169 PNG** per
-5.658.891 B; al 19/09/2026 sono **171** per **5.681.308 B** (5,4 MiB) con i due `store040_*`.
+5.658.891 B; al 19/09/2026 erano **171** per 5.681.308 B (5,4 MiB) con i due `store040_*` e, con i
+**13 `s14_*`** del gate di S14 (19/09/2026 sera), sono **184** per **6.152.180 B** (5,9 MiB).
 
 ## Politica della cartella (dal 17/09/2026)
 
@@ -38,11 +39,39 @@ leggeri e sono la prova visiva dei gate S1–S9.
 | `s11_*` (6) | 4 scatti dell'orologio (es/pt) + 2 pagine di impostazioni | orologio: demo CC0 «Bryce Canyon»; pagine: nessuna miniatura |
 | `s12_*` (6) | anteprima della watchface dentro la config page | foto di prova `dark_portrait.jpg` e `light_landscape.jpg` → **CC-BY-SA-4.0** |
 | `s13_ux_before_*` (2), `s13_ux3_*` (10), `s13_ux4_*` (4) | config page prima e dopo il rifacimento UX | pagine ed editor: foto di prova `dark_portrait`/`light_landscape`/`mid_landscape` → **CC-BY-SA-4.0**; i quattro `s13_ux*_emu_*` (orologio) mostrano le demo CC0 |
+| `s14_*` (13) | gate di **S14** (19/09/2026 sera): 7 scatti emery e 2 flint della disposizione «**Ora in basso**» (`layout 2`, D136) + 4 schermate della config page (elenco qui sotto) | orologio: foto demo dell'app → **CC0 1.0**; pagina: `demo1.jpg`, ricavata dalla **demo_1** raw6 (Lauklines, CC0) → **CC0 1.0** |
 | `store040_*` (2) | sorgenti degli screenshot extra dello store (18/09/2026): layout B in emulatore, build 0.4.0 | foto demo dell'app → **CC0 1.0** |
 
 I **nomi di file** che si leggono nelle tessere degli screenshot `s13_*` (`IMG_20260905_181233.jpg`,
 `vacanze_mare_2026.jpg`, `Screenshot_2026-09-01.png`) sono **inventati dagli script del gate**
 (`~/galleria-gate/ux/*/mkstate_ux*.js`) per simulare una libreria foto vera: non sono foto dell'autore.
+
+## I tredici `s14_*` (gate di S14, 19/09/2026 sera)
+
+Emulatore `emery`/`flint` con l'SDK 4.33.1 e Firefox headless sulla config page servita dal dev server
+(`tools/galleria_devserver.py --page-dir src/pkjs/config`). Le decisioni sono in
+`../galleria-s14-feature-v1.md` §1 (**D136–D141**), la geometria in `../galleria.md` §3.1.
+
+| File | Che cosa mostra |
+|---|---|
+| `s14_emery_l2_24h.png` | «Ora in basso» con Anton in 24 h: riga info in alto nella fascia `[122,228)`, inchiostro delle cifre a 154..217 |
+| `s14_emery_l2_12h.png` | lo stesso in 12 h: il «PM» resta accanto alle cifre, a filo del fondo |
+| `s14_emery_l2_qv.png` | Quick View acceso: la fascia sale a `[63,169)` con il colore ricalcolato (isteresi) |
+| `s14_emery_l2_xl.png` | content size **ExtraLarge**: fascia `[118,228)`, riga info Gothic 24 |
+| `s14_emery_l2_leco.png` | font di sistema (LECO) in basso, ammesso anche in questa disposizione |
+| `s14_emery_l2_francois_t3d.png` | Francois One trasparente 3D: anello da 156, ombra fino a 223 |
+| `s14_emery_l2_sync.png` | sync in corso: icona e «1/1» nella riga info **sopra** le cifre (foto demo Bryce Canyon) |
+| `s14_flint_l2_24h.png` | Pebble 2 Duo: fascia `[92,168)`, riempimento 119..160 |
+| `s14_flint_l2_qv.png` | Pebble 2 Duo con Quick View: fascia `[41,117)` |
+| `s14_page400_settings.png` | config page «Aspetto dell'ora» a **400 px**: riga Font senza frecce su una riga, «Disposizione» con tre voci |
+| `s14_page360_settings.png` | la stessa sezione a **360 px**: la riga Font resta su una riga (40 px) |
+| `s14_page400_editor_adv.png` | editor con «**Ottimizza per lo schermo dell'orologio**» spuntata di serie (D138) e l'anteprima di «Ora in basso» |
+| `s14_page400_prev.png` | sezione «Anteprima»: la foto con l'ora in basso, cifre alle stesse righe dell'emulatore |
+
+Le foto sono **CC0 1.0**: sull'orologio le due demo dell'app (aurora a Lauklines, Bryce Canyon dopo la neve,
+`../../../apps/galleria/resources/photos/README.md`); nella pagina `demo1.jpg`, ricavata dalla **demo_1** raw6
+(Lauklines) per avere un file da caricare nell'editor. **Nessuna foto personale** e nessuna immagine CC-BY-SA in
+questo set.
 
 ## Licenza delle immagini
 
@@ -66,7 +95,8 @@ contenuto dell'immagine di prova, senza alcuna affiliazione con Canonical.
 Non riguardano la CC-BY-SA: gli `s1_*` (nessuna foto), gli `s5a_*` e `s5b_*_fixture_*` (figura di prova
 sintetica), le schermate della config page senza miniature (per esempio `rev19_page_slow_4foto.png`, i
 quattro `s10_page_*` e i due `s11_page_*`), gli `s9_*`, gli scatti dell'orologio di `s10_*`/`s11_*`, i
-quattro `s13_ux*_emu_*` e i due `store040_*` del 18/09/2026 (sorgenti degli screenshot extra dello
+quattro `s13_ux*_emu_*`, i **tredici `s14_*`** del 19/09/2026 (gate di S14: orologio con le demo, pagina con
+`demo1.jpg` ricavata dalla demo_1) e i due `store040_*` del 18/09/2026 (sorgenti degli screenshot extra dello
 store: layout B in emulatore con la build 0.4.0, elenco in `../../../apps/galleria/store/README.md`) —
 tutte foto demo e candidate **CC0 1.0**. Il file `rev19_watch_francois_3d.png`, l'unica fotografia
 personale dell'autore, è stato **rimosso dal repository e dalla sua storia** il 05/09/2026. **Nessuno

@@ -2,7 +2,8 @@
 
 Watchface per **Pebble Time 2** (`emery`, 200×228, 64 colori) e **Pebble 2 Duo** (`flint`, 144×168 B/N)
 che mostra a schermo intero, **a rotazione**, le foto che scegli e ritagli **dal telefono**, con l'ora
-grande e nitida sopra e il **colore del testo scelto da solo** (bianco o nero, in base alla foto).
+grande e nitida — **in alto, in basso** oppure a tutto schermo — e il **colore del testo scelto da
+solo** (bianco o nero, in base alla foto).
 
 |  |  |
 |---|---|
@@ -18,6 +19,17 @@ appena aggiunta (`s13_ux3_page_it_after_add_400.png`), la ✕ al primo tocco
 (`s13_ux3_page_it_del_arm_400.png`), la pagina in tedesco su uno schermo stretto
 (`s13_ux3_page_de_editor_360.png`) e l'anteprima confrontata al pixel con l'emulatore
 (`s13_ux3_preview_editor_dark_b.png`).
+
+Dal gate **S14** (19/09/2026 sera) c'è il set della disposizione nuova, **«Ora in basso»**:
+`s14_emery_l2_24h.png` (Anton, 24 h), `s14_emery_l2_12h.png` («PM» accanto alle cifre),
+`s14_emery_l2_qv.png` (con la Quick View il blocco sale), `s14_emery_l2_xl.png` (testo
+ingrandito), `s14_emery_l2_leco.png` (Font di sistema), `s14_emery_l2_francois_t3d.png`
+(Francois One, «contorno con ombra»), `s14_emery_l2_sync.png` (sincronizzazione in corso),
+`s14_flint_l2_24h.png` e `s14_flint_l2_qv.png` sul Pebble 2 Duo. Della pagina (in inglese):
+`s14_page400_settings.png` e `s14_page360_settings.png` («Aspetto dell'ora» a 400 e a 360 px, con
+le tre disposizioni e il Font senza frecce), `s14_page400_editor_adv.png` («Regolazioni della
+foto» con «Ottimizza» spuntata di serie) e `s14_page400_prev.png` (l'anteprima con l'ora in
+basso).
 
 Restano nella stessa cartella, come **storia** delle versioni precedenti: la pagina prima del
 rifacimento (`s10_page_*.png`, `s11_page_es_settings.png`, `s11_page_pt_settings.png`,
@@ -86,26 +98,30 @@ Nell'ordine in cui la scorri:
    trascinare la foto: sposti e ingrandisci la foto sotto la cornice (trascinamento, pinch,
    rotellina, slider, «Riparti da capo»). Sotto la cornice c'è l'**anteprima dell'orologio** (dal
    13/09/2026): la foto con i pixel veri e l'ora campione **12:34** nel font, stile, colore e
-   contorno che hai scelto — «Così si vede sull'orologio» —, grande quanto lo schermo dell'orologio.
-   Quello che si tocca di rado sta nel blocco **«Regolazioni della foto»**, chiuso: **Luminosità**,
-   **Schiarisci le ombre**, **Sfumature** (Floyd–Steinberg; «Bayer 4×4» con le foto a colori oppure
-   «Atkinson» sul Pebble 2 Duo; nessuna) e, **solo quando le foto vanno a colori** (Pebble Time 2,
-   oppure nessun orologio collegato), **«Ottimizza per lo schermo dell'orologio»** e **«Colori»**
-   («come sull'orologio» oppure «senza correzione»); «Ottimizza» è spenta di serie e resta da
-   provare sullo schermo vero (vedi «Dettagli tecnici»). Se uno di quei valori non è più quello di
-   fabbrica il blocco si apre da solo. Intanto i due pulsanti in fondo alla pagina diventano **«Usa
-   questa foto»** e **«Non aggiungere»**: con **«Usa questa foto»** il ritaglio si chiude, la pagina
-   scorre da sola alla **tessera nuova** (badge «da salvare») e in fondo compare in verde **«Foto
-   aggiunta: tocca Salva per inviarla all'orologio»**, con sotto la riga grigia «Dopo Salva, le foto
-   passano all'orologio una alla volta: tieni aperta l'app Pebble»; **«Non aggiungere»** chiude il
-   ritaglio dicendo «Foto non aggiunta» e ti riporta su «Aggiungi foto».
-4. Poi vengono le **Impostazioni**. In **«Aspetto dell'ora»**: **Disposizione** («Ora in alto, info
-   sotto» oppure «Ora grande, senza info»), **font** (con le frecce **‹ ›** per provarli uno dopo
-   l'altro), **«Stile cifre»** e **«Colore dell'ora»**. Scegliendo **«solo contorno»** o **«contorno
-   con ombra»** con uno dei tre font stretti (Anton, Bebas Neue, Barlow Condensed) la pagina
-   consiglia i due che rendono meglio, Francois One e Staatliches — e l'aiuto sparisce appena li
-   scegli; con un **Pebble 2 Duo** collegato e «solo contorno» avvisa anche che lì il contorno delle
-   cifre è **sottile**, e che con foto molto dettagliate conviene lo stile pieno.
+   contorno che hai scelto — «Così si vede sull'orologio» —, grande quanto lo schermo
+   dell'orologio. Quello che si tocca di rado sta nel blocco **«Regolazioni della foto»**, chiuso:
+   **Luminosità**, **Schiarisci le ombre**, **Sfumature** (Floyd–Steinberg; «Bayer 4×4» con le foto
+   a colori oppure «Atkinson» sul Pebble 2 Duo; nessuna) e, **solo quando le foto vanno a colori**
+   (Pebble Time 2, oppure nessun orologio collegato), **«Ottimizza per lo schermo dell'orologio»**
+   e **«Colori»** («come sull'orologio» oppure «senza correzione»). Dal **19/09/2026 «Ottimizza» è
+   spuntata di serie** (prima era spenta): vale per le **foto nuove**, quelle già sull'orologio non
+   cambiano (vedi «Dettagli tecnici»). Se uno di quei valori non è più quello di fabbrica il blocco
+   si apre da solo — quindi ora si apre quando «Ottimizza» è **spenta**. Intanto i due pulsanti in
+   fondo alla pagina diventano **«Usa questa foto»** e **«Non aggiungere»**: con **«Usa questa
+   foto»** il ritaglio si chiude, la pagina scorre da sola alla **tessera nuova** (badge «da
+   salvare») e in fondo compare in verde **«Foto aggiunta: tocca Salva per inviarla
+   all'orologio»**, con sotto la riga grigia «Dopo Salva, le foto passano all'orologio una alla
+   volta: tieni aperta l'app Pebble»; **«Non aggiungere»** chiude il ritaglio dicendo «Foto non
+   aggiunta» e ti riporta su «Aggiungi foto».
+4. Poi vengono le **Impostazioni**. In **«Aspetto dell'ora»**: **Disposizione** — dal 19/09/2026
+   **tre voci**, in quest'ordine: «Ora in alto, info sotto», **«Ora in basso, info sopra»** e «Ora
+   grande, senza info» —, **font** (una sola tendina: le frecce **‹ ›** per sfogliarli non ci sono
+   più, e l'anteprima si aggiorna a ogni scelta), **«Stile cifre»** e **«Colore dell'ora»**.
+   Scegliendo **«solo contorno»** o **«contorno con ombra»** con uno dei tre font stretti (Anton,
+   Bebas Neue, Barlow Condensed) la pagina consiglia i due che rendono meglio, Francois One e
+   Staatliches — e l'aiuto sparisce appena li scegli; con un **Pebble 2 Duo** collegato e «solo
+   contorno» avvisa anche che lì il contorno delle cifre è **sottile**, e che con foto molto
+   dettagliate conviene lo stile pieno.
 5. Subito sotto «Colore dell'ora», ultima voce di «Aspetto dell'ora», c'è l'**«Anteprima»** (dal
    06/09/2026): la foto con i **pixel veri** — quella scelta con l'**occhio** 👁︎ in basso a sinistra
    della miniatura; mentre «Ritaglio» è aperto questa sezione sparisce, perché l'anteprima si vede
@@ -123,14 +139,15 @@ Nell'ordine in cui la scorri:
    - senza nessuna foto nuova resta uno **sfondo grigio** con le cifre bianche e la didascalia
      «Aggiungi una foto e la vedrai qui con l'ora» (se qualche foto è già sull'orologio: «…: quelle
      già presenti no»);
-   - **non** si vedono la riga sotto l'ora, «PM», Quick View e testo ingrandito, e la nota lo dice
+   - **non** si vedono la riga delle info, «PM», Quick View e testo ingrandito, e la nota lo dice
      **solo quando quella cosa sull'orologio c'è davvero**: «Con le 12 h sull'orologio compare anche
-     PM» con il formato 12 ore, «Sull'orologio, sotto l'ora, compare quello che hai scelto: passi,
-     batteria, data» con «Ora in alto» e le sole caselle che hai acceso (se le hai tolte tutte, o
-     con «Ora grande», la nota non compare); di Quick View e testo ingrandito la pagina non dice
-     più niente;
-   - con il **Font di sistema** e «Ora in alto» si vede la sola foto: «Font di sistema: qui non si
-     vedono, sull'orologio sì» (con «Ora grande» l'anteprima disegna Anton, come fa l'orologio);
+     PM» con il formato 12 ore, «Sull'orologio, **sopra o sotto** l'ora, compare quello che hai
+     scelto: passi, batteria, data» con «Ora in alto» **o «Ora in basso»** e le sole caselle che hai
+     acceso (se le hai tolte tutte, o con «Ora grande», la nota non compare); di Quick View e testo
+     ingrandito la pagina non dice più niente;
+   - con il **Font di sistema** e una delle due disposizioni con l'ora piccola («Ora in alto» o «Ora
+     in basso») si vede la sola foto: «Font di sistema: qui non si vedono, sull'orologio sì» (con
+     «Ora grande» l'anteprima disegna Anton, come fa l'orologio);
    - se qualcosa va storto la sezione dice «Anteprima non disponibile» e il resto della pagina
      continua a funzionare.
 
@@ -140,10 +157,12 @@ Nell'ordine in cui la scorri:
    quanto Galleria occupa davvero al polso, non un poster.
 6. In coda alle impostazioni, staccate da un filetto, ci sono la **«Lingua»** e il pulsante
    **«Altre impostazioni»**, chiuso, che apre quello che serve di rado: formato ora, zero davanti
-   all'ora, bordo di contrasto e le caselle di quello che compare **sotto l'ora** (passi, batteria,
-   data, telefono scollegato). Se una di quelle voci non è di fabbrica — le caselle «Sotto l'ora»
-   contano solo con «Ora in alto», dove si vedono — oppure se la pagina non è riuscita a leggere le
-   impostazioni dell'orologio, il blocco si apre da solo.
+   all'ora, bordo di contrasto e le caselle di quello che compare **insieme all'ora** (passi,
+   batteria, data, telefono scollegato). Dal 19/09/2026 il gruppo si chiama **«Insieme all'ora»**,
+   e non più «Sotto l'ora», perché quella riga sta **sotto** l'ora con «Ora in alto» e **sopra**
+   con «Ora in basso». Se una di quelle voci non è di fabbrica — le caselle contano con «Ora in
+   alto» e «Ora in basso», dove la riga si vede, non con «Ora grande» — oppure se la pagina non è
+   riuscita a leggere le impostazioni dell'orologio, il blocco si apre da solo.
 7. Poi c'è sempre la sezione **«Aiuto»**: una riga fissa che dice che cosa aspettarsi dopo Salva
    («Dopo Salva, le foto passano all'orologio una alla volta (circa mezzo minuto l'una): l'orologio
    conta 1/3, 2/3… Tieni aperta l'app Pebble fino alla fine») e, sotto, il pulsante ripiegato
@@ -167,7 +186,7 @@ segue la **lingua dell'orologio** (se è una di queste sei; altrimenti inglese),
 impostazioni» — permette di sceglierne una a mano: sono **7 voci**, «Automatica (orologio:
 Italiano)», «English», «Italiano», «Deutsch», «Français», «Español», «Português». Il
 cambio è **immediato**, senza ricaricare la pagina e senza passare dall'orologio: tutti e sei i
-dizionari (135 voci di testo per lingua) viaggiano nell'indirizzo della pagina.
+dizionari (134 voci di testo per lingua) viaggiano nell'indirizzo della pagina.
 
 La stessa impostazione vale anche **sull'orologio**: con «Automatica» la data resta quella del
 firmware (quindi segue il *language pack* installato, anche russo o cinese), mentre scegliendo una
@@ -176,10 +195,11 @@ lingua la data usa le abbreviazioni di quella lingua — «Sat 5 Sep», «Sab 5 
 pack* di PebbleOS) — e il separatore delle migliaia dei passi cambia di conseguenza (inglese
 `6,532`, italiano, tedesco, spagnolo e portoghese `6.532`, francese `6 532`).
 
-Le foto partono **una alla volta, a pezzi**: durante l'invio, sotto l'ora, l'orologio mostra una
-**freccia circolare** e «k/n» (nessuna parola: si legge in qualunque lingua). Il numero della foto
-in corso lo manda il telefono, quindi il contatore arriva a n/n anche quando qualche foto viene
-saltata (05/09/2026; unica eccezione: se a essere saltata è proprio l'ultima). Dopo Salva la pagina
+Le foto partono **una alla volta, a pezzi**: durante l'invio l'orologio mostra nella riga delle info
+— sotto l'ora, o sopra con «Ora in basso» — una **freccia circolare** e «k/n» (nessuna parola: si
+legge in qualunque lingua). Il numero della foto in corso lo manda il telefono, quindi il contatore
+arriva a n/n anche quando qualche foto viene saltata (05/09/2026; unica eccezione: se a essere
+saltata è proprio l'ultima). Dopo Salva la pagina
 si chiude da sola e l'invio **continua** nell'app Pebble: **lasciala aperta** finché il contatore
 non arriva a n/n — è quello che la pagina stessa ti ricorda dopo Salva.
 
@@ -193,33 +213,43 @@ le stesse che trovi qui sotto.
 - **Ora in alto, info sotto** (di serie): cifre alte **fino a 66 px** sul Pebble Time 2 (**42 px**
   sul Pebble 2 Duo) su circa un terzo dello schermo, più una riga con passi, batteria e data (icona
   Bluetooth barrata al posto dei passi se il telefono non è connesso).
+- **Ora in basso, info sopra** (dal 19/09/2026): le stesse cifre di «Ora in alto», ma **a filo del
+  bordo di sotto** — il riempimento resta a 9 px dal fondo sul Pebble Time 2 (7 px sul Pebble 2 Duo)
+  con qualunque font — e la riga con passi, batteria e data **sopra** le cifre: la metà alta della
+  foto resta libera (volti, cieli). Quando compare la **Quick View** della timeline tutto il blocco
+  **sale** con lo spazio che resta, e il colore del testo viene ricalcolato sulla fascia nuova.
 - **Ora grande, senza info**: solo l'ora, HH sopra MM, cifre alte **fino a 94 px** sul Pebble Time 2
   (**62 px** sul Pebble 2 Duo) a tutto schermo. Durante una sincronizzazione anche «Ora grande»
   mostra il contatore, piccolo in basso a sinistra (dal 05/09/2026): sparisce da solo a
   trasferimento finito.
-- **Font**: Anton (di serie), Bebas Neue, Barlow Condensed, Francois One, Staatliches e — solo con
-  «Ora in alto» — il **Font di sistema**.
+- **Font**: Anton (di serie), Bebas Neue, Barlow Condensed, Francois One, Staatliches e — con «Ora
+  in alto» e «Ora in basso», non con «Ora grande» — il **Font di sistema** (nella pagina si chiama
+  «Font di sistema (tranne Ora grande)»). La scelta si fa con una tendina sola: le frecce **‹ ›**
+  sono sparite il 19/09/2026.
 - **Stile cifre**: *pieno*, *solo contorno* (dentro le cifre si vede la foto, con un contorno
   spesso), *contorno con ombra* e *pieno con ombra* (con un'ombra sfalsata in basso a destra). Su
   **Pebble 2 Duo** lo schermo è in bianco e nero e l'ombra non è disponibile: le due voci con ombra
   sono **spente** (dove il telefono le mostra lo stesso dicono «(non sul Duo)») e valgono come le
   corrispondenti piatte. Con il **Font di sistema** lo stile non si applica (resta pieno).
-- **Cambio foto**: la foto cambia da sola ogni 5, 15, 30 o 60 minuti, ogni 3 ore, oppure una volta
-  al giorno alle 4:00 — o **mai**, se preferisci tenerne una sola (di serie: ogni 30 min) —, in
-  ordine «come l'elenco» o «a caso». Il calcolo dipende solo dall'ora, quindi a regime **non scrive
-  nulla** in memoria.
+- **Cambio foto**: la foto cambia da sola ogni 5, 15, 30 o 60 minuti, ogni 3, **6** o **12** ore
+  (le ultime due dal 19/09/2026), oppure una volta al giorno alle 4:00 — o **mai**, se preferisci
+  tenerne una sola (di serie: ogni 30 min) —, in ordine «come l'elenco» o «a caso». Il calcolo
+  dipende solo dall'ora, quindi a regime **non scrive nulla** in memoria: «ogni 12 h» cambia foto a
+  **mezzanotte e a mezzogiorno**, «ogni 6 h» alle **0, 6, 12 e 18** (ore locali).
 - **Scossa**: una scossa passa alla foto successiva (si può disattivare). La foto non cambia mentre
   l'orologio non è in primo piano né durante una sincronizzazione. Il salto **non viene conservato**:
   vale fino al riavvio di Galleria (quando esci e rientri, o riavvii l'orologio), poi la
   rotazione riprende dal suo programma, che dipende solo dall'ora. È voluto: scrivere in memoria a
   ogni scossa — ne bastano un centinaio al giorno di involontarie — è ciò che con il tempo rendeva
   lento l'avvio (vedi sotto).
-- **Colore del testo**: calcolato sull'orologio a ogni cambio foto sulla fascia occupata dalle cifre;
-  bianco o nero, con contorno automatico quando la foto è troppo variegata perché un colore solo
-  basti. Si può anche forzare (**bianco**, **nero**, **giallo chiaro**, **blu scuro**; sul Pebble 2
-  Duo restano bianco e nero).
-- **Lingua** (dalla 0.2.0; spagnolo e portoghese dalla **0.4.0**): con «Automatica» la data sotto
-  l'ora è quella del firmware (segue il *language pack* dell'orologio); scegliendo inglese,
+- **Colore del testo**: calcolato sull'orologio a ogni cambio foto sulla fascia occupata dalle cifre
+  (quella in basso con «Ora in basso»); bianco o nero, con contorno automatico quando la foto è
+  troppo variegata perché un colore solo basti — cioè quando **almeno il 15 %** dei pixel della
+  fascia è in conflitto con il colore scelto (dal 19/09/2026 basta il 15 % esatto; sul Pebble 2 Duo
+  il contorno c'è comunque sempre). Si può anche forzare (**bianco**, **nero**, **giallo chiaro**,
+  **blu scuro**; sul Pebble 2 Duo restano bianco e nero).
+- **Lingua** (dalla 0.2.0; spagnolo e portoghese dalla **0.4.0**): con «Automatica» la data nella
+  riga delle info è quella del firmware (segue il *language pack* dell'orologio); scegliendo inglese,
   italiano, tedesco, francese, spagnolo o portoghese la data usa le abbreviazioni di quella lingua
   («do 6 sep», «Dom 6 de Set») e i passi il separatore giusto (`6,532` in inglese, `6.532` in
   italiano, tedesco, spagnolo e portoghese, `6 532` in francese). Nessuna parola compare durante la
@@ -265,25 +295,28 @@ ogni collegamento col telefono.
   pagina si apre in WKWebView (URL di 128–138 k caratteri, tetto riconosciuto a 200 KB) e una foto è
   arrivata sull'orologio, ma restano da fare il salvataggio con più foto, la prova con 12 foto e la
   lingua forzata; la Dev Connection dell'app iOS cade spesso. Il percorso più collaudato resta Android.
-  Con la pagina di oggi l'indirizzo è già di **195.223** caratteri senza foto tue su Pebble Time 2 e
-  arriva a **221.703** con 12 foto: molto oltre i 138 k che iOS ha aperto finora. Vedi `PIANO.md` §7.
+  Con la pagina del **14/09/2026** (85.476 B) l'indirizzo era già di **195.223** caratteri senza foto
+  tue su Pebble Time 2 e arrivava a **221.703** con 12 foto: molto oltre i 138 k che iOS ha aperto
+  finora. La pagina di S14 è più corta di 418 B — la sua parte in base64 passa da 113.968 a **113.412**
+  caratteri (pin di `test/test_index_retry.js`) — ma l'ordine di grandezza non cambia: i due totali
+  restano da rimisurare al prossimo gate. Vedi `PIANO.md` §7.
 - **La memoria dell'app non si rimpicciolisce mai da sola**: eliminare o sostituire foto non libera
   spazio nel file dell'orologio (il firmware lo ricompatta solo quando è quasi pieno). Se l'avvio
   diventa lento, la cura è rimuovere e reinstallare l'app: vedi «Galleria si avvia lentamente?».
 - Il salto di foto con la **scossa** non sopravvive al riavvio di Galleria (scelta voluta: vedi
   «Sull'orologio»).
-- Niente PNG sull'orologio in v1; «Ora grande» non ha la riga sotto l'ora.
+- Niente PNG sull'orologio in v1; «Ora grande» non ha la riga delle info (passi, batteria, data).
 - L'**anteprima** nella pagina è onesta ma parziale: conosce i pixel delle **sole foto aggiunte in
   quella sessione** (l'occhio per sceglierle compare da due foto nuove in su; con «Ritaglio» aperto
   l'anteprima si sposta sotto la cornice), mostra un'**ora campione** (12:34) e non disegna la riga
-  sotto l'ora, «PM», Quick View né il testo ingrandito; con il **Font di sistema** non disegna le
-  cifre.
+  delle info, «PM», Quick View né il testo ingrandito; con il **Font di sistema** non disegna le
+  cifre (salvo «Ora grande», dove l'orologio stesso usa Anton).
 - La pagina delle impostazioni è in **sei lingue** (en/it/de/fr/es/pt), ma il **listing dello store**
   resta in inglese: lo store Pebble non è localizzato e, dal **18/09/2026**, anche le note di rilascio
   si scrivono solo in inglese (quelle della 0.2.0 e della 0.4.0, con una riga per lingua, restano come
   storia).
-- I passi sotto l'ora si aggiornano al **tick del minuto** (mai i secondi): un cambiamento appare
-  entro un minuto.
+- I passi nella riga delle info si aggiornano al **tick del minuto** (mai i secondi): un
+  cambiamento appare entro un minuto.
 
 ## Struttura del progetto
 
@@ -297,7 +330,7 @@ src/pkjs/      index.js (eventi Pebble, modalità dev, retry), album.js (album i
                i18n.js (dizionari della pagina, generato), digit_masks.js (maschere delle cifre
                per l'anteprima, generato)
 i18n/          messages.json: i testi della config page in it/en/de/fr/es/pt (sorgente unica,
-               135 chiavi × 6 lingue) + README.md (formato, rigenerazione, regole del lessico)
+               134 chiavi × 6 lingue) + README.md (formato, rigenerazione, regole del lessico)
 src/pkjs/config/  sorgenti ES5 della config page: page.html, page.css, page_core.js, page.js,
                pipeline.js (porting byte-esatto di tools/photo_prep.py),
                preview.js (motore dell'anteprima: porting di ui_time.c/ui_digits.c/luma.c)
@@ -321,6 +354,7 @@ Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7)
 `../../docs/design/galleria-s11-lingue-es-pt.md` (spagnolo e portoghese) e
 `../../docs/design/galleria-s12-anteprima.md` (anteprima della watchface),
 `../../docs/design/galleria-s13-ux-casual.md` (la pagina delle impostazioni di oggi),
+`../../docs/design/galleria-s14-feature-v1.md` (le cinque feature del 19/09/2026),
 `i18n/README.md`, `CLAUDE.md` (regole di lavoro sull'app).
 
 ### Dettagli tecnici
@@ -331,9 +365,28 @@ Condensed e Francois One si fermano a 61 px con «Ora in alto», e contorno e om
 qualche pixel in più; l'avviso di avvio lento nasce dai millisecondi di apertura del file che
 l'orologio dichiara nel messaggio di saluto, con la soglia «0,4 s + 0,1 s per foto» di
 `src/pkjs/config/page_core.js`; i tempi di avvio misurati su un Pebble Time 2 sono in `PIANO.md` §4,
-esito S8-perf (**2,7 s** su un file gonfio contro **0,31–0,36 s** dopo la reinstallazione);
-«Ottimizza per lo schermo dell'orologio» è spento di serie in attesa della conferma sullo schermo
-vero (decisione **D6**).
+esito S8-perf (**2,7 s** su un file gonfio contro **0,31–0,36 s** dopo la reinstallazione).
+
+Dietro le novità del **19/09/2026** (sessione S14, cinque feature per la v1.0; spec
+`../../docs/design/galleria-s14-feature-v1.md`):
+
+- **«Ora in basso» non è un disegno nuovo**: è «Ora in alto» **specchiato dentro la sua fascia**
+  (`src/c/ui_time.c`, l'unica formula è `prv_ay()`), e la fascia è ancorata al fondo dell'area
+  libera dello schermo. Per questo il riempimento delle cifre finisce sempre alla stessa riga con
+  qualunque font, la riga delle info sta sopra, e con la Quick View basta ricalcolare la fascia
+  (decisione **D136**: nessun byte nuovo nelle impostazioni, «Ora in basso» è il valore 2 di
+  «Disposizione»).
+- Il **contorno automatico** si accende da `LUMA_HALO_PCT` = **15 % compreso** (`src/c/luma.h`,
+  decisione **D140**: prima quella soglia bisognava superarla; la stessa regola sta in `ui_time.c`,
+  in `preview.js` dell'anteprima e nei tool `photo_prep.py` e `gen_test_cards.py`).
+- **«Ottimizza per lo schermo dell'orologio» è spuntato di serie** (decisione **D138**, che rovescia
+  la **D6** «spento finché non lo conferma lo schermo vero»): vale per le **foto nuove**, quelle già
+  sull'orologio non cambiano. Le card di prova di `gen_test_cards.py` vanno quindi ripassate
+  **spegnendo** la casella.
+- Gli **intervalli «ogni 6 h» e «ogni 12 h»** (decisione **D139**) non aggiungono stato: la
+  rotazione resta il conto dei minuti locali diviso l'intervallo, quindi cadono su ore tonde. Le
+  **frecce del font** sono uscite (**D137**) e la pagina delle impostazioni ne è uscita più
+  leggera: **85.058 B** inlinati, con l'avviso soft a 86.016 B e il tetto a 98.304 B.
 
 ## Build, test, emulatore
 

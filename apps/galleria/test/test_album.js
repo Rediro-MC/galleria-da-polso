@@ -388,7 +388,9 @@ sec('2. album vuoto e impostazioni');
 /* normalizeSettings: intervalli di settings_validate() */
 (function () {
   var d = Album.defaultSettings();
-  eq(Album.normalizeSettings({ layout: 2 }, null).layout, 0, 'layout 2 fuori intervallo → 0');
+  eq(Album.normalizeSettings({ layout: 1 }, null).layout, 1, 'layout 1 (B) valido');
+  eq(Album.normalizeSettings({ layout: 2 }, null).layout, 2, 'layout 2 (ora in basso) valido (S14/D136)');
+  eq(Album.normalizeSettings({ layout: 3 }, null).layout, 0, 'layout 3 fuori intervallo → 0');
   eq(Album.normalizeSettings({ font: 3 }, null).font, 3, 'font 3 (LECO) valido');
   eq(Album.normalizeSettings({ font: 4 }, null).font, 4, 'font 4 valido (S8/D22)');
   eq(Album.normalizeSettings({ font: 5 }, null).font, 5, 'font 5 valido (S8/D22)');
@@ -416,6 +418,12 @@ sec('2. album vuoto e impostazioni');
   eq(Album.normalizeSettings({ interval_min: 0 }, null).interval_min, 0, 'interval_min 0 (mai) valido');
   eq(Album.normalizeSettings({ interval_min: 1440 }, null).interval_min, 1440, 'interval_min 1440 valido');
   eq(Album.normalizeSettings({ interval_min: 1441 }, null).interval_min, 30, 'interval_min 1441 → 30');
+  /* S14/D139: 360 (ogni 6 h) e 720 (ogni 12 h) sono voci nuove della lista; 240 e 600 restano fuori */
+  eq(Album.normalizeSettings({ interval_min: 360 }, null).interval_min, 360, 'interval_min 360 (6 h) valido (S14/D139)');
+  eq(Album.normalizeSettings({ interval_min: 720 }, null).interval_min, 720, 'interval_min 720 (12 h) valido (S14/D139)');
+  eq(Album.normalizeSettings({ interval_min: '360' }, null).interval_min, 360, 'interval_min "360" (stringa) accettato');
+  eq(Album.normalizeSettings({ interval_min: 240 }, null).interval_min, 30, 'interval_min 240 non in lista → 30');
+  eq(Album.normalizeSettings({ interval_min: 600 }, null).interval_min, 30, 'interval_min 600 non in lista → 30');
   eq(Album.normalizeSettings({ interval_min: '15' }, null).interval_min, 15, 'stringa numerica accettata');
   eq(Album.normalizeSettings({ layout: '1' }, null).layout, 1, 'layout "1" accettato');
   eq(Album.normalizeSettings({ layout: '' }, null).layout, 0, 'stringa vuota → default');
@@ -498,6 +506,28 @@ sec('2. album vuoto e impostazioni');
     eq(r.watch.settingsCrc(), Album.settingsCrc(s), 'CRC dell\'orologio = settingsCrc(album) con lang ' + lang);
   }
 
+  /* S14/D136: `layout` (byte 1) arriva a 2 ("ora in basso"); S14/D139: la lista degli intervalli
+   * ha 360 e 720. Album e fake watch devono muoversi insieme, altrimenti la pagina manda un blob
+   * che l'orologio rifiuta con BAD_FORMAT e l'utente perde le impostazioni senza capire perche'. */
+  var layout, interval;
+  for (layout = 0; layout <= 2; layout++) {
+    s = Album.normalizeSettings({ layout: layout }, null);
+    eq(s.layout, layout, 'album accetta layout ' + layout);
+    r = sendBlob(Album.settingsBytes(s));
+    eq(r.code, FakeWatch.CODE.OK, 'fakewatch accetta layout ' + layout + ' (S14/D136)');
+    eq(r.watch.settings[1], layout, 'fakewatch: layout ' + layout + ' memorizzato nel byte 1');
+    eq(r.watch.settingsCrc(), Album.settingsCrc(s), 'CRC dell\'orologio = settingsCrc(album) con layout ' + layout);
+  }
+  for (interval = 0; interval < Album.INTERVALS.length; interval++) {
+    s = Album.normalizeSettings({ interval_min: Album.INTERVALS[interval] }, null);
+    eq(s.interval_min, Album.INTERVALS[interval], 'album accetta interval_min ' + Album.INTERVALS[interval]);
+    r = sendBlob(Album.settingsBytes(s));
+    eq(r.code, FakeWatch.CODE.OK, 'fakewatch accetta interval_min ' + Album.INTERVALS[interval] + ' (S14/D139)');
+    eq(r.watch.settings[7] | (r.watch.settings[8] << 8), Album.INTERVALS[interval],
+       'fakewatch: interval_min ' + Album.INTERVALS[interval] + ' nei byte 7/8 (u16 LE)');
+  }
+  eqJson(Album.INTERVALS, [0, 5, 15, 30, 60, 180, 360, 720, 1440], 'album: lista degli intervalli (S14/D139)');
+
   /* blob grezzi fuori intervallo: il C risponde BAD_FORMAT, la fake watch deve fare altrettanto */
   var bad = Album.settingsBytes(Album.defaultSettings()); bad[12] = 4;
   eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 4 (blob grezzo)');
@@ -507,6 +537,14 @@ sec('2. album vuoto e impostazioni');
   eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta digit_style 255 (blob grezzo)');
   bad = Album.settingsBytes(Album.defaultSettings()); bad[2] = 6;
   eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta font 6 (blob grezzo)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[1] = 3;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta layout 3 (S14/D136: 2 e\' l\'ultimo)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[7] = 240 & 0xFF; bad[8] = 240 >> 8;
+  eq(sendBlob(bad).code, FakeWatch.CODE.BAD_FORMAT, 'fakewatch rifiuta interval_min 240 (non in lista)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[7] = 360 & 0xFF; bad[8] = 360 >> 8;
+  eq(sendBlob(bad).code, FakeWatch.CODE.OK, 'fakewatch accetta interval_min 360 (blob grezzo, S14/D139)');
+  bad = Album.settingsBytes(Album.defaultSettings()); bad[7] = 720 & 0xFF; bad[8] = 720 >> 8;
+  eq(sendBlob(bad).code, FakeWatch.CODE.OK, 'fakewatch accetta interval_min 720 (blob grezzo, S14/D139)');
 })();
 
 /* ================================================== 3. caricamento da storage */
@@ -950,6 +988,16 @@ function entryB(slot, id, fmt, over) {
   /* interval_min non in lista → 30 */
   a.applyPayload({ v: 1, settings: { interval_min: 45 } }, {});
   eq(a.data.settings.interval_min, 30, 'interval_min 45 non in lista → 30');
+  /* S14/D139: dal payload della pagina arrivano anche 360 e 720 */
+  a.applyPayload({ v: 1, settings: { interval_min: 360 } }, {});
+  eq(a.data.settings.interval_min, 360, 'payload: interval_min 360 (6 h) accettato');
+  a.applyPayload({ v: 1, settings: { interval_min: 720 } }, {});
+  eq(a.data.settings.interval_min, 720, 'payload: interval_min 720 (12 h) accettato');
+  /* S14/D136: layout 2 dal payload */
+  a.applyPayload({ v: 1, settings: { layout: 2 } }, {});
+  eq(a.data.settings.layout, 2, 'payload: layout 2 (ora in basso) accettato');
+  /* ripristino dello stato per i controlli che seguono */
+  a.applyPayload({ v: 1, settings: { layout: 0, interval_min: 60 } }, {});
   /* stringhe numeriche */
   a.applyPayload({ v: 1, settings: { font: '3', interval_min: '180' } }, {});
   eq(a.data.settings.font, 3, 'settings: stringa numerica accettata');

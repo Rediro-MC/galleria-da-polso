@@ -40,8 +40,10 @@ var SETTINGS_DEFAULTS = { layout: 0, font: 0, clock_mode: 0, leading_zero: 0, te
                           outline: 0, interval_min: 30, order: 0, shake_next: 1, info_row: 15,
                           digit_style: 0, lang: 0 };
 /* opzioni attese per campo (settings.c: settings_validate(); info_row è un <input number>) */
-var OPTION_COUNT = { layout: 2, font: 6, clock_mode: 3, leading_zero: 3, text_color: 5,
-                     outline: 3, interval_min: 7, order: 2, shake_next: 2, digit_style: 4, lang: 7 };
+/* S14/D136: `layout` ha 3 voci (la terza e' "ora in basso"); S14/D139: `interval_min` ne ha 9
+ * (360 = ogni 6 h e 720 = ogni 12 h fra 180 e 1440). */
+var OPTION_COUNT = { layout: 3, font: 6, clock_mode: 3, leading_zero: 3, text_color: 5,
+                     outline: 3, interval_min: 9, order: 2, shake_next: 2, digit_style: 4, lang: 7 };
 var SCENARIOS = ['photo', 'seq', 'dup', 'crc', 'interrupt', 'none'];
 var RT = 'http://127.0.0.1:5555/close?';
 var TOKEN2 = '%7B%22v%22%3A1%2C%22dev%22%3Atrue%2C%22seq%22%3A2%7D';
@@ -475,7 +477,13 @@ section('2. senza settings + Salva/Annulla', function () {
     }
   }
   eqJson(f.interval_min.children.map(function (o) { return o.value; }),
-         ['0', '5', '15', '30', '60', '180', '1440'], 's_interval_min: valori 0/5/15/30/60/180/1440 (settings.c)');
+         ['0', '5', '15', '30', '60', '180', '360', '720', '1440'],
+         's_interval_min: valori 0/5/15/30/60/180/360/720/1440 (settings.c, S14/D139)');
+  eqJson(f.layout.children.map(function (o) { return o.value; }), ['0', '1', '2'],
+         's_layout: valori 0..2 (S14/D136)');
+  eqJson(f.layout.children.map(function (o) { return o.textContent; }),
+         ['A — ora in alto', 'B — a tutto schermo', 'C — ora in basso'],
+         's_layout: etichette A/B/C (S14/D136: la terza e\' "ora in basso")');
   eqJson(f.font.children.map(function (o) { return o.textContent; }),
          ['Anton', 'Bebas', 'Barlow', 'LECO', 'Francois One', 'Staatliches'],
          's_font: etichette Anton, Bebas, Barlow, LECO, Francois One, Staatliches (S8/D22, valori 0..5)');
@@ -590,6 +598,16 @@ section('3. con settings', function () {
   eq(body.settings.interval_min, 1440, 'con settings, Salva: interval_min 1440 (modificato)');
   eq(body.scenario, 'crc', 'con settings, Salva: scenario crc (modificato)');
   eqJson(p.loc.hrefs, [RT + TOKEN2], 'con settings, Salva: redirect a return_to + token');
+  /* S14/D136 + D139: i valori nuovi arrivano interi fino al POST (non e' il browser a filtrarli) */
+  f.layout.value = '2';
+  f.interval_min.value = '360';
+  eq(clickSave(p), null, 'con settings, Salva layout 2 + 360: nessuna eccezione');
+  body = lastPostBody(p);
+  eq(body.settings.layout, 2, 'con settings, Salva: layout 2 (S14/D136)');
+  eq(body.settings.interval_min, 360, 'con settings, Salva: interval_min 360 (S14/D139)');
+  f.interval_min.value = '720';
+  eq(clickSave(p), null, 'con settings, Salva 720: nessuna eccezione');
+  eq(lastPostBody(p).settings.interval_min, 720, 'con settings, Salva: interval_min 720 (S14/D139)');
 });
 
 /* ------------------------- 4. senza return_to, pool e stato reali (vuoti): Salva e Annulla --- */

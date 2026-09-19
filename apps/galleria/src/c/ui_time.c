@@ -6,7 +6,10 @@
  * viene caricata solo per la durata della Quick View (S7, D16: −8.152 B di heap a regime).
  * S8-stile (D20/D21): le strip hanno un anello spesso `ring` px e un'ombra 3D `shadow` px come indici
  * di palette; le costanti di layout sono la prima riga del RIEMPIMENTO e la strip parte `ring` righe
- * più su (prv_strip_y); lo stile (pieno / trasparente / 3D) è solo palette (prv_apply_text_style). */
+ * più su (prv_strip_y); lo stile (pieno / trasparente / 3D) è solo palette (prv_apply_text_style).
+ * S14 (D136): «Ora in basso» (GAL_LAYOUT_A_BOTTOM) = il layout A specchiato dentro la sua fascia, ancorata al fondo
+ * dell'area non ostruita (riga info sopra, cifre a filo del fondo): stesse modalità A + il flag s_lay.bottom, posizioni
+ * effettive da prv_ay(); la fascia sale con la Quick View (redraw completo + colore con isteresi, come in B). */
 #include <pebble.h>
 #include "ui_time.h"
 #include "ui_photo.h"
@@ -35,7 +38,8 @@ _Static_assert(GAL_FONT_LECO == 3 && DIGITS_FONT_COUNT + 1 == GAL_FONT_COUNT,
 #define SYNC_THIN       PBL_IF_BW_ELSE(true, false)   /* tratto 1 px su flint, 2 px (arco) su emery */
 #define AMPM_SHRINK     2     /* in 12 h le celle delle CIFRE (non del ':') si stringono di 2 px per AM/PM (§3.1) */
 
-/* Modalità di rendering effettiva = impostazioni + strip caricate + area non ostruita. */
+/* Modalità di rendering effettiva = impostazioni + strip caricate + area non ostruita.
+ * S14 (D136): «Ora in basso» NON è una modalità: è MODE_A_LECO/MODE_A_SPRITE + il flag s_lay.bottom (specchio). */
 enum { MODE_A_LECO = 0, MODE_A_SPRITE = 1, MODE_B_SPRITE = 2, MODE_B_QV = 3 };
 
 typedef struct {
@@ -54,8 +58,9 @@ typedef struct {
   GFont   leco_font, ampm_font, info_font;
   /* dinamici (prv_pick_mode) */
   uint8_t mode;
-  int16_t band_y, band_h;       /* fascia dinamica [band_y, band_y + band_h): tutto ciò che cambia al tick sta qui */
-  int16_t luma_h;               /* fascia valutata da luma: [0, luma_h) (in B tutto lo schermo: le due righe) */
+  bool    bottom;               /* S14 (D136): layout A specchiato («Ora in basso»); mai in MODE_B_* */
+  int16_t band_y, band_h;       /* fascia dinamica [band_y, band_y + band_h): tutto ciò che cambia al tick sta qui (band_y 0 salvo B e A in basso) */
+  int16_t luma_y, luma_h;       /* fascia valutata da luma: [luma_y, luma_y + luma_h) (luma_y = band_y in A in basso, 0 altrove; in B tutto lo schermo: le due righe) */
 } UiLayout;
 
 typedef struct { uint8_t glyph; int16_t x, adv; } GlyphPos;
@@ -270,6 +275,8 @@ static void prv_pick_mode(void) {
   }
   s_lay.mode = mode;
   s_lay.band_y = 0;
+  s_lay.bottom = false;
+  s_lay.luma_y = 0;
   switch (mode) {
     case MODE_B_SPRITE:
       /* Al tick cambia solo la riga MM (+ "PM" in basso): fascia dalla riga MM al fondo; la riga HH
@@ -286,12 +293,28 @@ static void prv_pick_mode(void) {
       /* 2 px di margine sotto la riga info (design §3.1/§3.3: 106 emery, 76 flint; 110 in ExtraLarge) */
       s_lay.band_h = s_lay.info_y + s_lay.info_h + 2;
       s_lay.luma_h = s_lay.band_h;
+      /* S14 (D136): «Ora in basso» = la STESSA fascia ancorata al fondo dell'area non ostruita (emery [122,228),
+       * flint [92,168); con la Quick View sale: [63,169) / [41,117)); ostruzione più alta della fascia → band_y 0 e
+       * percorso compact di update_proc. Solo con layout 2: con layout B ripiegato in A il flag resta falso. */
+      s_lay.bottom = (st->layout == GAL_LAYOUT_A_BOTTOM);
+      if (s_lay.bottom) {
+        const int16_t by = (int16_t)(s_unob_h - s_lay.band_h);
+        s_lay.band_y = by < 0 ? 0 : by;
+        s_lay.luma_y = s_lay.band_y;
+      }
       break;
   }
 }
 
 static bool prv_mode_is_a(void) {
   return s_lay.mode == MODE_A_LECO || s_lay.mode == MODE_A_SPRITE;
+}
+
+/* S14 (D136): y effettiva di un box (y, h) del disegno di §3.1 («Ora in alto»): in «Ora in basso» il box si
+ * specchia dentro la fascia [band_y, band_y + band_h) (y' = band_y + band_h − y − h), altrimenti resta dov'è.
+ * Pura: nessun effetto collaterale; vale per riempimento cifre, box LECO e riga info. */
+static int16_t prv_ay(int16_t y, int16_t h) {
+  return s_lay.bottom ? (int16_t)(s_lay.band_y + s_lay.band_h - y - h) : y;
 }
 
 static GSize prv_measure(const char *text, GFont font, int16_t h) {
@@ -408,10 +431,14 @@ static void prv_layout_time(void) {
     if (x0 < 0) {
       x0 = 0;
     }
-    s_rc_time = GRect(x0, s_lay.leco_y, ts.w + 2, s_lay.leco_h);
+    /* S14 (D136): in «Ora in basso» il box del testo si specchia sulla fascia (emery 162..221, flint 118..161) e la
+     * riga sotto le cifre lo segue (leco_bottom' = leco_y' + (leco_bottom − leco_y): 222 / 160) */
+    const int16_t leco_y = prv_ay(s_lay.leco_y, s_lay.leco_h);
+    const int16_t leco_bottom = (int16_t)(leco_y + (s_lay.leco_bottom - s_lay.leco_y));
+    s_rc_time = GRect(x0, leco_y, ts.w + 2, s_lay.leco_h);
     /* AM/PM con la base sulla stessa riga del fondo delle cifre: i glifi di Gothic 14 Bold occupano
      * le righe 5..13 del box da 14 px, quindi box.y = bottom - as.h → fondo glifi = bottom - 1 */
-    s_rc_ampm = GRect(x0 + ts.w + AMPM_GAP, s_lay.leco_bottom - as.h, as.w + 2, as.h + 2);
+    s_rc_ampm = GRect(x0 + ts.w + AMPM_GAP, leco_bottom - as.h, as.w + 2, as.h + 2);
     return;
   }
 
@@ -455,9 +482,14 @@ static void prv_layout_time(void) {
     x0 = 0;
   }
   prv_shift_row(s_row1, s_row1_n, x0);
-  s_row1_y = prv_strip_y(DIGITS_SIZE_A, s_lay.a_fill_y);
+  /* S14 (D136): il riempimento si specchia sul SUO box (a_fill_y, digit_h reale della strip): in «Ora in basso» il
+   * riempimento finisce SEMPRE alla riga 218 su emery (digits_bottom 219) e 160 su flint (161), con ogni font (prima
+   * riga: Anton 153, Barlow/Francois 158, Staatliches 154; flint 119/121/120); in MODE_B_QV bottom è falso. */
   const DigitStripMetrics *m = ui_digits_metrics(DIGITS_SIZE_A);
-  const int16_t digits_bottom = s_lay.a_fill_y + (m ? (int16_t)m->digit_h : 0);   /* riga sotto l'ultimo pixel del riempimento */
+  const int16_t digit_h = m ? (int16_t)m->digit_h : 0;
+  const int16_t fill_y = prv_ay(s_lay.a_fill_y, digit_h);
+  s_row1_y = prv_strip_y(DIGITS_SIZE_A, fill_y);
+  const int16_t digits_bottom = (int16_t)(fill_y + digit_h);   /* riga sotto l'ultimo pixel del riempimento */
   s_rc_ampm = GRect(x0 + total + AMPM_GAP, digits_bottom - as.h, as.w + 2, as.h + 2);
 }
 
@@ -501,7 +533,7 @@ static void prv_layout_info(void) {
     }
   }
 
-  const int16_t y = s_lay.info_y, h = s_lay.info_h;
+  const int16_t y = prv_ay(s_lay.info_y, s_lay.info_h), h = s_lay.info_h;   /* S14: in «Ora in basso» in cima alla fascia (band_y + 2) */
   s_rc_left = GRect(MARGIN_X, y, left_w + 2, h);
   s_rc_date = GRect(w - MARGIN_X - date_w, y, date_w + 2, h);
   /* batteria: centrata nello spazio fra sinistra e destra */
@@ -601,7 +633,7 @@ static void prv_draw_bt_icon(GContext *ctx, GPoint o) {
    * tratto 3 (solo valori dispari sono supportati: pebble.h) → raggio 1, quindi ogni estremo
    * sta a 1 px dal bordo del box. Con l'alone le stesse linee vengono prima tracciate con
    * tratto 5 (raggio 2) nel colore opposto: sbordano di 1 px dal box, che il chiamante riserva.
-   * Il tutto deve stare in [0, band_h) (repaint mirato, D11). */
+   * Il tutto deve stare in [band_y, band_y + band_h) (repaint mirato, D11; S14: band_y 0 salvo A in basso). */
   if (s_halo) {
     graphics_context_set_stroke_color(ctx, s_bg);
     graphics_context_set_stroke_width(ctx, 5);
@@ -690,9 +722,10 @@ static void prv_apply_text_style(void) {
     case GAL_OUTLINE_NEVER:  s_halo = false; break;
     default:
       /* auto: % di pixel della fascia in conflitto con il colore EFFETTIVO (luma.h: bianco → Y > 77,
-       * nero → Y < 25); su flint sempre (design §3.3); senza bitmap (luma non valida) mai. */
+       * nero → Y < 25) ≥ 15 % (S14/D140: era >, stessa regola di luma.c); su flint sempre (design §3.3);
+       * senza bitmap (luma non valida) mai. */
 #if defined(PBL_COLOR)
-      s_halo = s_luma.valid && (light ? s_luma.bad_white : s_luma.bad_black) > LUMA_HALO_PCT;
+      s_halo = s_luma.valid && (light ? s_luma.bad_white : s_luma.bad_black) >= LUMA_HALO_PCT;
 #else
       s_halo = s_luma.valid;
 #endif
@@ -745,8 +778,13 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
 
   int16_t dy = 0;
   if (compact) {
+    /* S14: y EFFETTIVA del box (prv_ay: specchiata in «Ora in basso», = s_rc_time.origin.y / s_row1_y di
+     * prv_layout_time) → dy centra il box nell'area non ostruita; ui_digits_metrics è una lettura, nessuna allocazione */
+    const DigitStripMetrics *m = ui_digits_metrics(DIGITS_SIZE_A);
     const int16_t h = (s_lay.mode == MODE_A_LECO) ? s_lay.leco_h : ui_digits_height(DIGITS_SIZE_A);
-    const int16_t y = (s_lay.mode == MODE_A_LECO) ? s_lay.leco_y : prv_strip_y(DIGITS_SIZE_A, s_lay.a_fill_y);
+    const int16_t y = (s_lay.mode == MODE_A_LECO)
+        ? prv_ay(s_lay.leco_y, s_lay.leco_h)
+        : prv_strip_y(DIGITS_SIZE_A, prv_ay(s_lay.a_fill_y, m ? (int16_t)m->digit_h : 0));
     dy = (int16_t)((ub.size.h - h) / 2 - y);
   }
   GRect rc_ampm = s_rc_ampm;
@@ -791,9 +829,10 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
     if (s_show_sync) {                           /* S10 (D32): icona a MARGIN_X, poi "k/n" dopo SYNC_GAP */
       const int16_t size = s_lay.sync_icon;
       const int16_t extra = s_halo ? 1 : 0;      /* l'alone/la punta sbordano di 1 px dal box (come BT) */
+      const int16_t band_end = (int16_t)(s_lay.band_y + s_lay.band_h);   /* S14: fondo della fascia EFFETTIVA (band_y 0 in A in alto) */
       int16_t oy = s_rc_left.origin.y + (s_lay.info_h - size) / 2;
-      if (oy + size + extra > s_lay.band_h) {
-        oy = s_lay.band_h - size - extra;        /* guardia: mai fuori dalla fascia dinamica */
+      if (oy + size + extra > band_end) {
+        oy = (int16_t)(band_end - size - extra); /* guardia: mai fuori dalla fascia dinamica */
       }
       prv_draw_sync_icon(ctx, GPoint(s_rc_left.origin.x, oy), size, SYNC_THIN);
       GRect rc = s_rc_left;
@@ -802,9 +841,10 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
       prv_draw_text(ctx, s_sync_buf, s_lay.info_font, rc, false);
     } else if (s_show_bt_icon) {
       const int16_t extra = s_halo ? 1 : 0;      /* l'alone sborda di 1 px dal box dell'icona */
+      const int16_t band_end = (int16_t)(s_lay.band_y + s_lay.band_h);   /* S14: come per l'icona di sync */
       int16_t oy = s_rc_left.origin.y + (s_lay.info_h - BT_ICON_H) / 2;
-      if (oy + BT_ICON_H + extra > s_lay.band_h) {
-        oy = s_lay.band_h - BT_ICON_H - extra;   /* guardia: mai fuori dalla fascia dinamica */
+      if (oy + BT_ICON_H + extra > band_end) {
+        oy = (int16_t)(band_end - BT_ICON_H - extra);   /* guardia: mai fuori dalla fascia dinamica */
       }
       prv_draw_bt_icon(ctx, GPoint(s_rc_left.origin.x, oy));
     } else if (s_show_left) {
@@ -848,19 +888,22 @@ static void prv_update_proc(Layer *layer, GContext *ctx) {
 
 /* ---------------------------------------------------------------- luma / stile */
 
-/* Luma sulla fascia dinamica intera (D7), ritagliata all'altezza del bitmap (precondizione di
- * luma.h). Senza bitmap (alloc fallita) lo sfondo è nero per costruzione: il risultato equivale a
- * una fascia tutta nera, così i colori manuali scuri ricevono comunque l'alone bianco. */
+/* Luma sulla fascia dinamica EFFETTIVA (D7; S14/D136: [luma_y, luma_y + luma_h), luma_y = band_y in «Ora in
+ * basso», 0 altrove), ritagliata all'altezza del bitmap (precondizione di luma.h; luma_y ≤ sz.h per costruzione:
+ * la fascia sta nello schermo e la foto è grande come lo schermo). Senza bitmap (alloc fallita) lo sfondo è nero
+ * per costruzione: il risultato equivale a una fascia tutta nera, così i colori manuali scuri ricevono comunque
+ * l'alone bianco. */
 static void prv_compute_luma(void) {
   uint16_t stride = 0;
   const uint8_t *data = ui_photo_data(&stride);
   const GSize sz = ui_photo_size();
+  const int16_t y0 = s_lay.luma_y;
   int16_t h = s_lay.luma_h;
-  if (h > sz.h) {
-    h = sz.h;
+  if (h > sz.h - y0) {
+    h = (int16_t)(sz.h - y0);          /* mai negativa nel ramo sotto: con y0 ≥ sz.h resta ≤ 0 → fascia "tutta nera" */
   }
   if (data && h > 0 && sz.w > 0) {
-    const LumaRect band = { 0, 0, sz.w, h };
+    const LumaRect band = { 0, y0, sz.w, h };
 #if defined(PBL_COLOR)
     luma_compute_8bit(data, stride, band, &s_luma);
 #else
@@ -886,20 +929,25 @@ static void prv_log_style(const char *why) {
 
 /* Allinea le strip (D16), ricalcola modalità e fascia; se la fascia cambia aggiorna sub-bitmap e
  * posizioni. Ritorna true se la fascia è cambiata. Unico punto (oltre a ui_time_init) che alloca
- * le strip: mai chiamato da update_proc. */
+ * le strip: mai chiamato da update_proc. S14 (D136): le posizioni si rifanno anche quando cambia SOLO la
+ * fascia (in «Ora in basso» la Quick View la sposta senza cambiare modalità: le y assolute vanno ricalcolate
+ * prima del redraw); la palette solo al cambio di modalità. */
 static bool prv_refresh_mode(void) {
   const int16_t old_band_y = s_lay.band_y, old_band_h = s_lay.band_h;
   const uint8_t old_mode = s_lay.mode;
   prv_load_strips();                   /* prima di scegliere la modalità: la A in B esiste solo sotto Quick View */
   prv_pick_mode();
   const bool band_changed = (s_lay.band_y != old_band_y) || (s_lay.band_h != old_band_h);
+  const bool mode_changed = s_lay.mode != old_mode;
   if (band_changed) {
     ui_photo_set_band(s_lay.band_y, s_lay.band_h);
   }
-  if (s_lay.mode != old_mode) {
+  if (mode_changed) {
     prv_apply_text_style();            /* una strip appena caricata ha ancora la palette del PNG */
+  }
+  if (mode_changed || band_changed) {
     prv_layout_time();
-    if (prv_mode_is_a()) {             /* la riga info torna visibile: dati e posizioni aggiornati */
+    if (prv_mode_is_a()) {             /* la riga info torna visibile o si sposta: dati e posizioni aggiornati */
       prv_read_steps();
       prv_layout_info();
     }

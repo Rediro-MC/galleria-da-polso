@@ -7,7 +7,7 @@ A CHE SERVE
 -----------
 Il glossario di `docs/design/galleria-s10-i18n.md` §3 e' una tabella di
 traduzioni scritta a mano; la fonte unica dei testi della config page e'
-`apps/galleria/i18n/messages.json` (135 chiavi x 6 lingue, generato in
+`apps/galleria/i18n/messages.json` (134 chiavi x 6 lingue, generato in
 `src/pkjs/i18n.js` da `tools/build_i18n.py`). Questo tool confronta i due e
 fallisce quando divergono, cosi' il glossario non puo' piu' invecchiare in
 silenzio ne' restare parziale: gira dentro `make -C apps/galleria/test`

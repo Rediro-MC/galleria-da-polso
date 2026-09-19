@@ -1,7 +1,7 @@
 /* ui_time.h — layer dell'ora (layout A, docs/design/galleria.md §3.1) + riga info sopra la foto.
  * Un solo Layer con update_proc; ridisegno mirato: al tick solo la fascia dinamica
- * (y < band_h: sub-bitmap della foto + testo), foto intera solo quando richiesto (primo render,
- * cambio foto, Quick View, focus). Colore testo automatico (luma.c) + alone opzionale (S2). */
+ * ([band_y, band_y+band_h): sub-bitmap della foto + testo), foto intera solo quando richiesto (primo
+ * render, cambio foto, Quick View, focus). Colore testo automatico (luma.c) + alone opzionale (S2). */
 #ifndef GALLERIA_UI_TIME_H
 #define GALLERIA_UI_TIME_H
 
@@ -27,15 +27,18 @@ void ui_time_request_full_redraw(void);
  * completo. Tutte valide solo dopo ui_time_init().
  *  - ui_time_photo_changed(): la foto è cambiata → decisione a freddo (luma_reset), come
  *    photo_prep.py --stats. S4 la chiama a ogni rotazione.
- *  - ui_time_band_changed(): stessa foto, fascia diversa (S3: layout B / Quick View) → isteresi
- *    di 10 punti per evitare il flip del colore a ogni peek (D7).
+ *  - ui_time_band_changed(): stessa foto, fascia diversa (S3: layout B / Quick View; S14: «Ora in
+ *    alto» ↔ «Ora in basso» e Quick View in «Ora in basso») → isteresi di 10 punti per evitare il
+ *    flip del colore a ogni peek (D7).
  *  - ui_time_style_changed(): sono cambiate solo le impostazioni colore/contorno (S6). */
 void ui_time_photo_changed(void);
 void ui_time_band_changed(void);
 void ui_time_style_changed(void);
 
 /* S3: l'area non ostruita è cambiata (unobstructed did_change): nel layout B passa alla riga
- * singola con la strip A e viceversa (fascia e colore ricalcolati); nel layout A solo redraw.
+ * singola con la strip A e viceversa (fascia e colore ricalcolati); nel layout A in alto solo redraw;
+ * in «Ora in basso» (S14/D136) la fascia sale con l'area non ostruita: posizioni, sub-bitmap e colore
+ * (isteresi, ui_time_band_changed) ricalcolati come in B.
  * S7 (D16): nel layout B la strip A viene caricata QUI all'inizio della Quick View (una
  * gbitmap_create_with_resource, ≈ 7,5 KB dalla flash, evento raro fuori dal tick) e scaricata al
  * did_change che la chiude; se l'heap non basta si ripiega sull'ora intera in LECO. Le allocazioni

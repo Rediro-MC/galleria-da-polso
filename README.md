@@ -32,15 +32,15 @@ I due repository di riferimento in `tools/` (`sdk-docs/`, 215 MB, e `pebble-watc
 
 - `CLAUDE.md` (radice) — regole del progetto e di codice C; `apps/galleria/CLAUDE.md` — regole e comandi dell'app.
 - `docs/CONTINUA-QUI.md` — **stato dei lavori e prossima sessione**: è il primo file da leggere.
-- `apps/galleria/PIANO.md` — piano a sessioni (**S0–S12**, poi **UX-1…UX-4**), esiti, tabella memoria, decisioni, problemi aperti.
-- `docs/design/galleria.md` — design (scelte **D1–D48**, wireframe, modello dati, protocollo, budget); le decisioni proseguono in `docs/design/galleria-s13-ux-casual.md` (**D49–D135**). Specifiche di sessione: `galleria-s6-config-page.md`, `galleria-s7-qa.md`, `galleria-s8-*.md` (hardware, runbook Android, risultati, stile), `galleria-s9-*.md` (pubblicazione, issue PebbleOS), `galleria-s10-i18n.md`, `galleria-s11-*.md` (lingue es/pt, analisi anteprima), `galleria-s12-anteprima.md`, `galleria-s13-ux-casual.md`, `galleria-s13-ux4-gate-telefono.md`, più la richiesta iniziale dell'utente in `galleria-richiesta-iniziale.txt` (tutti in `docs/design/`, indice in `docs/design/README.md`).
+- `apps/galleria/PIANO.md` — piano a sessioni (**S0–S12**, poi **UX-1…UX-4** e **S14**), esiti, tabella memoria, decisioni, problemi aperti.
+- `docs/design/galleria.md` — design (scelte **D1–D48**, wireframe, modello dati, protocollo, budget); le decisioni proseguono in `docs/design/galleria-s13-ux-casual.md` (**D49–D135**) e in `docs/design/galleria-s14-feature-v1.md` (**D136–D141**, S14). Specifiche di sessione: `galleria-s6-config-page.md`, `galleria-s7-qa.md`, `galleria-s8-*.md` (hardware, runbook Android, risultati, stile), `galleria-s9-*.md` (pubblicazione, issue PebbleOS), `galleria-s10-i18n.md`, `galleria-s11-*.md` (lingue es/pt, analisi anteprima), `galleria-s12-anteprima.md`, `galleria-s13-ux-casual.md`, `galleria-s13-ux4-gate-telefono.md`, `galleria-s14-feature-v1.md`, più la richiesta iniziale dell'utente in `galleria-richiesta-iniziale.txt` (tutti in `docs/design/`, indice in `docs/design/README.md`).
 - `PIANO-SVILUPPO-PEBBLE.md` — piano generale della piattaforma (numeri, regole, matrice di QA, pubblicazione); `docs/ricerca/` — report di ricerca del 24–26/08/2026 (indice in `docs/ricerca/README.md`).
 - Il lavoro è organizzato in sessioni con compiti classificati per importanza su **quattro livelli** (dal 05/09/2026): **alta e medio-alta → Fable**, **medio-bassa e bassa → Opus** (regola in `CLAUDE.md` di radice, §Regole operative); ogni sessione lascia il repo compilabile e aggiorna `CONTINUA-QUI.md`.
 
 ## Struttura
 
 ```
-apps/galleria/        watchface Galleria: src/c (C), src/pkjs (PebbleKit JS + config page), i18n/ (135 chiavi × 6 lingue),
+apps/galleria/        watchface Galleria: src/c (C), src/pkjs (PebbleKit JS + config page), i18n/ (134 chiavi × 6 lingue),
                       resources/ (digits, fonts, photos), test/ (host: C, node, Python), store/ (listing, icone, screenshot),
                       README.md, PIANO.md, CLAUDE.md
 apps/hello-emery/     smoke test dell'ambiente (Fase 0), compilato anche dalla CI

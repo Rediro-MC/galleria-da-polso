@@ -94,6 +94,18 @@ Nota operativa: `pkill -f "pebble logs"` uccide anche la shell che lo lancia (gi
 
 ## O5 — Colore automatico (foto vere + card)
 
+> 🔁 **19/09/2026 (S14/D140) — R11 chiusa senza questa tabella.** Su decisione esplicita dell'utente
+> («F01 – procedi») la soglia dell'alone automatico è passata da `>` a `>=`: l'alone si accende già al
+> **15 % esatto** di pixel in conflitto, in tutte e cinque le copie della regola (`src/c/luma.c`,
+> `src/c/ui_time.c:prv_apply_text_style`, `src/pkjs/config/preview.js`, `tools/photo_prep.py`,
+> `tools/gen_test_cards.py`; `LUMA_HALO_PCT` resta **15** e una tripwire `grep` in `make -C test pagecheck`
+> tiene allineate C e JS). Chiude **R11** di `apps/galleria/PIANO.md` §7.1 — che rimandava la scelta
+> «`>=` oppure `LUMA_HALO_PCT` 12–13» proprio a **O5** —, **senza** che O5 sia stato fatto: la spinta erano
+> le card **c7b** e **c8b** a freddo (le sole righe di campo a `bad = 15` esatto), giudicate illeggibili sul
+> vetro il 30/08/2026. **Questa tabella resta vuota e resta da fare**: O5 (20 foto vere, stile pieno,
+> layout A) e O6 sono ancora l'unico modo di tarare davvero soglie e LUT, e servirebbero se un giorno si
+> volesse toccare `LUMA_HALO_PCT` invece del solo confronto.
+
 | # | Foto / card | `mean` | `bad` % | `fg` | `halo` | Leggibile sul vetro? (sì/no, commento) | Sbagliata? |
 |---|---|---|---|---|---|---|---|
 | 1 | | | | | | | |

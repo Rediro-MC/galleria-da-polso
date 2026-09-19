@@ -586,7 +586,7 @@ static const uint32_t k_now[] = {
 };
 #define N_NOW ((int)(sizeof(k_now) / sizeof(k_now[0])))
 
-static const uint16_t k_iv[] = { 0, 1, 5, 15, 30, 60, 180, 1440 };
+static const uint16_t k_iv[] = { 0, 1, 5, 15, 30, 60, 180, 360, 720, 1440 };   /* S14 (D139): 360 e 720 */
 #define N_IV ((int)(sizeof(k_iv) / sizeof(k_iv[0])))
 
 /* ---- 1. rotation_local_minutes ---------------------------------------------------------------- */
@@ -1344,6 +1344,230 @@ static void test_index_random_quality(void) {
   CHECK_EQ(skew, 0);
 }
 
+
+/* ---- S14 (D139): intervalli «ogni 6 h» (360) e «ogni 12 h» (720) ----------------------------------
+ * Contratto: t = now_min / interval (nessun confine delle 04:00 come la giornaliera): 720 cambia alle
+ * 0:00 e alle 12:00 locali, 360 alle 0/6/12/18 (i minuti locali dall'epoca sono multipli di 1440 a
+ * mezzanotte, e 1440 e' multiplo di entrambi). Le ore vengono da rotation_local_minutes, come sull'orologio. */
+
+/* Minuti locali di un istante del 2026-09-19 (o del giorno d successivo). */
+static uint32_t lm(int32_t y, int32_t mo, int32_t d, int32_t h, int32_t mi) {
+  return rotation_local_minutes(y, mo, d, h, mi);
+}
+
+static void test_index_6h_12h(void) {
+  /* i due intervalli sono multipli/divisori esatti: 1440 = 2·720 = 4·360, 720 = 2·360 */
+  CHECK_EQ(1440u % 720u, 0);
+  CHECK_EQ(1440u % 360u, 0);
+  CHECK_EQ(720u % 360u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 0, 0) % 1440u, 0);              /* mezzanotte locale = multiplo di 1440 */
+  CHECK_EQ(lm(2026, 9, 19, 0, 0) % 720u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 12, 0) % 720u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 12, 0) % 360u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 6, 0) % 360u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 18, 0) % 360u, 0);
+  CHECK_EQ(lm(2026, 9, 19, 4, 0) % 360u, 240);             /* le 04:00 NON sono un confine */
+
+  /* 720, sequenziale n = 12: t(23:59) == t(12:00), t(0:00) == t(23:59) + 1, t(11:59) == t(0:00), t(12:00) == t(0:00) + 1 */
+  {
+    const uint8_t t_1200 = rotation_index(lm(2026, 9, 19, 12, 0), 12, 720, 0, 0);
+    const uint8_t t_2359 = rotation_index(lm(2026, 9, 19, 23, 59), 12, 720, 0, 0);
+    const uint8_t t_0000 = rotation_index(lm(2026, 9, 20, 0, 0), 12, 720, 0, 0);
+    const uint8_t t_1159 = rotation_index(lm(2026, 9, 20, 11, 59), 12, 720, 0, 0);
+    const uint8_t t_1200b = rotation_index(lm(2026, 9, 20, 12, 0), 12, 720, 0, 0);
+    CHECK_EQ(t_2359, t_1200);
+    CHECK_EQ(t_0000, (t_2359 + 1u) % 12u);
+    CHECK_EQ(t_1159, t_0000);
+    CHECK_EQ(t_1200b, (t_0000 + 1u) % 12u);
+    /* le 04:00 non cambiano nulla con 720 ne' con 360 */
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 3, 59), 12, 720, 0, 0), t_0000);
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 4, 0), 12, 720, 0, 0), t_0000);
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 4, 1), 12, 720, 0, 0), t_0000);
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 3, 59), 12, 360, 0, 0), rotation_index(lm(2026, 9, 20, 4, 0), 12, 360, 0, 0));
+    /* stessa cosa con lo shake (offset costante) */
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 23, 59), 12, 720, 0, 7), (t_1200 + 7u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 0, 0), 12, 720, 0, 7), (t_0000 + 7u) % 12u);
+    /* la formula del contratto: t = now / 720 */
+    CHECK_EQ(t_1200, (uint8_t)((lm(2026, 9, 19, 12, 0) / 720u) % 12u));
+    CHECK_EQ(t_0000, (uint8_t)((lm(2026, 9, 20, 0, 0) / 720u) % 12u));
+  }
+  /* 360, sequenziale n = 12: confini 0/6/12/18 */
+  {
+    const uint8_t a = rotation_index(lm(2026, 9, 19, 0, 0), 12, 360, 0, 0);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 5, 59), 12, 360, 0, 0), a);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 6, 0), 12, 360, 0, 0), (a + 1u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 11, 59), 12, 360, 0, 0), (a + 1u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 12, 0), 12, 360, 0, 0), (a + 2u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 17, 59), 12, 360, 0, 0), (a + 2u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 18, 0), 12, 360, 0, 0), (a + 3u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 19, 23, 59), 12, 360, 0, 0), (a + 3u) % 12u);
+    CHECK_EQ(rotation_index(lm(2026, 9, 20, 0, 0), 12, 360, 0, 0), (a + 4u) % 12u);
+    /* 720 e 360 sono legati: t720 = t360 / 2 */
+    for (int32_t h = 0; h < 24; h++) {
+      const uint32_t now = lm(2026, 9, 19, h, 30);
+      CHECK_EQ(rotation_index(now, 12, 720, 0, 0), (uint8_t)(((now / 360u) / 2u) % 12u));
+    }
+  }
+
+  /* a cavallo di fine anno e del 29 febbraio (giorno bisestile): 720 e 360 cambiano a mezzanotte e a mezzogiorno */
+  {
+    static const int32_t days[][6] = {
+      /* y, mo, d, y', mo', d' (giorno successivo) */
+      { 2026, 12, 31, 2027, 1, 1 },
+      { 2028, 2, 29, 2028, 3, 1 },
+      { 2028, 2, 28, 2028, 2, 29 },
+      { 2100, 2, 28, 2100, 3, 1 },                        /* 2100 non bisestile */
+      { 2026, 9, 30, 2026, 10, 1 },
+    };
+    for (size_t i = 0; i < sizeof(days) / sizeof(days[0]); i++) {
+      for (uint8_t n = 2; n <= 12; n++) {
+        const uint8_t a = rotation_index(lm(days[i][0], days[i][1], days[i][2], 23, 59), n, 720, 0, 0);
+        const uint8_t b = rotation_index(lm(days[i][3], days[i][4], days[i][5], 0, 0), n, 720, 0, 0);
+        CHECK_EQ(b, (a + 1u) % n);
+        const uint8_t c = rotation_index(lm(days[i][0], days[i][1], days[i][2], 11, 59), n, 720, 0, 0);
+        const uint8_t d = rotation_index(lm(days[i][0], days[i][1], days[i][2], 12, 0), n, 720, 0, 0);
+        CHECK_EQ(d, (c + 1u) % n);
+        CHECK_EQ(a, d);                                   /* 12:00 .. 23:59 stesso periodo */
+        const uint8_t e = rotation_index(lm(days[i][0], days[i][1], days[i][2], 23, 59), n, 360, 0, 0);
+        const uint8_t f = rotation_index(lm(days[i][3], days[i][4], days[i][5], 0, 0), n, 360, 0, 0);
+        CHECK_EQ(f, (e + 1u) % n);
+        CHECK_EQ(rotation_index(lm(days[i][3], days[i][4], days[i][5], 5, 59), n, 360, 0, 0), f);
+        CHECK_EQ(rotation_index(lm(days[i][3], days[i][4], days[i][5], 6, 0), n, 360, 0, 0), (f + 1u) % n);
+      }
+    }
+  }
+
+  /* camminata minuto per minuto su 30 giorni (2026-09-01 00:00 → 2026-10-01): con 720 cambia SOLO a 0:00 e
+   * 12:00, con 360 SOLO a 0/6/12/18; per n 2/5/12, sequenziale e casuale, shake 0 e 3 */
+  {
+    static const uint8_t ns[] = { 2, 5, 12 };
+    static const uint8_t shl[] = { 0, 3 };
+    static const uint16_t ivs[] = { 360, 720 };
+    const uint32_t start = lm(2026, 9, 1, 0, 0);
+    uint32_t wrong = 0;
+    for (int v = 0; v < 2; v++) {
+      for (int a = 0; a < 3; a++) {
+        for (uint8_t o = 0; o < 2; o++) {
+          for (int sh = 0; sh < 2; sh++) {
+            uint8_t prev = rotation_index(start - 1u, ns[a], ivs[v], o, shl[sh]);
+            for (uint32_t off = 0; off < 30u * 1440u; off++) {
+              const uint32_t now = start + off;
+              const uint8_t idx = rotation_index(now, ns[a], ivs[v], o, shl[sh]);
+              const int changed = (idx != prev);
+              const int expect = ((now % ivs[v]) == 0u);
+              if (changed != expect) {
+                if (wrong < 5) {
+                  printf("  iv %u n %u o %u sh %u: now %u (giorno+%u min) changed=%d atteso=%d\n",
+                         (unsigned)ivs[v], (unsigned)ns[a], (unsigned)o, (unsigned)shl[sh],
+                         (unsigned)now, (unsigned)(now % 1440u), changed, expect);
+                }
+                wrong++;
+              }
+              prev = idx;
+            }
+          }
+        }
+      }
+    }
+    CHECK_EQ(wrong, 0);
+  }
+
+  /* n = 12 in ordine CASUALE con 720 (rotation_slot su un manifest pieno): la foto cambia fra 11:59 e 12:00,
+   * resta uguale da 12:00 a 23:59 (minuto per minuto), cambia di nuovo a 0:00; in 12 periodi consecutivi
+   * allineati a un round (k multiplo di 12) escono tutti e 12 gli slot */
+  {
+    GalManifest m;
+    manifest_init(&m);
+    for (uint8_t k = 0; k < 12; k++) {
+      slot_set(&m, k, GAL_SLOT_VALID, FMT);
+      m.order[k] = (uint8_t)(11u - k);
+    }
+    for (uint8_t o = 0; o < 2; o++) {
+      const uint8_t s1159 = rotation_slot(lm(2026, 9, 19, 11, 59), &m, FMT, 0, 720, o, 0);
+      const uint8_t s1200 = rotation_slot(lm(2026, 9, 19, 12, 0), &m, FMT, 0, 720, o, 0);
+      const uint8_t s0000 = rotation_slot(lm(2026, 9, 20, 0, 0), &m, FMT, 0, 720, o, 0);
+      CHECK(s1159 < 12 && s1200 < 12 && s0000 < 12);
+      CHECK(s1159 != s1200);
+      CHECK(s1200 != s0000);
+      uint32_t moved = 0;
+      for (uint32_t mi = 0; mi < 720u; mi++) {
+        if (rotation_slot(lm(2026, 9, 19, 12, 0) + mi, &m, FMT, 0, 720, o, 0) != s1200) {
+          moved++;
+        }
+      }
+      CHECK_EQ(moved, 0);
+      /* con 360 la stessa foto vale 6 ore, poi cambia */
+      const uint8_t q = rotation_slot(lm(2026, 9, 19, 12, 0), &m, FMT, 0, 360, o, 0);
+      moved = 0;
+      for (uint32_t mi = 0; mi < 360u; mi++) {
+        if (rotation_slot(lm(2026, 9, 19, 12, 0) + mi, &m, FMT, 0, 360, o, 0) != q) {
+          moved++;
+        }
+      }
+      CHECK_EQ(moved, 0);
+      CHECK(rotation_slot(lm(2026, 9, 19, 18, 0), &m, FMT, 0, 360, o, 0) != q);
+    }
+    /* 12 periodi da 720 allineati a un round: permutazione completa (casuale) e 0..11 (sequenziale) */
+    for (uint8_t o = 0; o < 2; o++) {
+      uint32_t base = lm(2026, 9, 19, 0, 0) / 720u;
+      base -= base % 12u;                                 /* k multiplo di 12 -> inizio di round */
+      uint16_t seen = 0;
+      for (uint32_t p = 0; p < 12u; p++) {
+        const uint8_t slot = rotation_slot((base + p) * 720u, &m, FMT, 0, 720, o, 0);
+        CHECK(slot < 12);
+        seen |= (uint16_t)(1u << slot);
+      }
+      CHECK_EQ(seen, 0x0FFF);
+    }
+    /* e con 360 (round da 12 periodi di 6 h = 3 giorni) */
+    {
+      uint32_t base = lm(2026, 9, 19, 0, 0) / 360u;
+      base -= base % 12u;
+      uint16_t seen = 0;
+      for (uint32_t p = 0; p < 12u; p++) {
+        seen |= (uint16_t)(1u << rotation_slot((base + p) * 360u, &m, FMT, 0, 360, 1, 0));
+      }
+      CHECK_EQ(seen, 0x0FFF);
+    }
+  }
+
+  /* invarianti del casuale/sequenziale su round consecutivi anche con 360 e 720 (come chk_rounds sopra;
+   * l'ultima base sta a 5·12·720 = 43.200 minuti dal tetto dell'uint32: la finestra non deve traboccare) */
+  {
+    static const uint32_t bases[] = { 0u, 29797920u, 1500000000u, 2120101800u, 4294920000u };
+    static const uint8_t shl[] = { 0, 1, 17, 255 };
+    uint32_t range_bad = 0, consec_bad = 0, round_dup = 0;
+    for (uint8_t n = 3; n <= GAL_MAX_SLOTS; n++) {
+      for (int sh = 0; sh < 4; sh++) {
+        for (int b = 0; b < 5; b++) {
+          chk_rounds(n, 360, bases[b] - bases[b] % 360u, 360u, shl[sh], 1, &range_bad, &consec_bad, &round_dup);
+          chk_rounds(n, 720, bases[b] - bases[b] % 720u, 720u, shl[sh], 1, &range_bad, &consec_bad, &round_dup);
+          chk_rounds(n, 360, bases[b] - bases[b] % 360u, 360u, shl[sh], 0, &range_bad, &consec_bad, &round_dup);
+          chk_rounds(n, 720, bases[b] - bases[b] % 720u, 720u, shl[sh], 0, &range_bad, &consec_bad, &round_dup);
+        }
+      }
+    }
+    CHECK_EQ(range_bad, 0);
+    CHECK_EQ(consec_bad, 0);
+    CHECK_EQ(round_dup, 0);
+  }
+
+  /* estremi dell'uint32: nessun trabocco, formula del contratto (4294967295 / 720 = 5965232, / 360 = 11930464) */
+  CHECK_EQ(rotation_index(4294967295u, 12, 720, 0, 0), (uint8_t)(5965232u % 12u));
+  CHECK_EQ(rotation_index(4294967295u, 12, 360, 0, 0), (uint8_t)(11930464u % 12u));
+  CHECK_EQ(rotation_index(4294967295u, 12, 720, 0, 255), (uint8_t)((5965232u + 255u) % 12u));
+  CHECK_EQ(rotation_index(ROT_MIN_MAX, 12, 720, 0, 0), (uint8_t)((ROT_MIN_MAX / 720u) % 12u));
+  CHECK_EQ(rotation_index(719, 12, 720, 0, 0), 0);
+  CHECK_EQ(rotation_index(720, 12, 720, 0, 0), 1);
+  CHECK_EQ(rotation_index(359, 12, 360, 0, 0), 0);
+  CHECK_EQ(rotation_index(360, 12, 360, 0, 0), 1);
+  CHECK_EQ(rotation_index(1439, 12, 720, 0, 0), 1);
+  CHECK_EQ(rotation_index(1440, 12, 720, 0, 0), 2);
+  /* 720 non e' la giornaliera: alle 04:00 del 1970-01-01 (240) il periodo resta 0 */
+  CHECK_EQ(rotation_index(240, 12, 720, 0, 0), 0);
+  CHECK_EQ(rotation_index(240, 12, 360, 0, 0), 0);
+}
+
 int main(void) {
   test_sizes();
   test_local_minutes();
@@ -1357,6 +1581,7 @@ int main(void) {
   test_index_range_matrix();
   test_index_rounds_deep();
   test_index_daily_boundary();
+  test_index_6h_12h();
   test_index_interval_zero();
   test_index_shake_wrap();
   test_sequence_patterns();

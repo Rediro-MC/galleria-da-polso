@@ -393,21 +393,47 @@ python3 tools/photo_prep.py --selftest
 | `--gamma G` `--lift L` | LUT di tono per il MiP: `t[i] = round(255·(min(1, L + (1−L)·i/255))^G)`; default `1.0` / `0` = identità. `G` dev'essere > 0 e `L` in 0..1: valori fuori intervallo — **`nan` compreso** — escono con un messaggio, non con un traceback |
 | `--dither fs\|bayer\|none` | dithering emery (default `fs`, serpentine) |
 | `--bw-dither fs\|atkinson\|none` | dithering flint (default `fs`); Atkinson dà più contrasto e brucia le luci |
-| `--sunlight` | quantizza nello **spazio della resa** del pannello (LUT 32³): colori più fedeli, decisione D6 → default OFF |
+| `--sunlight` | quantizza nello **spazio della resa** del pannello (LUT 32³): colori più fedeli, decisione D6 → default OFF **nel tool** (resta opt-in qui; la casella omonima della config page nasce **spuntata** dal 19/09/2026, S14/D138, che rovescia D6) |
 | `--preview` `--preview-dir DIR` | `<nome>_emery_x2.png` e `<nome>_flint_x2.png` (ricostruite con la resa sunlight, ×2 NEAREST) |
 | `--emit-idx` | scrive anche `<nome>.idx`, 1 byte per pixel (indici 0..63) |
-| `--stats` | previsione del colore del testo con la regola di `apps/galleria/src/c/luma.h`; senza `--band-h` copre **solo** la fascia del layout A (106 px emery / 76 flint) |
+| `--stats` | previsione del colore del testo con la regola di `apps/galleria/src/c/luma.h`; senza `--band-h` copre la fascia del layout A (106 px emery / 76 flint) **e**, sotto, la stessa fascia ancorata al fondo dello schermo (S14/D136 «Ora in basso»: `y 122..227` su emery, `y 92..167` su flint). Contorno **dal 15 % in su** di pixel in conflitto (S14/D140: confronto `>=`, non più `>`) |
 | `--band-h E[,F]` | altezza della fascia di `--stats` in px (default `106,76`): `228,168` = layout B a tutto schermo, `78,52` = riga singola sotto Quick View, `110` = layout A con content size ExtraLarge (un valore solo ⇒ flint resta 76) |
 | `--fixture DIR` | scrive `rt.idx`, `rt.raw6`, `rt.bits`, `rt.raw1`, `rt_meta.h` ed esce |
 | `--selftest` | autotest (pack6/unpack6, pack1, CRC32, tabelle, determinismo del dithering) ed esce |
 
 Stampa sempre, per ogni foto: rettangoli di crop, dimensioni dei raw, **CRC32** (`zlib.crc32`) e
 numero di colori usati; con `--stats` anche `bad_white`/`bad_black`/Y medio e il colore di testo
-previsto sulla fascia dell'ora (campionamento 1 px su 2). Senza opzioni la fascia è **solo** quella
-del layout A: `y 0..105` su emery, `y 0..75` su flint — le altre si chiedono con
-`--band-h EMERY[,FLINT]` (i quattro casi sono nella tabella delle opzioni qui sopra), che
-sostituisce le due costanti sia nel conteggio sia nella riga stampata (`fascia y 0..N`).
+previsto sulla fascia dell'ora (campionamento 1 px su 2). Prima vengono le due righe della fascia
+**in alto** (emery e flint: `y 0..105` e `y 0..75` con i default) e poi, da S14/D136, quelle della
+**stessa altezza ancorata al fondo** (`y 122..227` e `y 92..167`), che è il layout «Ora in basso».
+La riga in basso però si decide **per piattaforma** (`stats_rows`): c'è solo dove sotto la fascia
+resta spazio. Con i default le righe sono quindi **quattro**; con `--band-h 228` sono **tre** (su
+emery la fascia è già tutto lo schermo, su flint no); con `--band-h 228,168` sono **due**. Le altre
+fasce si chiedono con `--band-h EMERY[,FLINT]` (i quattro casi sono nella tabella delle opzioni qui
+sopra): sostituisce le due costanti sia nel conteggio sia nella riga stampata (`fascia y Y0..Y1`).
 `--band-h` tocca **solo** le statistiche: i `.raw6`/`.raw1` e i loro CRC32 non cambiano.
+
+Chi importa il tool come **modulo** chiede la stessa cosa da sé: da S14 `stats_emery(idx, w, band_h,
+y0=0)` e `stats_flint(bits, w, band_h, y0=0)` prendono l'origine `y0` della fascia (0 = in alto,
+122 su emery e 92 su flint = «Ora in basso») e campionano da `y0` a `y0 + band_h` a passi di 2, come
+il C; `stats_rows(band_e, band_f)` ritorna le coppie `(piattaforma, y0)` che `--stats` stampa. È
+così che `apps/galleria/test/gen_preview_fixture.py` calcola il luma della fascia bassa per la
+fixture dell'anteprima, senza duplicare la regola.
+
+La regola dell'**alone** (contorno di contrasto) è `bad_pct >= 15 %`: dal 15 % in su di pixel in
+conflitto con il colore scelto il testo prende il contorno. Il confronto è **non stretto** da
+S14/D140 (prima era `> 15 %`, e le card `c7b`/`c8a`/`c8b` al 15 % esatto risultavano illeggibili sul
+vetro). Le copie della regola — `apps/galleria/src/c/luma.c`, `src/c/ui_time.c`,
+`src/pkjs/config/preview.js`, questo tool e l'oracolo di `gen_test_cards.py` (§17) — devono cambiare
+**insieme**, e **nessun test le confronta fra loro**: si pinnano una per una.
+`apps/galleria/test/test_luma.c` tiene il confine 14/15 di `luma.c`, `test_preview.js` quello di
+`preview.js`, `apps/galleria/test/test_cards.py` quelli di `gen_test_cards.py` **e** di questo tool
+(`gen_test_cards.py --check` confronta le due previsioni riga per riga: rimettendo `>` in `_decide`
+dà «3 discordanti»). Due buchi da ricordare: il cross-check del tool con il C
+(`gen_test_cards.c_source_status`) legge le sole **costanti** — `LUMA_SUN` e i cinque `#define` di
+`luma.h` —, **non** l'operatore, quindi `--check` resta verde anche con un confronto sbagliato; e la
+copia in `ui_time.c` non è coperta da nessun test host (`ui_time.c` non compila senza `pebble.h`):
+resta affidata alla revisione del diff.
 
 ### Pipeline
 
@@ -479,7 +505,11 @@ identità; `_jsround` = `Math.round`; determinismo di FS (raw, sunlight, 1 bit) 
 gradiente sintetico 200×228, di cui stampa lo sha256. Controlla inoltre che `rt_meta.h` non contenga
 date e non legga l'orologio, che la copertura degli indici dichiarata nel suo commento sia quella
 misurata, che due input omonimi vengano rifiutati e che `--gamma nan`/`--lift nan` diano un errore.
-Esce con 0 se tutto passa, 1 altrimenti.
+Da **S14** anche il confine dell'alone in `_decide` (`bad_pct` 14 → niente contorno, 15 → contorno,
+in tutte e due le direzioni: è il pin di D140 su questo tool) e la fascia con `y0 > 0` — su
+un'immagine sintetica scura in alto e chiara in basso, `y0 0` dà BIANCO e `y0 122` dà NERO, con lo
+stesso numero di campioni: la fascia bassa non vede una riga di quella alta. Stampa
+`photo_prep selftest: N ok, M falliti` — oggi **65** — ed esce 0 se tutto passa, 1 altrimenti.
 
 ### Foto demo
 
@@ -608,7 +638,7 @@ ha) **più il solo `w` degli altri digit** (la griglia D25 misura la cifra più 
 **121.107 B** in 1.086 righe, di cui **105.121 caratteri** (86,8 %) sono il base64 delle maschere;
 ogni font (le sue due taglie sulle due piattaforme) vale 20,6–23,8 kB di JSON. ⚠️ La spec D45
 stimava «≈ 26 KB»: quella cifra vale per **un** font. Il modulo entra tutto nel bundle PKJS del
-`.pbw` (`build/pebble-js-app.js`: **367.747 B** il 14/09/2026, era 359.644 dopo S12), mentre
+`.pbw` (`build/pebble-js-app.js`: **367.502 B** il 19/09/2026 dopo S14, 367.747 B il 14/09/2026, 359.644 dopo S12), mentre
 nell'URL viaggia molto meno — **43.276 caratteri** di hash su emery, **19.610** su flint, misurati
 in `docs/design/galleria-s6-config-page.md` §2.
 
@@ -969,6 +999,10 @@ Dipendenze: **solo stdlib** (`http.server.ThreadingHTTPServer`, `json`, `zlib`, 
 python3 tools/galleria_devserver.py --album foto1.jpg foto2.png \
         --settings '{"interval_min": 5, "layout": 1}'
 
+# layout «ora in basso» (S14/D136) con rotazione ogni 6 ore (S14/D139)
+python3 tools/galleria_devserver.py --album foto1.jpg \
+        --settings '{"layout": 2, "interval_min": 360}'
+
 # slot e ordine espliciti + guasto "crc" iniettato nel motore di sync
 python3 tools/galleria_devserver.py --album a.jpg b.jpg c.jpg \
         --slots 3,7,11 --order 11,3,7 --scenario crc
@@ -1012,9 +1046,12 @@ pebble emu-app-config --emulator emery      # apre http://localhost:8765/config.
 
 Campi di `--settings` (stessi intervalli di `settings_validate()` in `apps/galleria/src/c/settings.c`;
 un valore fuori intervallo è un **errore**, non viene sostituito in silenzio dal default):
-`layout` 0..1, `font` **0..5** (0 Anton, 1 Bebas Neue, 2 Barlow Condensed Bold, **3 LECO**,
+`layout` **0..2** (0 «ora in alto», 1 «a tutto schermo», **2 «ora in basso»**: S14/D136),
+`font` **0..5** (0 Anton, 1 Bebas Neue, 2 Barlow Condensed Bold, **3 LECO**,
 **4 Francois One**, **5 Staatliches**: D22, S8-stile), `clock_mode` 0..2, `leading_zero` 0..2,
-`text_color` 0..4, `outline` 0..2, `interval_min` ∈ {0, 5, 15, 30, 60, 180, 1440}, `order` 0..1,
+`text_color` 0..4, `outline` 0..2,
+`interval_min` ∈ {0, 5, 15, 30, 60, 180, **360**, **720**, 1440} (S14/D139: 360 = ogni 6 h,
+720 = ogni 12 h), `order` 0..1,
 `shake_next` 0..1, `info_row` 0..15, `digit_style` **0..3** (0 pieno, 1 trasparente, 2 trasparente
 3D, 3 pieno 3D: D21, S8-stile), `lang` **0..6** (0 automatica = lingua dell'orologio, 1 en, 2 it,
 3 de, 4 fr, **5 es**, **6 pt**: D31 e S11/D39). Default: `30` per `interval_min`, `1` per
@@ -1158,6 +1195,9 @@ re-render né lascia campi doppi) e ha un fallback per campo sui default. Elemen
 test): `head`, `err`, `msg`, `pool`, `order`, `settings` (i campi sono `s_<chiave>`: `s_layout`,
 `s_font`, `s_clock_mode`, `s_leading_zero`, `s_text_color`, `s_outline`, `s_interval_min`,
 `s_order`, `s_shake_next`, `s_info_row`, `s_digit_style`, `s_lang`), `scenario`, `save`, `cancel`.
+Da S14 `s_layout` ha **tre** voci (`A — ora in alto`, `B — a tutto schermo`, `C — ora in basso`:
+D136) e `s_interval_min` ne ha **nove** (`360 (6 h)` e `720 (12 h)` fra `180` e `1440`: D139); i
+conteggi li pinna `OPTION_COUNT` in `apps/galleria/test/test_devpage.js`.
 
 ### Autotest (`--selftest`)
 
@@ -1174,7 +1214,7 @@ la rilettura di `--page` e `--page-dir` a ogni richiesta (con il **500** in chia
 sorgente sparisce) e la rimozione della temporanea su **SIGTERM**. Se `node` è nel `PATH` esegue
 anche la pagina incorporata sotto `vm` con un DOM finto, in tre varianti di `state.json`; senza
 `node` salta 27 casi, dicendolo (la stessa verifica, più estesa, sta in
-`apps/galleria/test/test_devpage.js`). Stampa `devserver selftest: N ok, M falliti` — oggi **257**
+`apps/galleria/test/test_devpage.js`). Stampa `devserver selftest: N ok, M falliti` — oggi **266**
 con `node`, in circa 2,6 s — ed esce 0/1. Lo esegue anche `make -C apps/galleria/test` (target
 `devtest`), come `pyselftest` per `photo_prep.py` (§9).
 
@@ -1432,9 +1472,9 @@ Lo **strip è obbligatorio**: misurato sulle sorgenti del 30/08/2026 (fine S6) d
 e modulo `config_page.js` 60.515 B, contro **65.385 / 67.349 B** con `--no-strip` — quasi 7 KB di
 differenza, che già allora facevano la differenza fra stare e non stare nel tetto.
 
-**Misura corrente** (`python3 tools/build_config_page.py --check`, 14/09/2026): **HTML inlinato
-85.476 B**, **modulo `config_page.js` 88.284 B**, cioè **540 B** sotto l'avviso soft (86.016 B =
-84 KB) e **12.828 B** sotto il tetto duro (98.304 B = 96 KB). **Il numero vero si legge sempre da
+**Misura corrente** (`python3 tools/build_config_page.py --check`, 19/09/2026, fine S14): **HTML
+inlinato 85.058 B**, **modulo `config_page.js` 87.832 B**, cioè **958 B** sotto l'avviso soft
+(86.016 B = 84 KB) e **13.246 B** sotto il tetto duro (98.304 B = 96 KB). **Il numero vero si legge sempre da
 `--check`**: è quello — non una stima — da riportare qui e nei documenti dopo ogni modifica alla
 pagina.
 
@@ -1449,9 +1489,10 @@ le scrive a mano di proposito: chi cambia un tetto senza aggiornare README e spe
 detto.
 
 La **storia delle misure** — 63.424 B (05/09, S8-stile), 64.222 (S9-prep), 64.699 (S10), 64.745
-(S11), 81.028 (S12, `+16.283 B` per l'anteprima), 83.865 (UX-2), 85.446 (UX-3) — sta in
-`docs/design/galleria-s6-config-page.md` (riga «Budget» di §1 e i blocchi «Revisione S12 / UX-2 /
-UX-3 / UX-4»), con il motivo di ogni salto.
+(S11), 81.028 (S12, `+16.283 B` per l'anteprima), 83.865 (UX-2), 85.446 (UX-3), 85.476 (UX-4),
+85.058 (S14, `−418 B`: via le frecce del font, D137, contro «Ora in basso» e i due intervalli
+nuovi, D136/D139) — sta in `docs/design/galleria-s6-config-page.md` (riga «Budget» di §1 e i
+blocchi «Revisione S12 / UX-2 / UX-3 / UX-4»), con il motivo di ogni salto.
 
 ### Il modulo generato, e la riproducibilità
 
@@ -1745,7 +1786,7 @@ e `luma.c`; contratto: `docs/design/galleria-s8-hardware.md` §2.5.
 python3 tools/gen_test_cards.py                    # 18 PNG in ~/galleria-gate/cards/ (fuori dal repo)
 python3 tools/gen_test_cards.py --check            # le genera e le verifica con photo_prep.py
 python3 tools/gen_test_cards.py --out /tmp/cards --emery   # solo le card emery, altrove
-python3 tools/gen_test_cards.py --selftest         # autotest del tool (416 controlli, ~1 s)
+python3 tools/gen_test_cards.py --selftest         # autotest del tool (435 controlli, ~1 s)
 ```
 
 | Opzione | Effetto |
@@ -1767,19 +1808,26 @@ Pebble 2 Duo **non** ritaglia un 144×168 1:1 ma riscala il sotto-rettangolo di 
 | `c4_y77` | idx 53 `#FF5555` (Y 77 = soglia, confronto stretto) | NERO | no |
 | `c5_y25` | idx 32 `#AA0000` (Y 25 = soglia, confronto stretto) | BIANCO | no |
 | `c6_tie_halo` | metà idx 21 / metà idx 42: pareggio 50/50, media 63 | NERO | SI |
-| `c7a_halo12`, `c7b_halo15`, `c7c_halo18` | 12/15/18 % di colonne bianche su fondo nero | BIANCO | no, no, SI |
-| `c8a_hyst_hold`, `c8b_hyst_flip` | prova dell'**isteresi**: si caricano in layout B, poi si passa ad A | vedi sotto | |
+| `c7a_halo12`, `c7b_halo15`, `c7c_halo18` | 12/15/18 % di colonne bianche su fondo nero | BIANCO | no, **SI**, SI |
+| `c8a_hyst_hold`, `c8b_hyst_flip` | prova dell'**isteresi**: si caricano in layout B, poi si passa ad A | vedi sotto | SI (fascia A) |
 | `palette64` | i 64 colori in tasselli 24×28 (idx = riga·8 + colonna, origine 4,2) — per O6 | BIANCO | SI |
 | `gray4` | 4 bande da 50 px (idx 0/21/42/63) per la LUT sui neutri — per O6 | NERO | SI |
 | `f1_black`, `f2_white` | flint, tutto nero / tutto bianco | BIANCO, NERO | SI (sempre su flint) |
 | `f3_5050` | flint, 3 strisce bianche (72 colonne su 144): pareggio, media 127 | NERO | SI |
 | `f4_40w`, `f5_60w` | flint, blocco bianco di 60 / 88 colonne su 144 (**41,7 %** e **61,1 %**) | BIANCO, NERO | SI |
 
+⚠️ **S14/D140**: la soglia dell'alone è passata da `> 15 %` a `>= 15 %`, e tre card stavano
+esattamente sul 15 %. `c7b_halo15` è quindi passata da «alone no» a «alone **SI**» e altrettanto
+hanno fatto `c8a`/`c8b` sulla fascia A (bad_black 15 esatto); `c7a_halo12`, al 12 %, resta senza
+alone — è lei a dire che la soglia non è scesa. Le card **non** cambiano un pixel: cambia solo la
+colonna «alone atteso», quindi non c'è niente da rimandare all'orologio se erano già sul telefono.
+
 Le c8 sono l'unica prova che non si legge a freddo: `c8a_hyst_hold` **resta** bianca passando da B ad
-A (20 < 15 + 10 di isteresi), `c8b_hyst_flip` **passa** a nero (30 ≥ 15 + 10); la previsione di
-`photo_prep.py`, che l'isteresi non la modella, dice NERO per entrambe, ed è quello il valore in
-tabella. La prova va fatta con il **testo di dimensione normale**: con ExtraLarge la fascia A passa
-da 106 a 110 px e i conti cambiano (il tool lo scrive sotto la tabella).
+A (20 < 15 + 10 di isteresi), `c8b_hyst_flip` **passa** a nero (30 ≥ 15 + 10) e da S14/D140 prende
+anche l'alone (bad_black 15 ≥ 15); la previsione di `photo_prep.py`, che l'isteresi non la modella,
+dice NERO con alone per entrambe, ed è quello il valore in tabella. La prova va fatta con il **testo
+di dimensione normale**: con ExtraLarge la fascia A passa da 106 a 110 px e i conti cambiano (il tool
+lo scrive sotto la tabella).
 
 `--check` esegue, per ogni card e per ogni fascia,
 `python3 tools/photo_prep.py --dither none --bw-dither none --stats --band-h <fascia> --out <tmp>
@@ -1787,8 +1835,9 @@ da 106 a 110 px e i conti cambiano (il tool lo scrive sotto la tabella).
 discordanti** in ~2 s. Verifica **anche** che la copia di `LUMA_SUN` e delle 5 soglie dentro il tool
 coincida con `luma.c`/`luma.h`, e se divergono esce 1 dicendo quale: dopo una ritaratura delle soglie
 (O5) vanno aggiornate la copia nel tool **e** rigenerate card e tabella. Il test completo è
-`python3 apps/galleria/test/test_cards.py` (91 controlli: lancia da sé `--selftest` e `--check` in una
-cartella temporanea, e si salta con un messaggio se Pillow manca).
+`python3 apps/galleria/test/test_cards.py` (125 controlli: lancia da sé `--selftest` e `--check` in una
+cartella temporanea, e si salta con un messaggio se Pillow manca; da S14 pinna anche la colonna
+«alone atteso» delle card al limite del 15 %, la propria e quella di `photo_prep.py`).
 
 ### Come mandare le card all'orologio
 
@@ -1796,17 +1845,21 @@ Si copiano sul telefono (`adb push ~/galleria-gate/cards /sdcard/Pictures/Galler
 inviano dalla config page **una per volta**. Perché i numeri attesi valgano, nell'editor:
 
 - **dithering «Nessuno»**, **gamma 1**, **schiarisci le ombre (lift) 0**;
-- **«Ottimizza per il vetro» SPENTO** (com'è oggi di default);
+- **«Ottimizza per lo schermo dell'orologio» da SPEGNERE a mano** (`opt_sunlight`; fino a UX-1
+  si chiamava «Ottimizza per il vetro»). ⚠️ Da **S14/D138** la casella è
+  **spuntata di serie** per ogni foto nuova: prima bastava non toccarla, adesso è un passo in più e
+  è la dimenticanza più cara di tutta la procedura (vedi sotto che cosa fa a `palette64`);
 - **nessuno zoom né spostamento**: la card è già 200×228, basta il pulsante **«Riparti da capo»**
   (`btn_fit`, `#fit` nell'editor: fino a UX-3 si chiamava «Adatta»).
 
-Con «Ottimizza per il vetro» acceso `palette64` perde 41 tasselli su 64 (43 colori invece di 64) e
-l'esperimento O6 verrebbe fatto su una card corrotta; con uno zoom o un ritaglio anche di 1 px la
+Con «Ottimizza per lo schermo dell'orologio» acceso `palette64` perde 41 tasselli su 64 (43 colori
+invece di 64) e l'esperimento O6 verrebbe fatto su una card corrotta; con uno zoom o un ritaglio anche di 1 px la
 pagina ricampiona con LANCZOS e **tutte** le percentuali cambiano. Se la riga `luma(photo)` sul vetro
 non coincide con la tabella di `--check`, è successa una di queste due cose: riaprire l'editor con la
 cornice più larga possibile e premere «Riparti da capo» (l'orientamento del telefono non conta: la
-cornice è comunque limitata a 300 px). Lo stesso avviso lo stampa il tool a ogni esecuzione, dove
-però il pulsante si chiama ancora «Adatta» (`gen_test_cards.py:106,112`, da allineare).
+cornice è comunque limitata a 300 px). Lo stesso avviso lo stampa il tool a ogni esecuzione
+(`SEND_HINT`), da S14 con lo stesso nome del pulsante e con l'avvertenza su D138;
+`apps/galleria/test/test_cards.py` pinna tutte e due le formulazioni.
 
 ---
 
@@ -1839,26 +1892,31 @@ module.exports = { keys: [...], en: [...], it: [...], de: [...], fr: [...], es: 
 ES5 e **ASCII** (accenti come `\uXXXX`), array **nell'ordine del file**: l'indice di una chiave è la
 sua posizione.
 
-**Misura corrente** (14/09/2026, fine UX-4): **135 chiavi × 6 lingue**, `i18n/messages.json`
-**39.834 B**, `src/pkjs/i18n.js` e `test/fixture_i18n.js` **36.500 B**, **27.700 B** di JSON UTF-8
-per i soli sei array (senza `keys`: è quello che manda `index.js`) = **36.934 caratteri** di
+**Misura corrente** (19/09/2026, fine S14): **134 chiavi × 6 lingue**, `i18n/messages.json`
+**39.776 B**, `src/pkjs/i18n.js` e `test/fixture_i18n.js` **36.482 B**, **27.719 B** di JSON UTF-8
+per i soli sei array (senza `keys`: è quello che manda `index.js`) = **36.959 caratteri** di
 base64url dentro l'hash dell'URL. ⚠️ **I byte veri si leggono dalla riga che il tool stampa alla
-rigenerazione** — `build_i18n: 135 chiavi × 6 lingue (36500 B) -> src/pkjs/i18n.js,
-test/fixture_i18n.js`, e con `--check` `build_i18n --check: 135 chiavi × 6 lingue aggiornate (…)` —:
+rigenerazione** — `build_i18n: 134 chiavi × 6 lingue (36482 B) -> src/pkjs/i18n.js,
+test/fixture_i18n.js`, e con `--check` `build_i18n --check: 134 chiavi × 6 lingue aggiornate (…)` —:
 è quel numero, non una simulazione del patch, che va riportato qui e in
 `apps/galleria/i18n/README.md` dopo ogni fusione del dizionario.
 
 La **storia del conteggio** — 121 chiavi × 4 lingue a S10, 121 × 6 con lo spagnolo e il portoghese
 di S11, 135 con l'anteprima di S12, 126 dopo la potatura di UX-1 (D72), 132 con UX-2, di nuovo 135
-con UX-3 (D116) e le stesse 135 con UX-4, che tocca **una sola stringa** (`preview_stale` in
-francese, D133, +14 B) — sta nella tabella di `apps/galleria/i18n/README.md` (sessione → chiavi →
-byte di `messages.json`; S10 e S11 nella riga in testa, le altre cinque nella tabella); le chiavi
+con UX-3 (D116), le stesse 135 con UX-4, che tocca **una sola stringa** (`preview_stale` in
+francese, D133, +14 B), e **134 con S14**, che toglie `font_prev`/`font_next` insieme alle frecce
+del font (D137), aggiunge `opt_layout_a_bottom` per la terza disposizione (D136) e riscrive
+`lbl_info_row`, `preview_note_info` e `opt_font_leco` (D141) — sta nella tabella di
+`apps/galleria/i18n/README.md` (sessione → chiavi → byte di `messages.json`; S10 e S11 nella riga in testa, le altre cinque nella tabella); le chiavi
 entrate e uscite passaggio per passaggio e le riallineature delle traduzioni stanno in
 `docs/design/galleria-s10-i18n.md` §3 «Storia del dizionario», che però non ha una riga per S10 né
 per S12 e non porta i byte di S11 e UX-1. Il JSON UTF-8 dei soli sei array — quello che `index.js`
-mette nell'hash — era **25.263 B** a fine UX-1 e **27.686 B** a fine UX-3, contro i 27.700 di oggi.
-Il tool non cambia da UX-3 (D123: nessuna chiave nuova è una `<option>` o una `.rlab`) e
-`--selftest` resta a **32**.
+mette nell'hash — era **25.263 B** a fine UX-1, **27.686 B** a fine UX-3 e **27.700 B** a fine UX-4,
+contro i **27.719 B** di oggi. Il tool era rimasto fermo da UX-3 (D123: nessuna chiave nuova era
+una `<option>` o una `.rlab`); **S14 lo tocca in due punti** — `opt_layout_a_bottom` in `OPTIONS`
+(D136: la terza voce di «Disposizione» è una `<option>` come le altre) e `RENDER_ARGS['opt_hours']`
+da «3» a «12» (D139: la tendina arriva a «ogni 12 h», che è il valore più lungo che `page.js` ci
+mette) —, mentre `--selftest` resta a **32**.
 
 ⚠️ **Aggiungere una chiave in mezzo cambia gli indici**: si rigenera sempre tutto insieme, e
 `make -C apps/galleria/test pagecheck` esegue questo `--check` **prima** di quello della pagina.
@@ -1878,14 +1936,19 @@ stanno in un `<label>` a tutta larghezza e **non** sono in lista):
 
 | Lista | Chiavi | Limite |
 |---|---|---|
-| `OPTIONS` | 26 delle 29 chiavi che finiscono in una `<option>` (`opt_*` + `dither_none`) | **28** caratteri |
+| `OPTIONS` | 27 delle 30 chiavi che finiscono in una `<option>` (`opt_*` + `dither_none`; da S14 anche `opt_layout_a_bottom`, D136) | **28** caratteri |
 | `OPTIONS` (tre eccezioni) | `opt_font_leco`, `opt_lang_auto`, `opt_style_no_flint` | **36** caratteri |
 | `LABELS` | le 16 `lbl_*` della colonna da 9,5 em | **22** caratteri |
 
+⚠️ **S14/D141**: `lbl_font` è tornata sulla riga della sua tendina (la regola
+`#fontRow .rlab { flex-basis: 100% }`, nata in UX-2 per le frecce, se n'è andata con loro, D137),
+quindi i suoi 22 caratteri non sono più un limite «per prudenza» come dice ancora il commento in
+testa a `LABELS`: sono di nuovo la larghezza vera della colonna.
+
 Si misurano i **caratteri** (code point, non byte) del testo **renderizzato**, lingua per lingua:
 i segnaposto vengono sostituiti con il valore più lungo che `page.js` ci mette davvero —
-`RENDER_ARGS` per i valori fissi (`opt_minutes` → «60», `opt_hours` → «3», `opt_lang_auto` →
-«Português») e `RENDER_LONGEST` per quelli che vengono da un'altra chiave (`opt_style_no_flint`
+`RENDER_ARGS` per i valori fissi (`opt_minutes` → «60», `opt_hours` → **«12»** da S14/D139 —
+la tendina ha 3, 6 e 12 —, `opt_lang_auto` → «Português») e `RENDER_LONGEST` per quelli che vengono da un'altra chiave (`opt_style_no_flint`
 → la più lunga, **della stessa lingua**, fra le quattro `opt_style_*` e — da UX-2/D86, che porta
 il suffisso «(non sul Duo)» anche sulla select dei colori — `opt_color_yellow`/`opt_color_blue`). Un segnaposto senza regola di
 rendering è un errore (la misura sarebbe falsa), e così un **nome sbagliato** in lista: una chiave
@@ -1902,7 +1965,7 @@ tripwire (D70) una fixture con i testi **esattamente ai limiti** (28/36/22 rende
 più option oltre il limite, etichetta oltre il limite, chiave in lista assente dal dizionario, segnaposto
 senza regola di rendering, la scelta della `opt_style_*` più lunga nella stessa lingua, uno sforamento in **una sola lingua** (il messaggio nomina «/ de:», così una misura fatta sulla sola colonna italiana resterebbe verde) e un testo accentato entro il limite in **code point** ma oltre in byte UTF-8, che deve passare. Un controllo
 in più guarda **le liste vere**, non la fixture: `OPTION_LIMIT`/`OPTION_LIMIT_WIDE`/`LABEL_LIMIT` a
-28/36/22, 29 chiavi in `OPTIONS` (di cui le tre a 36 sono esattamente `opt_font_leco`, `opt_lang_auto`,
+28/36/22, **30** chiavi in `OPTIONS` (da S14: 27 + le tre a 36, esattamente `opt_font_leco`, `opt_lang_auto`,
 `opt_style_no_flint`) e 16 in `LABELS` — così alzare un limite o togliere una chiave dalla lista non
 spegne la tripwire in silenzio (D70: «non ci sono eccezioni»), ma diventa una modifica da fare anche
 qui e nel selftest. Da **UX-2** due pin in più: le quattro «automatico» di U-11
@@ -1916,7 +1979,7 @@ stili e i due colori, D86). Stampa `build_i18n --selftest: N ok` — oggi **32**
 
 Il glossario di `docs/design/galleria-s10-i18n.md` §3 è una **tabella scritta a mano**: le sei colonne
 di lingua di ogni riga ripetono testi che vivono davvero in `apps/galleria/i18n/messages.json`
-(135 chiavi × 6 lingue, §18). Finché la copia si controllava a occhio, la tabella poteva restare
+(134 chiavi × 6 lingue, §18). Finché la copia si controllava a occhio, la tabella poteva restare
 indietro senza che nessuno se ne accorgesse — e restare **parziale** senza dirlo: a inizio UX-4
 copriva 100 chiavi su 135, e una traduzione francese corretta nel dizionario (`preview_stale`, D133)
 era rimasta nella versione vecchia nel glossario. Questo tool confronta i due file e **fallisce quando
@@ -2012,3 +2075,11 @@ diventare rosso il selftest.
 0 parole diverse, 12 celle riallineate (le sei della riga di `watch_flint`, 220, e le sei
 della riga di `preview_auto` + 3 chiavi, 248), 0 segnaposto incoerenti → `ESITO: ALLINEATO`.
 All'inizio della sessione lo stesso comando dava 100 chiavi su 135 e una cella con parole diverse.
+
+**Misure del 19/09/2026** (S14, dopo D136–D141): 134 chiavi nel JSON, **134 nella tabella**
+(**67 righe di dati**, 135 occorrenze: `opt_never` serve ancora due select), **810 celle confrontate,
+810 identiche**, 0 di sola forma, 0 parole diverse, 12 celle riallineate (le sei di `watch_flint`,
+riga 161, e le sei di `preview_auto` + 3 chiavi, riga 188), 0 segnaposto incoerenti →
+`ESITO: ALLINEATO`. Rispetto a UX-4 il glossario perde la riga delle frecce del font (D137), guadagna
+`opt_layout_a_bottom` sulla riga di «Disposizione» (D136) e riscrive tre testi (D141): una riga di
+dati in meno, sei celle in meno. `--selftest` resta a **45**.

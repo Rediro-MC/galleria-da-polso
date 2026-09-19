@@ -41,15 +41,13 @@ select, input[type=range] { font-size: 15px; min-height: 40px; }
 /* UX-2 (U-16): max-width/min-width = rete contro le option lunghe (in tedesco e in francese
  * un <option> puo' superare la colonna e allargare la pagina). */
 select { padding: 4px 8px; background: #fff; border: 1px solid #bbc; border-radius: 4px; max-width: 100%; min-width: 0; }
-/* UX-2 (U-10/D87): la riga del font e' «etichetta ‹ [select] ›» e a 360-400 px va a capo
- * con l'etichetta sola in cima e «‹ [select] ›» a tutta larghezza sotto. Con la sola
- * flex-basis del select NON succede: il flexbox spezza la riga sulle flex-basis (il
- * flex-grow agisce DOPO, dentro la riga), e con l'etichetta da 142,5 px + 2 frecce da 40 +
- * 3 gap da 8 restava a capo la freccia destra da sola (400 px) o select + freccia destra
- * (360 px): misurato in Firefox, catena A4 di UX-2. flex-basis 100% sull'etichetta (la
- * stessa leva di #addHelp) prenota tutta la prima riga e manda insieme frecce e select.
- * Dichiara solo flex-basis: fuori dalla cascata dei pulsanti (#41 / §4e dei test). */
-#fontRow .rlab { flex-basis: 100%; }
+/* S14 (D137): senza le frecce la riga del Font e' «etichetta [select]» come le altre righe, ma la
+ * tendina resta con flex-basis 140 px: la sua voce piu' lunga («System font (except Big clock)»,
+ * 30 caratteri) le da' una larghezza intrinseca di ~244 px e, siccome il flexbox va a capo sulle
+ * larghezze ipotetiche PRIMA di restringere, a 400 e 360 px la tendina finirebbe da sola sulla
+ * riga sotto (misurato al gate S14 §8.4). Con la flex-basis a 140 sta accanto all'etichetta e si
+ * allarga fino al bordo. Tolta invece #fontRow .rlab { flex-basis: 100% } (UX-2/D87: nata per
+ * mandare a capo insieme frecce e tendina). Solo flex: fuori dalla cascata dei pulsanti (#41). */
 select#s_font { flex: 1 1 140px; min-width: 0; }
 input[type=range] { flex: 1 1 120px; min-width: 100px; }
 input[type=checkbox] { width: 22px; height: 22px; vertical-align: middle; margin: 0 4px 0 0; }
@@ -70,22 +68,12 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; over
  * (#41 / §4e). I pulsanti con un solo testo (#save, #add, #fit, #helpBtn) non cambiano. */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; line-height: 1.2; padding: 8px 16px; border: 1px solid #889; border-radius: 6px; background: #fff; color: #222; font-size: 15px; cursor: pointer; text-align: center; }
 .btn.primary { background: #2a6fd6; border-color: #2a6fd6; color: #fff; font-weight: bold; }
-/* UX-2 (U-10): min-width 40 px per le frecce del font (‹ ›), che hanno un solo carattere.
+/* UX-2 (U-10): min-width 40 px, nato per le frecce del font (‹ ›), che avevano un solo
+ * carattere; S14/D137 le ha tolte, ma il minimo resta il bersaglio per il dito di ogni .btn.small.
  * UX-3 (D121): padding verticale 8 px, perche' con .btn a line-height 1.2 lo zero di prima
  * avrebbe schiacciato il testo sul bordo. Stessa misura: «Weitere Einstellungen» su tre righe
  * passa da 78 a 52 px. Orizzontale 12 px invariato. */
 .btn.small { padding: 8px 12px; font-size: 14px; min-width: 40px; }
-/* UX-2 (G04): «‹» e «›» sono virgolette angolari, non triangoli: a 14 px — il corpo di
- * .btn.small, nato per i pulsanti con le PAROLE («Aiuto», «Altre impostazioni», «Adatta») —
- * il loro inchiostro e' un decimo di quello delle frecce delle tessere e il bersaglio da
- * 40x40 px sembra vuoto. D87 fissa i CARATTERI, non il corpo: cambia solo il corpo, e solo
- * sui due id.
- * UX-3 rev (G17): con la .btn di D121 l'altezza e' corpo x 1,2 + 8 + 8 + 2, cioe' 44,4 px per
- * queste due sole frecce (misurate in Firefox): sporgevano 2,2 px sopra e sotto la select e
- * allungavano #fontRow da 69 a 73,4 px. line-height 1 le riporta a 22 + 16 + 2 = 40 px esatti,
- * cioe' al bersaglio 40x40 di cui parla il commento qui sopra. La regola dichiara solo
- * font-size e line-height: resta fuori dalla cascata dei pulsanti (#41 / §4e). */
-#fontPrev, #fontNext { font-size: 22px; line-height: 1; }
 /* UX-3 (D107/D121): «Esci comunque», cioe' il secondo stato di Esci quando c'e' qualcosa da
  * perdere. Rosso #b71c1c su fondo bianco (≈ 6,5:1, ben oltre il 4,5:1 del testo): il pulsante
  * cambia parola E colore, cosi' il primo tocco si vede anche senza leggere il messaggio. */

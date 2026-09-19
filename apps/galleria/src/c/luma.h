@@ -7,7 +7,7 @@
  * si vuole bianco se bad_white < bad_black, a parità se Y medio < 46; con un risultato precedente
  * valido (stessa foto rivalutata su un'altra fascia: layout, Quick View) il colore cambia solo con
  * un vantaggio ≥ 10 punti (isteresi); a ogni foto nuova il chiamante fa luma_reset (decisione a
- * freddo); contorno se bad_pct > 15 %. flint (1BitPalette): bianco se la maggioranza dei pixel è
+ * freddo); contorno se bad_pct ≥ 15 % (S14/D140: era > 15). flint (1BitPalette): bianco se la maggioranza dei pixel è
  * nera (stessa isteresi); contorno sempre; parità 50/50 → media 127 → nero.
  * Fascia usata dall'app: tutta la fascia dinamica (cifre + riga info: 200×106, 110 con ExtraLarge,
  * 144×76 su flint). Campionamento 1 px su 2 in x e y (5.300 letture per 200×106): < 1 ms, una
@@ -22,7 +22,7 @@
 #define LUMA_Y_BLACK_BAD  25    /* Y < 25: testo nero sotto 3:1 */
 #define LUMA_Y_CROSSOVER  46    /* Y = 0,179: bianco e nero hanno lo stesso contrasto */
 #define LUMA_HYSTERESIS   10    /* punti % di vantaggio necessari per cambiare colore */
-#define LUMA_HALO_PCT     15    /* > 15 % di pixel in conflitto → contorno consigliato */
+#define LUMA_HALO_PCT     15    /* ≥ 15 % di pixel in conflitto → contorno consigliato (S14/D140: era >; stessa regola in ui_time.c, preview.js, photo_prep.py) */
 
 typedef struct { int16_t x, y, w, h; } LumaRect;   /* in coordinate del bitmap */
 

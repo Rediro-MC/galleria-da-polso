@@ -455,6 +455,14 @@
     "es": "Hora arriba, info debajo",
     "pt": "Hora em cima, info embaixo"
   },
+  "opt_layout_a_bottom": {
+    "it": "Ora in basso, info sopra",
+    "en": "Clock at bottom, info above",
+    "de": "Uhrzeit unten, Info oben",
+    "fr": "Heure en bas, infos dessus",
+    "es": "Hora abajo, info encima",
+    "pt": "Hora embaixo, info em cima"
+  },
   "opt_layout_b": {
     "it": "Ora grande, senza info",
     "en": "Big clock, no info",
@@ -472,12 +480,12 @@
     "pt": "Fonte"
   },
   "opt_font_leco": {
-    "it": "Font di sistema (solo Ora in alto)",
-    "en": "System font (Clock on top only)",
-    "de": "Systemschrift (nur Uhrzeit oben)",
-    "fr": "Police système (Heure en haut)",
-    "es": "Fuente del sistema (Hora arriba)",
-    "pt": "Fonte do sistema (só Hora em cima)"
+    "it": "Font di sistema (tranne Ora grande)",
+    "en": "System font (except Big clock)",
+    "de": "Systemschrift (außer Große Uhrzeit)",
+    "fr": "Police système (sauf Grande heure)",
+    "es": "Fuente del sistema (no Hora grande)",
+    "pt": "Fonte do sistema (não Hora grande)"
   },
   "lbl_digit_style": {
     "it": "Stile cifre",
@@ -704,12 +712,12 @@
     "pt": "sempre"
   },
   "lbl_info_row": {
-    "it": "Sotto l'ora",
-    "en": "Under the time",
-    "de": "Unter der Uhrzeit",
-    "fr": "Sous l'heure",
-    "es": "Debajo de la hora",
-    "pt": "Abaixo da hora"
+    "it": "Insieme all'ora",
+    "en": "With the time",
+    "de": "Mit der Uhrzeit",
+    "fr": "Avec l'heure",
+    "es": "Con la hora",
+    "pt": "Com a hora"
   },
   "opt_info_steps": {
     "it": "passi",
@@ -848,12 +856,12 @@
     "pt": "No formato de 12 h o relógio mostra também PM"
   },
   "preview_note_info": {
-    "it": "Sull'orologio, sotto l'ora, compare quello che hai scelto: {0}",
-    "en": "On the watch, under the time, you see what you chose: {0}",
-    "de": "Auf der Uhr steht unter der Uhrzeit, was du gewählt hast: {0}",
-    "fr": "Sur la montre, sous l'heure, vous voyez ce que vous avez choisi : {0}",
-    "es": "En el reloj, debajo de la hora, aparece lo que has elegido: {0}",
-    "pt": "No relógio, abaixo da hora, aparece o que você escolheu: {0}"
+    "it": "Sull'orologio, sopra o sotto l'ora, compare quello che hai scelto: {0}",
+    "en": "On the watch, above or below the time, you see what you chose: {0}",
+    "de": "Auf der Uhr steht über oder unter der Uhrzeit, was du gewählt hast: {0}",
+    "fr": "Sur la montre, au-dessus ou en dessous de l'heure, vous voyez ce que vous avez choisi : {0}",
+    "es": "En el reloj, encima o debajo de la hora, aparece lo que has elegido: {0}",
+    "pt": "No relógio, acima ou abaixo da hora, aparece o que você escolheu: {0}"
   },
   "preview_eye": {
     "it": "Mostra in anteprima {0}",
@@ -934,22 +942,6 @@
     "fr": "Voici l'ordre des photos : ▲ ▼ pour le changer",
     "es": "Este es el orden de las fotos: ▲ ▼ para cambiarlo",
     "pt": "Esta é a ordem das fotos: ▲ ▼ para mudar"
-  },
-  "font_prev": {
-    "it": "Font precedente",
-    "en": "Previous font",
-    "de": "Vorherige Schriftart",
-    "fr": "Police précédente",
-    "es": "Fuente anterior",
-    "pt": "Fonte anterior"
-  },
-  "font_next": {
-    "it": "Font successivo",
-    "en": "Next font",
-    "de": "Nächste Schriftart",
-    "fr": "Police suivante",
-    "es": "Fuente siguiente",
-    "pt": "Fonte seguinte"
   },
   "opt_clock_auto": {
     "it": "come l'orologio",

@@ -22,9 +22,10 @@ Uso tipico:
   python3 tools/photo_prep.py --stats --band-h 228,168 foto.jpg   # fascia = schermo intero (layout B)
 
 --stats prevede il colore del testo sulla sola fascia dinamica del layout A (106 px su emery,
-76 su flint). Per gli altri casi la fascia si passa con --band-h EMERY[,FLINT]: 228,168 = layout B
-a tutto schermo, 78,52 = riga singola sotto Quick View, 110 = layout A con content size ExtraLarge
-(solo emery: senza il secondo valore flint resta a 76).
+76 su flint) e, sotto, sulla STESSA fascia ancorata al fondo dello schermo (S14/D136 «Ora in
+basso»: y 122..227 su emery, 92..167 su flint). Per gli altri casi la fascia si passa con
+--band-h EMERY[,FLINT]: 228,168 = layout B a tutto schermo, 78,52 = riga singola sotto Quick View,
+110 = layout A con content size ExtraLarge (solo emery: senza il secondo valore flint resta a 76).
   python3 tools/photo_prep.py --fixture apps/galleria/test/fixtures   # fixture del test C
   python3 tools/photo_prep.py --selftest                              # autotest (make pyselftest)
 """
@@ -80,7 +81,7 @@ SUN_LUT_CRC32 = 0x48CBD990
 LUMA_Y_WHITE_BAD = 77       # luma.h: Y > 77 -> testo bianco sotto 3:1
 LUMA_Y_BLACK_BAD = 25       # luma.h: Y < 25 -> testo nero sotto 3:1
 LUMA_Y_CROSSOVER = 46       # luma.h: parita' di contrasto bianco/nero
-LUMA_HALO_PCT = 15          # luma.h: oltre il 15 % di pixel in conflitto -> contorno
+LUMA_HALO_PCT = 15          # luma.h: dal 15 % di pixel in conflitto in su -> contorno (D140)
 
 # Fixture del test C (rt = round trip), vedi --fixture.
 RT_W, RT_H = 40, 12
@@ -444,10 +445,11 @@ def flint_rect(rect):
 
 # ----------------------------------------------------------------- stats ----
 
-def stats_emery(idx, w, band_h):
-    """Previsione del colore del testo con la regola di luma.h (campionamento 1 px su 2)."""
+def stats_emery(idx, w, band_h, y0=0):
+    """Previsione del colore del testo con la regola di luma.h (campionamento 1 px su 2 dalla
+    riga y0: 0 = fascia in alto, 122 = fascia in basso di D136)."""
     tot = nw = nb = acc = 0
-    for y in range(0, band_h, 2):
+    for y in range(y0, y0 + band_h, 2):
         row = y * w
         for x in range(0, w, 2):
             yy = LUM_SUN[idx[row + x]]
@@ -460,10 +462,10 @@ def stats_emery(idx, w, band_h):
     return _decide(nw, nb, acc // tot if tot else 0, tot, halo_always=False)
 
 
-def stats_flint(bits, w, band_h):
+def stats_flint(bits, w, band_h, y0=0):
     """Come stats_emery ma su 1 bit: bad_white = % pixel bianchi, bad_black = % neri, halo sempre."""
     tot = nw = 0
-    for y in range(0, band_h, 2):
+    for y in range(y0, y0 + band_h, 2):
         row = y * w
         for x in range(0, w, 2):
             nw += bits[row + x]
@@ -474,7 +476,8 @@ def stats_flint(bits, w, band_h):
 
 def _decide(nw, nb, mean, tot, halo_always):
     """bad_white/bad_black in percentuale intera come in C; bianco se bad_white < bad_black,
-    a parita' se Y medio < 46 (luma.h, nessuna isteresi: previsione a freddo)."""
+    a parita' se Y medio < 46 (luma.h, nessuna isteresi: previsione a freddo). Contorno dal 15 %
+    di pixel in conflitto in su (D140: >=, come luma.c e preview.js)."""
     bad_white = nw * 100 // tot if tot else 0
     bad_black = nb * 100 // tot if tot else 0
     if bad_white != bad_black:
@@ -483,7 +486,23 @@ def _decide(nw, nb, mean, tot, halo_always):
         white = mean < LUMA_Y_CROSSOVER
     bad_pct = bad_white if white else bad_black
     return {'bad_white': bad_white, 'bad_black': bad_black, 'mean': mean, 'samples': tot,
-            'white': white, 'bad_pct': bad_pct, 'halo': halo_always or bad_pct > LUMA_HALO_PCT}
+            'white': white, 'bad_pct': bad_pct, 'halo': halo_always or bad_pct >= LUMA_HALO_PCT}
+
+
+def stats_rows(band_e, band_f):
+    """Righe che --stats deve stampare: [(piattaforma, y0)].
+
+    Prima la fascia in alto (y0 = 0) di tutte e due le piattaforme, poi la STESSA fascia ancorata
+    al fondo (D136 «Ora in basso»), decisa PER PIATTAFORMA: la riga in basso c'e' solo dove resta
+    spazio sotto la fascia. Con --band-h misto (228,76) emery e' gia' tutto lo schermo e la seconda
+    riga e' solo di flint; con 228,168 non ce ne sono.
+    """
+    rows = [('emery', 0), ('flint', 0)]
+    if EMERY_H - band_e > 0:
+        rows.append(('emery', EMERY_H - band_e))
+    if FLINT_H - band_f > 0:
+        rows.append(('flint', FLINT_H - band_f))
+    return rows
 
 
 # ----------------------------------------------------------- utilità I/O ----
@@ -616,16 +635,22 @@ def process(path, name, args):
 
     if args.stats:
         band_e, band_f = getattr(args, 'band_h', None) or (EMERY_BAND_H, FLINT_BAND_H)
-        se = stats_emery(idx, EMERY_W, band_e)
-        sf = stats_flint(bits, FLINT_W, band_f)
-        print('  stats emery fascia y 0..%d (%d campioni): bad_white %d %%  bad_black %d %%  '
-              'Y medio %d  ->  testo %s, contorno %s'
-              % (band_e - 1, se['samples'], se['bad_white'], se['bad_black'], se['mean'],
-                 'BIANCO' if se['white'] else 'NERO', 'SI' if se['halo'] else 'no'))
-        print('  stats flint fascia y 0..%d (%d campioni): bianchi %d %%  neri %d %%  '
-              'Y medio %d  ->  testo %s, contorno %s'
-              % (band_f - 1, sf['samples'], sf['bad_white'], sf['bad_black'], sf['mean'],
-                 'BIANCO' if sf['white'] else 'NERO', 'SI' if sf['halo'] else 'no'))
+        # Fascia in alto e, se resta spazio sotto di lei, la stessa fascia ancorata al fondo
+        # (D136 «Ora in basso»: y0 = altezza - fascia, 122 su emery e 92 su flint con i default).
+        # La seconda riga si decide per piattaforma, vedi stats_rows.
+        for (plat, y0) in stats_rows(band_e, band_f):
+            if plat == 'emery':
+                se = stats_emery(idx, EMERY_W, band_e, y0)
+                print('  stats emery fascia y %d..%d (%d campioni): bad_white %d %%  bad_black %d %%  '
+                      'Y medio %d  ->  testo %s, contorno %s'
+                      % (y0, y0 + band_e - 1, se['samples'], se['bad_white'], se['bad_black'],
+                         se['mean'], 'BIANCO' if se['white'] else 'NERO', 'SI' if se['halo'] else 'no'))
+            else:
+                sf = stats_flint(bits, FLINT_W, band_f, y0)
+                print('  stats flint fascia y %d..%d (%d campioni): bianchi %d %%  neri %d %%  '
+                      'Y medio %d  ->  testo %s, contorno %s'
+                      % (y0, y0 + band_f - 1, sf['samples'], sf['bad_white'], sf['bad_black'],
+                         sf['mean'], 'BIANCO' if sf['white'] else 'NERO', 'SI' if sf['halo'] else 'no'))
 
     if args.preview:
         pdir = args.preview_dir or args.out
@@ -846,6 +871,68 @@ def selftest():
 
     # --- CRC32 (stesso di src/c/crc.c e della config page)
     t.check(zlib.crc32(b'123456789') == 0xCBF43926, 'crc32("123456789") = 0xCBF43926')
+
+    # --- stats: contorno dal 15 % (D140) e fascia con y0 > 0 (D136)
+    t.check(_decide(15, 20, 30, 100, False)['bad_pct'] == 15
+            and _decide(15, 20, 30, 100, False)['halo'] is True,
+            'alone acceso a 15 % di conflitto col bianco (D140: >=)')
+    t.check(_decide(14, 20, 30, 100, False)['halo'] is False,
+            'alone spento a 14 % di conflitto col bianco')
+    t.check(_decide(20, 15, 200, 100, False)['white'] is False
+            and _decide(20, 15, 200, 100, False)['halo'] is True,
+            'alone acceso a 15 % di conflitto col nero')
+    t.check(_decide(20, 14, 200, 100, False)['halo'] is False,
+            'alone spento a 14 % di conflitto col nero')
+    t.check(_decide(0, 0, 200, 100, True)['halo'] is True, 'flint: alone sempre acceso')
+    # immagine sintetica: fascia in alto tutta scura (Y 14), fascia in basso tutta chiara (Y 80)
+    synth = bytearray([4]) * (EMERY_W * EMERY_H)
+    for yy in range(EMERY_H - EMERY_BAND_H, EMERY_H):
+        for xx in range(EMERY_W):
+            synth[yy * EMERY_W + xx] = 10
+    top = stats_emery(synth, EMERY_W, EMERY_BAND_H)
+    bot = stats_emery(synth, EMERY_W, EMERY_BAND_H, EMERY_H - EMERY_BAND_H)
+    t.check(top['samples'] == 5300 and bot['samples'] == 5300,
+            'stats_emery: 5.300 campioni con y0 0 e con y0 122 (ha dato %d/%d)'
+            % (top['samples'], bot['samples']))
+    t.check(top['white'] is True and top['bad_black'] == 100, 'stats_emery y0 0: fascia scura -> BIANCO')
+    t.check(bot['white'] is False and bot['bad_white'] == 100, 'stats_emery y0 122: fascia chiara -> NERO')
+    t.check(stats_emery(synth, EMERY_W, EMERY_BAND_H, 0) != bot, 'stats_emery: y0 cambia il risultato')
+    # 795 pixel chiari su 5.300 campioni nella sola fascia in basso = 15 % esatto -> contorno
+    n = 0
+    for yy in range(EMERY_H - EMERY_BAND_H, EMERY_H):
+        for xx in range(EMERY_W):
+            synth[yy * EMERY_W + xx] = 0
+    for yy in range(EMERY_H - EMERY_BAND_H, EMERY_H, 2):
+        for xx in range(0, EMERY_W, 2):
+            if n < 795:
+                synth[yy * EMERY_W + xx] = 63
+                n += 1
+    s15 = stats_emery(synth, EMERY_W, EMERY_BAND_H, EMERY_H - EMERY_BAND_H)
+    t.check(s15['bad_white'] == 15 and s15['white'] is True and s15['halo'] is True,
+            'stats_emery fascia in basso: 795/5.300 = 15 %% -> BIANCO con contorno (ha dato %d %%, %s)'
+            % (s15['bad_white'], s15['halo']))
+    synth[(EMERY_H - EMERY_BAND_H) * EMERY_W] = 0
+    s14 = stats_emery(synth, EMERY_W, EMERY_BAND_H, EMERY_H - EMERY_BAND_H)
+    t.check(s14['bad_white'] == 14 and s14['halo'] is False,
+            'stats_emery fascia in basso: 794/5.300 = 14 % -> senza contorno')
+    fbits = bytearray(FLINT_W * FLINT_H)
+    for yy in range(FLINT_H - FLINT_BAND_H, FLINT_H):
+        for xx in range(FLINT_W):
+            fbits[yy * FLINT_W + xx] = 1
+    ftop = stats_flint(fbits, FLINT_W, FLINT_BAND_H)
+    fbot = stats_flint(fbits, FLINT_W, FLINT_BAND_H, FLINT_H - FLINT_BAND_H)
+    t.check(ftop['bad_white'] == 0 and fbot['bad_white'] == 100 and fbot['samples'] == 2736,
+            'stats_flint: y0 92 vede la sola fascia in basso (%d campioni)' % fbot['samples'])
+    # righe di --stats: la fascia in basso si decide per PIATTAFORMA (mai una riga ripetuta)
+    t.check(stats_rows(EMERY_BAND_H, FLINT_BAND_H)
+            == [('emery', 0), ('flint', 0), ('emery', 122), ('flint', 92)],
+            '--stats fasce di default: 4 righe, in basso y0 122 su emery e 92 su flint')
+    t.check(stats_rows(EMERY_H, FLINT_H) == [('emery', 0), ('flint', 0)],
+            '--stats --band-h 228,168: nessuna fascia in basso (2 righe)')
+    t.check(stats_rows(EMERY_H, FLINT_BAND_H) == [('emery', 0), ('flint', 0), ('flint', 92)],
+            '--stats --band-h 228,76: la riga in basso e solo di flint')
+    t.check(stats_rows(EMERY_BAND_H, FLINT_H) == [('emery', 0), ('flint', 0), ('emery', 122)],
+            '--stats --band-h 106,168 (gen_test_cards emery): la riga in basso e solo di emery')
 
     # --- tabelle
     t.check(tuple(LUM_SUN) == LUM_SUN_EXPECTED, 'LUM_SUN uguale a LUMA_SUN[] di luma.c')

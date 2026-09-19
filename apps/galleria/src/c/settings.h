@@ -9,7 +9,11 @@
 
 #define GAL_SETTINGS_SCHEMA 1
 
-enum GalLayout      { GAL_LAYOUT_A = 0, GAL_LAYOUT_B = 1 };
+/* S14 (D136): 2 = «Ora in basso» = il layout A specchiato dentro la sua fascia, ancorata al fondo dell'area non
+ * ostruita (riga info sopra, cifre a filo del fondo; ui_time.c prv_ay). Un valore e non un bit: nessun byte nuovo nel
+ * blob, CRC dei default invariato (0 resta «Ora in alto»). GAL_LAYOUT_LAST = ultimo valore ammesso: i confronti di
+ * intervallo (settings_validate, test) usano LAST; i confronti con GAL_LAYOUT_B restano validi (2 ≠ 1). */
+enum GalLayout      { GAL_LAYOUT_A = 0, GAL_LAYOUT_B = 1, GAL_LAYOUT_A_BOTTOM = 2, GAL_LAYOUT_LAST = GAL_LAYOUT_A_BOTTOM };
 /* S8-stile (D22): enum stabile — 3 = LECO (sistema, solo layout A) resta al suo posto, i font sprite nuovi seguono.
  * Indice della strip = gal_font_strip(): 0 Anton, 1 Bebas, 2 Barlow, 3 Francois One, 4 Staatliches (LECO nessuna strip). */
 enum GalFont        { GAL_FONT_ANTON = 0, GAL_FONT_BEBAS = 1, GAL_FONT_BARLOW = 2, GAL_FONT_LECO = 3,
@@ -39,7 +43,7 @@ typedef struct __attribute__((packed)) {
   uint8_t  leading_zero;  /* GalLeadingZero */
   uint8_t  text_color;    /* GalTextColor */
   uint8_t  outline;       /* GalOutline */
-  uint16_t interval_min;  /* 0 mai; 5, 15, 30, 60, 180, 1440 (giornaliera) */
+  uint16_t interval_min;  /* 0 mai; 5, 15, 30, 60, 180, 360, 720, 1440 (giornaliera; S14/D139: 360 cambia alle 0/6/12/18 locali, 720 alle 0/12) */
   uint8_t  order;         /* GalOrder */
   uint8_t  shake_next;    /* 0/1 */
   uint8_t  info_row;      /* GalInfoRowBits */

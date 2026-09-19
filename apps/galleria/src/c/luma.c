@@ -80,7 +80,7 @@ void luma_compute_8bit(const uint8_t *data, uint16_t stride, LumaRect band, Luma
     }
   }
   prv_decide(r, n, sum, n_bright, n_dark);
-  r->halo = r->bad_pct > LUMA_HALO_PCT;
+  r->halo = r->bad_pct >= LUMA_HALO_PCT;                    /* S14 (D140): contorno già al 15 % esatto */
 }
 
 void luma_compute_1bit(const uint8_t *data, uint16_t stride, LumaRect band, LumaResult *r) {

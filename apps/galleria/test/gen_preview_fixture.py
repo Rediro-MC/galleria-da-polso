@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""gen_preview_fixture.py — v1 (S12, D48): la fixture dell'anteprima della config page.
+r"""gen_preview_fixture.py — v2 (S12/D48, S14/D136+D140): la fixture dell'anteprima della config page.
 
 Genera `test/fixture_preview.js` (`module.exports = {...}`), cioe' il RIFERIMENTO con cui
 `test/test_preview.js` confronta `src/pkjs/config/preview.js` (il porting JS di ui_time.c,
@@ -14,8 +14,10 @@ ui_digits.c e luma.c). Tutti i numeri vengono dai tool, non sono scritti a mano:
                dilatazione dell'anello o lo scorrimento dell'ombra, il CRC cambia;
   luma         tools/photo_prep.py importato come modulo (stats_emery / stats_flint, le stesse
                funzioni di --stats) sulle due foto demo di resources/photos/, sulla fascia del
-               layout A e su quella del layout B: gli stessi numeri della tabella «Colore del testo
-               previsto» di resources/photos/README.md.
+               layout A, su quella del layout B e su quella in basso del layout C (S14/D136,
+               y0 = 122 su emery e 92 su flint): gli stessi numeri della tabella «Colore del testo
+               previsto» di resources/photos/README.md, piu' due immagini sintetiche che pinnano
+               la soglia del contorno al 15 % esatto (D140: >=).
 
 Dipendenze: solo stdlib (base64, json, re, zlib) + i due tool. NIENTE freetype e NIENTE Pillow:
 gira con il python3 di sistema (`make -C test pagecheck`). Le maschere NON vengono ricalcolate dai
@@ -61,7 +63,7 @@ sys.path.insert(0, TOOLS_DIR)
 import gen_digits as gd                                            # noqa: E402
 import photo_prep as pp                                            # noqa: E402
 
-FIXTURE_VERSION = 'v1'
+FIXTURE_VERSION = 'v2'          # v2 (S14): layout C, band_y, synth[]
 PREVIEW_TIME = '12:34'          # ora campione dell'anteprima (D45: state.preview_time)
 DEMOS = ('demo_1', 'demo_2')
 
@@ -241,9 +243,22 @@ def check_c_sources(masks, c_dir=None):
 # ------------------------------------------------------------------- calcolo ---
 
 def band_h(plat, layout):
-    """Altezza della fascia su cui si decide il colore del testo (D46)."""
+    """Altezza della fascia su cui si decide il colore del testo (D46); C (ora in basso) = A."""
     lay = LAYOUT[plat]
-    return lay['info_y'] + lay['info_h'] + 2 if layout == 'A' else lay['h']
+    return lay['h'] if layout == 'B' else lay['info_y'] + lay['info_h'] + 2
+
+
+def band_y(plat, layout):
+    """Origine y della fascia (ui_time.c band_y): il layout C la ancora al fondo (D136)."""
+    return LAYOUT[plat]['h'] - band_h(plat, layout) if layout == 'C' else 0
+
+
+def row_y(lay, entry, layout):
+    """Riga 0 della strip sullo schermo: fill_y - ring, specchiato nella fascia in basso (D136:
+    il fondo del riempimento sta sempre a h - a_fill_y, qualunque sia digit_h)."""
+    if layout == 'C':
+        return lay['h'] - lay['a_fill_y'] - entry['digit_h'] - entry['ring']
+    return lay['a_fill_y'] - entry['ring']
 
 
 def glyph_crc(entry, ch, key, cache):
@@ -276,22 +291,23 @@ def row_case(st, entry, key, text, x0_rows, cell, colon, gap, screen_w, y, clamp
 
 
 def build_cases(masks):
-    """20 casi: piattaforma x font x layout (A = riga unica taglia A, B = HH sopra MM, taglia B)."""
+    """30 casi: piattaforma x font x layout (A = riga unica taglia A, B = HH sopra MM taglia B,
+    C = A specchiata nella fascia in basso, D136)."""
     cases = []
     cache = {}
     hh, mm = PREVIEW_TIME.split(':')
     for plat in ('emery', 'flint'):
         lay = LAYOUT[plat]
         for strip, font in enumerate(f['key'] for f in gd.FONTS):
-            for layout in ('A', 'B'):
-                size = 'a' if layout == 'A' else 'b'
+            for layout in ('A', 'B', 'C'):
+                size = 'b' if layout == 'B' else 'a'
                 entry = masks[plat][font][size]
                 st = gd.strip_from_masks(entry, size, 'color' if plat == 'emery' else 'bw')
                 rows = []
                 key = (plat, font, size)
-                if layout == 'A':
+                if layout != 'B':
                     row_case(st, entry, key, PREVIEW_TIME, rows, lay['a_cell'], lay['a_colon'], 0,
-                             lay['w'], lay['a_fill_y'] - entry['ring'], True, cache)
+                             lay['w'], row_y(lay, entry, layout), True, cache)
                 else:
                     row_case(st, entry, key, hh, rows, lay['b_cell'], lay['b_cell'], lay['b_gap'],
                              lay['w'], lay['b_hh_fill_y'] - entry['ring'], False, cache)
@@ -300,16 +316,52 @@ def build_cases(masks):
                 cases.append({
                     'platform': plat, 'fmt': lay['fmt'], 'font': font, 'strip': strip,
                     'setting': FONT_SETTING[strip], 'layout': layout, 'size': size,
-                    'mode': 'A_SPRITE' if layout == 'A' else 'B_SPRITE',
+                    'mode': 'B_SPRITE' if layout == 'B' else 'A_SPRITE',
+                    'bottom': layout == 'C',
                     'screen_w': lay['w'], 'screen_h': lay['h'],
-                    'cell': lay['a_cell'] if layout == 'A' else lay['b_cell'],
-                    'colon': lay['a_colon'] if layout == 'A' else lay['b_cell'],
-                    'gap': 0 if layout == 'A' else lay['b_gap'],
-                    'band_h': band_h(plat, layout),
+                    'cell': lay['b_cell'] if layout == 'B' else lay['a_cell'],
+                    'colon': lay['b_cell'] if layout == 'B' else lay['a_colon'],
+                    'gap': lay['b_gap'] if layout == 'B' else 0,
+                    'band_h': band_h(plat, layout), 'band_y': band_y(plat, layout),
                     'strip_h': entry['strip_h'], 'digit_h': entry['digit_h'],
                     'ring': entry['ring'], 'shadow': entry['shadow'], 'cell_w': entry['cell_w'],
                     'rows': rows})
     return cases
+
+
+# Immagini sintetiche (emery) che pinnano la soglia del contorno: sfondo `bg`, `bright` pixel
+# `fg` nelle sole posizioni campionate della fascia in basso -> bad_white = bright * 100 // 5300.
+# 795 campioni chiari su 5.300 = 15 % esatto: con D140 (>=) il contorno si accende, 794 (14 %) no.
+SYNTH = ({'name': 'halo15', 'bg': 0, 'fg': 63, 'bright': 795},
+         {'name': 'halo14', 'bg': 0, 'fg': 63, 'bright': 794})
+
+
+def synth_idx(w, h, y0, bh, bg, fg, bright):
+    """Indici 0..63 dell'immagine sintetica (stessa regola in test_preview.js)."""
+    idx = bytearray([bg]) * (w * h)
+    n = 0
+    for y in range(y0, y0 + bh, 2):
+        for x in range(0, w, 2):
+            if n >= bright:
+                return idx
+            idx[y * w + x] = fg
+            n += 1
+    return idx
+
+
+def build_synth():
+    """Decisioni di photo_prep sulle immagini sintetiche, sulla fascia in basso di emery."""
+    out = []
+    w, h = pp.EMERY_W, pp.EMERY_H
+    bh, y0 = band_h('emery', 'C'), band_y('emery', 'C')
+    for c in SYNTH:
+        st = pp.stats_emery(synth_idx(w, h, y0, bh, c['bg'], c['fg'], c['bright']), w, bh, y0)
+        out.append({'name': c['name'], 'w': w, 'h': h, 'band_y': y0, 'band_h': bh,
+                    'bg': c['bg'], 'fg': c['fg'], 'bright': c['bright'],
+                    'samples': st['samples'], 'bad_white': st['bad_white'],
+                    'bad_black': st['bad_black'], 'mean': st['mean'], 'white': st['white'],
+                    'bad_pct': st['bad_pct'], 'halo': st['halo']})
+    return out
 
 
 def unpack1(data, w, h):
@@ -334,11 +386,11 @@ def build_photos():
         bits = unpack1(raw1, pp.FLINT_W, pp.FLINT_H)
         for plat, data, raw in (('emery', idx, raw6), ('flint', bits, raw1)):
             bands = []
-            for layout in ('A', 'B'):
-                h = band_h(plat, layout)
-                s = (pp.stats_emery(data, pp.EMERY_W, h) if plat == 'emery'
-                     else pp.stats_flint(data, pp.FLINT_W, h))
-                bands.append({'layout': layout, 'h': h, 'samples': s['samples'],
+            for layout in ('A', 'B', 'C'):
+                h, y0 = band_h(plat, layout), band_y(plat, layout)
+                s = (pp.stats_emery(data, pp.EMERY_W, h, y0) if plat == 'emery'
+                     else pp.stats_flint(data, pp.FLINT_W, h, y0))
+                bands.append({'layout': layout, 'y': y0, 'h': h, 'samples': s['samples'],
                               'bad_white': s['bad_white'], 'bad_black': s['bad_black'],
                               'mean': s['mean'], 'white': s['white'], 'bad_pct': s['bad_pct'],
                               'halo': s['halo']})
@@ -360,17 +412,20 @@ HEADER = """\
  *   python3 apps/galleria/test/gen_preview_fixture.py     (--check verifica che sia aggiornata)
  * Nessuna data: due esecuzioni devono dare lo stesso file byte per byte.
  *
- * cases[]  un caso per piattaforma x font x layout (5 font x 2 layout x 2 piattaforme = 20), con
+ * cases[]  un caso per piattaforma x font x layout (5 font x 3 layout x 2 piattaforme = 30), con
  *          l'ora campione '%s' posizionata come ui_time.c (prv_grid_steps / prv_place_row_fit /
  *          prv_layout_time, funzioni di tools/gen_digits.py) sulle metriche di
  *          src/pkjs/digit_masks.js. Campi:
- *            platform fmt font strip setting layout size mode  - identificazione (setting =
- *                     valore dell'impostazione `font` di settings.h, strip = indice in digit_masks)
- *            screen_w screen_h cell colon gap band_h          - costanti del layout (band_h =
- *                     altezza della fascia del colore automatico: A = info_y + info_h + 2, B = tutto)
+ *            platform fmt font strip setting layout size mode bottom - identificazione (setting =
+ *                     valore dell'impostazione `font` di settings.h, strip = indice in digit_masks;
+ *                     layout C = "ora in basso" di D136: A specchiata, bottom true)
+ *            screen_w screen_h cell colon gap band_h band_y   - costanti del layout (band_h =
+ *                     altezza della fascia del colore automatico: A e C = info_y + info_h + 2,
+ *                     B = tutto; band_y = origine y della fascia, 0 salvo C = h - band_h)
  *            strip_h digit_h ring shadow cell_w               - metriche della taglia
- *            rows[]   una riga in A ('%s'), due in B (HH sopra MM):
- *              y        riga 0 della strip sullo schermo (= fill_y - ring)
+ *            rows[]   una riga in A e in C ('%s'), due in B (HH sopra MM):
+ *              y        riga 0 della strip sullo schermo (= fill_y - ring; in C il riempimento
+ *                       e' specchiato nella fascia: fill_y = h - a_fill_y - digit_h)
  *              total    larghezza della riga secondo la griglia scelta
  *              x0       origine del blocco centrato ((w - total) / 2 troncato verso lo zero; in A
  *                       mai < 0, in B nessun clamp, come ui_time.c)
@@ -383,7 +438,12 @@ HEADER = """\
  *                       fill/ring/shadow = quanti pixel per indice (diagnostica).
  * photos[] decisioni del colore automatico sulle due foto demo (resources/photos/): le stesse
  *          della tabella di resources/photos/README.md, calcolate con photo_prep.stats_emery /
- *          stats_flint (campionamento 1 px su 2, nessuna isteresi: decisione a freddo).
+ *          stats_flint (campionamento 1 px su 2, nessuna isteresi: decisione a freddo). Una voce
+ *          bands[] per layout: A (fascia in alto), B (schermo intero) e C (stessa fascia di A
+ *          ancorata al fondo, y = band_y).
+ * synth[]  due immagini sintetiche di emery (sfondo bg, `bright` pixel fg nelle sole posizioni
+ *          campionate della fascia in basso) con il conflitto al 15 %% e al 14 %%: pinnano la
+ *          soglia del contorno di D140 (>= 15 %%) e il campionamento da y = band_y.
  * luma     costanti di src/c/luma.h e impronta della tabella LUMA_SUN (64 valori) da pinnare nel
  *          porting JS: sum = somma dei 64 valori, crc = CRC32 zlib dei 64 byte (hysteresis non e'
  *          usata dall'anteprima: decisione a freddo).
@@ -406,7 +466,7 @@ def jsbool(v):
     return 'true' if v else 'false'
 
 
-def render(cases, photos, masks_v):
+def render(cases, photos, synth, masks_v):
     out = [HEADER % (FIXTURE_VERSION, PREVIEW_TIME, PREVIEW_TIME, FIXTURE_VERSION, masks_v,
                      PREVIEW_TIME)]
     a = out.append
@@ -417,10 +477,10 @@ def render(cases, photos, masks_v):
         lay = LAYOUT[plat]
         a("    %s: { fmt: '%s', w: %d, h: %d, a_fill_y: %d, a_cell: %d, a_colon: %d,\n"
           '      b_hh_fill_y: %d, b_mm_fill_y: %d, b_cell: %d, b_gap: %d, info_y: %d, info_h: %d,\n'
-          '      band_a: %d, band_b: %d },\n'
+          '      band_a: %d, band_b: %d, band_c_y: %d },\n'
           % (plat, lay['fmt'], lay['w'], lay['h'], lay['a_fill_y'], lay['a_cell'], lay['a_colon'],
              lay['b_hh_fill_y'], lay['b_mm_fill_y'], lay['b_cell'], lay['b_gap'], lay['info_y'],
-             lay['info_h'], band_h(plat, 'A'), band_h(plat, 'B')))
+             lay['info_h'], band_h(plat, 'A'), band_h(plat, 'B'), band_y(plat, 'C')))
     a('  },\n\n')
 
     a('  /* costanti di src/c/luma.h + impronta di LUMA_SUN (deve coincidere con luma.c). */\n')
@@ -432,11 +492,11 @@ def render(cases, photos, masks_v):
     a('  cases: [\n')
     for c in cases:
         a("    { platform: '%s', fmt: '%s', font: '%s', strip: %d, setting: %d, layout: '%s',"
-          " size: '%s', mode: '%s',\n"
+          " size: '%s', mode: '%s', bottom: %s,\n"
           % (c['platform'], c['fmt'], c['font'], c['strip'], c['setting'], c['layout'], c['size'],
-             c['mode']))
-        a('      screen_w: %d, screen_h: %d, cell: %d, colon: %d, gap: %d, band_h: %d,\n'
-          % (c['screen_w'], c['screen_h'], c['cell'], c['colon'], c['gap'], c['band_h']))
+             c['mode'], jsbool(c['bottom'])))
+        a('      screen_w: %d, screen_h: %d, cell: %d, colon: %d, gap: %d, band_h: %d, band_y: %d,\n'
+          % (c['screen_w'], c['screen_h'], c['cell'], c['colon'], c['gap'], c['band_h'], c['band_y']))
         a('      strip_h: %d, digit_h: %d, ring: %d, shadow: %d, cell_w: %d,\n'
           % (c['strip_h'], c['digit_h'], c['ring'], c['shadow'], c['cell_w']))
         a('      rows: [\n')
@@ -462,11 +522,22 @@ def render(cases, photos, masks_v):
              p['w'], p['h']))
         a('      bands: [\n')
         for b in p['bands']:
-            a("        { layout: '%s', h: %d, samples: %d, bad_white: %d, bad_black: %d,"
+            a("        { layout: '%s', y: %d, h: %d, samples: %d, bad_white: %d, bad_black: %d,"
               ' mean: %d, white: %s, bad_pct: %d, halo: %s },\n'
-              % (b['layout'], b['h'], b['samples'], b['bad_white'], b['bad_black'], b['mean'],
-                 jsbool(b['white']), b['bad_pct'], jsbool(b['halo'])))
+              % (b['layout'], b['y'], b['h'], b['samples'], b['bad_white'], b['bad_black'],
+                 b['mean'], jsbool(b['white']), b['bad_pct'], jsbool(b['halo'])))
         a('      ] },\n')
+    a('  ],\n\n')
+
+    a('  /* immagini sintetiche: la soglia del contorno al 15 % esatto sulla fascia in basso (D140). */\n')
+    a('  synth: [\n')
+    for c in synth:
+        a("    { name: '%s', w: %d, h: %d, band_y: %d, band_h: %d, bg: %d, fg: %d, bright: %d,\n"
+          % (c['name'], c['w'], c['h'], c['band_y'], c['band_h'], c['bg'], c['fg'], c['bright']))
+        a('      samples: %d, bad_white: %d, bad_black: %d, mean: %d, white: %s, bad_pct: %d,'
+          ' halo: %s },\n'
+          % (c['samples'], c['bad_white'], c['bad_black'], c['mean'], jsbool(c['white']),
+             c['bad_pct'], jsbool(c['halo'])))
     a('  ]\n')
     a('};\n')
     return ''.join(out)
@@ -476,7 +547,7 @@ def build(c_dir=None):
     masks = gd.load_masks_js(MASKS_JS)
     n = check_c_sources(masks, c_dir)
     print('sorgenti C coerenti con la fixture: %d valori (luma.h, LUMA_SUN, prv_compute_layout, digit_metrics.h vs digit_masks.js)' % n)
-    return render(build_cases(masks), build_photos(), masks['v'])
+    return render(build_cases(masks), build_photos(), build_synth(), masks['v'])
 
 
 # --------------------------------------------------------------------- main ---

@@ -1,0 +1,6 @@
+Galleria 1.0.0 - a new Clock at bottom layout, longer photo intervals, a clearer time on busy photos.
+- Clock at bottom: the time sits at the bottom of the screen, with date, steps and battery just above it.
+- Photo rotation: two new intervals, every 6 h and every 12 h.
+- The outline that keeps the time readable comes on sooner, from 15% of clashing pixels.
+- Optimize for the watch screen is now ticked by default for every new photo.
+- Font row: the two arrows are gone, the menu alone picks the font.

@@ -142,6 +142,41 @@ Sono l'**unico campo testuale che si aggiorna a ogni release** dalla CLI (`PUBLI
 > Restano valide le regole di forma: ASCII puro, nessuna virgoletta doppia, poche righe (5–6 finora),
 > `wc -m` annotato.
 
+### 3.S14 (BOZZA) Release notes della **prossima** release (S14: F01, F03, F04, F09, F25) — **non pubblicate**
+
+> **Bozza del 19/09/2026, in attesa di due cose**: il **numero di versione** (**0.5.0 o 1.0.0**: lo decide
+> l'utente; `package.json` è ancora a **0.4.0**) e la pubblicazione, che lancia **l'utente** (§6, variante «nuova
+> release»). Finché il numero non c'è, **niente file**: `store/release_notes_<ver>.txt` si scrive al momento,
+> copiando il blocco qui sotto e sostituendo `X.Y.Z`. Nessuna riga per lingua: vale la regola del 18/09/2026
+> (solo inglese) in testa a §3.
+
+```text
+Galleria X.Y.Z - a new Clock at bottom layout, longer photo intervals, a clearer time on busy photos.
+- Clock at bottom: the time sits at the bottom of the screen, with date, steps and battery just above it.
+- Photo rotation: two new intervals, every 6 h and every 12 h.
+- The outline that keeps the time readable comes on sooner, from 15% of clashing pixels.
+- Optimize for the watch screen is now ticked by default for every new photo.
+- Font row: the two arrows are gone, the menu alone picks the font.
+```
+
+**505 caratteri** (`wc -m` del blocco = **506** con il newline finale), **6 righe**, **tutto ASCII** e nessuna
+virgoletta doppia, così la riga `--release-notes "$(cat …)"` resta innocua; riga più lunga **105** caratteri
+(la seconda), quindi dentro i 120 per riga e i 700 totali che D126 usava come tetto per la 0.4.0.
+
+**Perché così.** Prima riga di titolo come nella 0.4.0, poi **una riga per novità**, nell'ordine in cui l'utente
+le incontra: (1) **«Ora in basso»**, la terza disposizione (**D136**: layout A specchiato, riga info sopra e cifre
+a filo del fondo); (2) i due **intervalli nuovi**, ogni 6 h e ogni 12 h (**D139**); (3) il **contorno di contrasto**
+che si accende **dal** 15 % di pixel in conflitto e non più oltre il 15 % (**D140**); (4) **«Ottimizza per lo
+schermo dell'orologio» spuntata di serie** per ogni foto nuova (**D138**, che rovescia D6); (5) le **frecce del
+font** tolte dalla riga «Font» (**D137**, che rovescia U-10/D63/D87). Le cose che l'utente **non vede** — statico
++220 B per piattaforma, dizionario a 134 chiavi, pagina a 85.058 B, tripwire e test — non entrano nelle note,
+come nella 0.4.0.
+
+⚠️ **Non basta la CLI**: la **descrizione** online (§2) dice ancora «**Two layouts**» e non nomina né gli intervalli
+nuovi né la casella spuntata di serie. `pebble publish` aggiorna **solo** versione, note e `.pbw` (§6): se il testo
+della descrizione va cambiato serve il `PATCH` di `PUBLISH.md` §0/§0.1 — **decisione dell'utente**, con il suo
+tetto di caratteri (§7, punto 1), da prendere **insieme** al numero di versione.
+
 ### 3.0 Release notes 0.4.0 (S11 + S12 + UX-1/UX-2/UX-3) — **pubblicate con la 0.4.0 il 18/09/2026**
 
 **696 caratteri** (`wc -m store/release_notes_0.4.0.txt` = 697 con il newline finale), **6 righe**,
@@ -316,11 +351,19 @@ notes (§3) oppure un campo dell'identità (§1 — sono di questo tipo solo le 
 Le righe con ⚠️ dipendono da un lavoro non ancora chiuso.
 I numeri di riga della config page si spostano a **ogni** intervento sulla pagina (P5 e R13 l'hanno fatto il 05/09,
 UX-1/UX-2/UX-3 li hanno spostati tutti): il riferimento stabile è l'**identificatore** indicato accanto —
-oggi `photosCap` (`page.html:30`, scritto da `page.js:414`), `UNAVAIL` + `applyUnavailable()` (`page.js:201`, `:203`;
-era `NO_3D` fino a UX-2/D86), `footerLabels()` (`page.js:554`) e le chiavi `fix_step_1`…`fix_step_4` / `fix_tail`
+oggi `photosCap` (`page.html:30`, scritto da `page.js:394`), `UNAVAIL` + `applyUnavailable()` (`page.js:192`, `:194`;
+era `NO_3D` fino a UX-2/D86), `footerLabels()` (`page.js:535`) e le chiavi `fix_step_1`…`fix_step_4` / `fix_tail`
 (erano `FIX_STEPS`/`FIX_TAIL`, identificatori che **non esistono più**: `grep -rn "FIX_STEPS\|FIX_TAIL\|NO_3D" src/pkjs/ test/`
 non trova nulla) — **ricontrollare i numeri con `grep -n` prima di pubblicare**. Tutti i riferimenti di questa
 tabella sono stati ricontrollati riga per riga il **14/09/2026** (UX-4).
+⚠️ **19/09/2026 (S14)**: i numeri si sono spostati un'altra volta. In `page.js` sono scesi di **~20 righe** (via le
+due frecce del font e le loro funzioni, D137: `photosCap` 414 → **394**, `UNAVAIL`/`applyUnavailable()` 201/203 →
+**192/194**, `footerLabels()` 554 → **535**, `#s_style_hint`/`#styleFlintHelp` 230/233 → **221/224**,
+`fix_step_1`…`fix_tail` 1055/1061 → **1038/1044**), mentre quelli di `page.html` (30, 76, 106, 107) **non** si sono
+mossi e `src/c/ui_time.c` è stato riscritto in più punti da D136 («Ora in basso»). Sono stati riportati a oggi i
+riferimenti di **questo preambolo** e delle righe **6, 10, 14 e 22**; gli **altri `page.js:NN` e tutti gli
+`ui_time.c:NN`** della tabella sono quelli del 14/09 e vanno ricontrollati con `grep -n` — per identificatore —
+prima della prossima pubblicazione.
 ⚠️ **Dopo S10 (0.2.0) i testi non sono più in `page.html`/`page.js`**: quei file portano solo chiavi
 (`data-i18n="lbl_layout"`, `T('opt_order_random')`), e le frasi italiane citate qui sotto si cercano in
 **`apps/galleria/i18n/messages.json`** (`grep -n "Aggiungi foto" i18n/messages.json`). I riferimenti a `page.js:NN`
@@ -337,15 +380,15 @@ altrimenti).
 | 3 | Le foto si vedono a schermo intero dietro l'ora | `docs/design/galleria.md` §1; §3.1/§3.2 (wireframe) |
 | 4 | Le foto si **scelgono, si ritagliano e si salvano** dal telefono, nella pagina delle impostazioni | `src/pkjs/config/page.html:26-27` (`#file` + etichetta `#add`, chiave `add_photo` «Aggiungi foto», **in cima alla pagina** da UX-2/D80), `:39-57` (editor `#editor`: cornice `#crop` a `:42`, canvas dell'anteprima `#preview` a `:45`), `:106` (`#save`). ⚠️ **«Aggiungi all'album» non esiste più** (UX-3/**D107**, che porta la conferma del ritaglio nel footer): la conferma del ritaglio è `btn_add_ok` = «**Usa questa foto**», scritta **nel footer** da `footerLabels()` (`page.js:558`), mentre la vecchia coppia `#addRow` (`page.html:47`) resta `display:none` con i listener intatti (**D119**); «Salva» è `btn_save` (`page.js:562`). `README.md` §«Come si usa» |
 | 5 | L'orologio ne tiene **fino a 12** | `src/pkjs/config/page_core.js:8` (`MAX_SLOTS = 12`); `src/pkjs/config/page.js:414` (`photosCap`: chiavi `photos_cap` «{0} di {1} foto» e `photos_cap_empty`); `docs/design/galleria.md` §2 D8 (12 slot in persist) |
-| 6 | La foto cambia da sola, **da ogni 5 minuti a una volta al giorno** — ⚠️ **non più dichiarata**: la descrizione corta in vigore (§2) non contiene questa frase, che era della stesura lunga del 05/09. La riga resta perché la funzione c'è | `src/c/settings.c:31-32` (`prv_interval_valid`: 0, 5, 15, 30, 60, 180, 1440); etichette in `src/pkjs/config/page.js:135-137` (`o.interval_min`; testi dalle chiavi `opt_never`/`opt_minutes`/`opt_hours`/`opt_one_day` di `i18n/messages.json`: «mai», «ogni 5 min» … «ogni giorno (alle 4:00)») |
+| 6 | La foto cambia da sola, **da ogni 5 minuti a una volta al giorno** — ⚠️ **non più dichiarata**: la descrizione corta in vigore (§2) non contiene questa frase, che era della stesura lunga del 05/09. La riga resta perché la funzione c'è | `src/c/settings.c:31-33` (`prv_interval_valid`: 0, 5, 15, 30, 60, 180, **360**, **720**, 1440 — i due nuovi da **S14/D139**, 19/09/2026: «ogni 6 h» e «ogni 12 h» fra «ogni 3 h» e «ogni giorno»); etichette in `src/pkjs/config/page.js:135-137` (`o.interval_min`, da S14 **nove** voci; testi dalle chiavi `opt_never`/`opt_minutes`/`opt_hours`/`opt_one_day` di `i18n/messages.json`: «mai», «ogni 5 min» … «ogni giorno (alle 4:00)») |
 | 7 | …in ordine o in modo casuale — ⚠️ **non più dichiarata** nel testo pubblicato (come la riga 6) | `src/c/settings.h:24` (`enum GalOrder`: sequenziale/casuale); default sequenziale in `src/c/settings.c:25`; etichette in `src/pkjs/config/page.js:138` (`o.order`, chiavi `opt_order_seq` «come l'elenco» / `opt_order_random` «a caso») |
 | 8 | Una **scossa** passa alla foto successiva, **fino al riavvio della watchface** | `docs/design/galleria.md` §2 D10 rivista da D19 (tap service, offset **solo in RAM**, mai persistito: vale fino al riavvio); default `shake_next = 1` in `src/c/settings.c:26` |
 | 9 | Ora disegnata con **cifre bitmap** | `docs/design/galleria.md` §2 D3 (sprite `2BitPalette` generati da TTF); `package.json` risorse `DIGITS_*` |
-| 10 | **Sei font** | `src/c/settings.h:15-16` (`enum GalFont` … `GAL_FONT_COUNT = 6`: Anton, Bebas, Barlow, LECO, Francois One, Staatliches); etichette in `src/pkjs/config/page.js:126-127` (`o.font`; da UX-2/D87 la riga ha anche le frecce `#fontPrev`/`#fontNext`, `page.html:64`); `resources/fonts/README.md`. ⚠️ uno dei sei, `GAL_FONT_LECO` = «Font di sistema (solo Ora in alto)» (chiave `opt_font_leco`), **non è una strip bitmap** (`src/c/settings.h:53-58`: `gal_font_strip()` ritorna −1 per LECO) ed è disponibile **solo in layout A** (`settings.h:13`; `page.js:215` disabilita l'option in «Ora grande»): il testo inglese lo conta dentro «Big bitmap clock» (scelta consapevole, il conteggio resta quello dell'enum) |
+| 10 | **Sei font** | `src/c/settings.h:18-20` (`enum GalFont` … `GAL_FONT_COUNT = 6`: Anton, Bebas, Barlow, LECO, Francois One, Staatliches); etichette in `src/pkjs/config/page.js:126-127` (`o.font`); `resources/fonts/README.md`. ⚠️ **da S14/D137** (19/09/2026) la riga «Font» è tornata «etichetta + tendina»: le frecce `#fontPrev`/`#fontNext` di UX-2/D87 **non esistono più** (`grep -rn fontPrev src/pkjs/config/` e `grep -rn cycleFont src/pkjs/config/` non trovano nulla), la tendina resta la sola via. ⚠️ uno dei sei, `GAL_FONT_LECO`, **non è una strip bitmap** (`src/c/settings.h:53-58`: `gal_font_strip()` ritorna −1 per LECO) ed è l'unico che **non** funziona in «Ora grande» (`page.js:206` disabilita l'option con `layout === 1`; con «Ora in basso» di S14/D136 va, perché è il layout A specchiato): da **S14/D141** la chiave `opt_font_leco` lo dice al contrario, «**Font di sistema (tranne Ora grande)**» (en «System font (except Big clock)»), invece del «(solo Ora in alto)» di prima, che con tre disposizioni sarebbe falso. Il testo inglese lo conta dentro «Big bitmap clock» (scelta consapevole, il conteggio resta quello dell'enum) |
 | 11 | **Quattro stili** di cifre: pieno, solo contorno, due con ombra 3D | `src/c/settings.h:19` (`enum GalDigitStyle`); `docs/design/galleria.md` §2 D21; etichette in `src/pkjs/config/page.js:128-130` (`o.digit_style`): da UX-1 sono «**pieno**», «**solo contorno**», «**contorno con ombra**», «**pieno con ombra**» (la parola «trasparente» è uscita dalla pagina; nel C l'enum resta `GAL_STYLE_OUTLINE`/`GAL_STYLE_OUTLINE_3D`) |
 | 12 | Gli stili con contorno/ombra **sono pensati per il Pebble Time 2** e **sul Pebble 2 Duo i due 3D valgono come i piatti** | `docs/design/galleria.md` §2 D26 (su flint niente ombra: 2 → 1, 3 → 0); `src/pkjs/config/page.js:201-211` (`UNAVAIL` + `applyUnavailable()`, che sostituisce `NO_3D` da UX-2/D86) e `:220-221` (le due chiamate): su flint le due option 3D — e i due colori giallo/blu — sono `disabled` **e `hidden`**, con il testo `opt_style_no_flint` = «**{0} (non sul Duo)**»; `src/pkjs/config/page.html:66` (`#s_style_hint`, chiave `style_hint` «Con questo stile si leggono meglio Francois One e Staatliches.», mostrato da `page.js:230` **solo con stile 1 o 2 e font ≤ 2**, cioè Anton/Bebas/Barlow — D98) e `page.html:67` (`#styleFlintHelp`, chiave `style_flint_help`, mostrato da `page.js:233` solo su flint con lo stile 1: R13, l'avviso «contorno sottile» sta **solo nella pagina**, non nella descrizione); `PIANO.md` §7 (anello 1 px al limite su flint, O11 non fatto) |
 | 13 | Il colore del testo (bianco o nero) lo sceglie l'orologio dalla foto | `docs/design/galleria.md` §2 D7 (luma sulla fascia, isteresi, contorno automatico); `src/c/luma.c` |
-| 14 | Due layout: l'**ora** su un terzo di schermo con **passi, batteria e data**, oppure sull'intero schermo da sola | `docs/design/galleria.md` §3.1 e §3.2; §2 D13 (B = solo cifre in v1); `src/c/settings.h` (`GalLayout`, `GalInfoRowBits`); etichette in `src/pkjs/config/page.js:125` (`o.layout`: da UX-1 «**Ora in alto, info sotto**» / «**Ora grande, senza info**») |
+| 14 | Due layout: l'**ora** su un terzo di schermo con **passi, batteria e data**, oppure sull'intero schermo da sola — ⚠️ **vero per il testo online, non più per l'app**: da **S14/D136** (19/09/2026) le disposizioni sono **tre** | `docs/design/galleria.md` §3.1 e §3.2; §2 D13 (B = solo cifre in v1); `src/c/settings.h:16` (`enum GalLayout`: `GAL_LAYOUT_A` 0, `GAL_LAYOUT_B` 1, **`GAL_LAYOUT_A_BOTTOM` 2** = A specchiato, riga info sopra e cifre a filo del fondo), `GalInfoRowBits`; etichette in `src/pkjs/config/page.js:125` (`o.layout`, tre voci **nell'ordine 0, 2, 1**: «**Ora in alto, info sotto**», «**Ora in basso, info sopra**», «**Ora grande, senza info**»). La descrizione (§2) dice ancora «Two layouts»: cambiarla vuole il `PATCH` di `PUBLISH.md` §0.1, non `pebble publish` (§3.S14) |
 | 15 | **12 o 24 ore**, con o senza **zero iniziale** | `src/c/settings.h:20-21` (`GalClockMode`, `GalLeadingZero`, valore AUTO = come l'orologio); default AUTO in `src/c/settings.c:20-21`; etichette in `src/pkjs/config/page.js:133-134` (`o.clock_mode`/`o.leading_zero`: da UX-2 — voce **U-11** di `docs/design/galleria-s13-ux-casual.md` §4, chiavi `opt_clock_auto`/`opt_leading_zero_auto` — «**come l'orologio**», «12 h», «24 h» e «**sì con 24 h, no con 12 h**», «sì (09:05)», «no (9:05)»); le due voci stanno sotto «Altre impostazioni» (`page.html:77-80`, **UX-2/D88**) |
 | 16 | Si aggiorna **una volta al minuto**, mai i secondi, nessuna animazione — ⚠️ **non dichiarata**: nessun testo online lo dice (residuo della stesura lunga del 05/09); resta vera come vincolo di progetto | `CLAUDE.md` dell'app («`MINUTE_UNIT` sempre; mai secondi; nessun timer continuo; animazioni: nessuna»); `docs/design/galleria.md` §1 |
 | 17 | Funziona **senza telefono**: foto e impostazioni stanno sull'orologio | `docs/design/galleria.md` §1 e §4.2 (persist: manifest + 12 slot); `README.md` §Requisiti |
@@ -353,7 +396,7 @@ altrimenti).
 | 19 | Serve **PebbleOS 4.32 o più recente** | `docs/design/galleria.md` §2 D5 (SDK 4.33.1 → fw ≥ 4.32), **confermato dall'utente il 05/09/2026** (U5: si usa l'ultimo SDK, D5 chiusa); `README.md` §Requisiti |
 | 20 | Il caricamento delle foto **è provato su Android e su iPhone** | Android: `docs/design/galleria-s8-risultati.md` §«Ambiente del test» (app Pebble **1.11.0.3**, LAN dev connection) e §O2 (sync di foto vere sul campo). iPhone: stessa pagina, **§S8b** (06/09/2026, Galleria 0.2.0 dallo store su PT2 fw 4.36.2: pagina `data:` aperta **4 volte su 4** in WKWebView — **128.250**, **133.569** ×2 e **138.249** caratteri, quest'ultima in `apps/galleria/run_ios_04.log:4` —, 2 foto scelte dalla libreria, ritorno `pebblejs://close` applicato, una foto sincronizzata in 3,5 s) |
 | 21 | Su iPhone **restano da provare** il salvataggio vicino al tetto dei 200 KB (4 foto), le **12 foto** e l'app in secondo piano: per questo la descrizione dice solo «tested», senza promesse | `docs/design/galleria-s8-risultati.md` §S8b («Da fare al prossimo incontro iOS»: test 6–8 non fatti, l'utente ha interrotto); `PIANO.md` §7; `docs/design/galleria.md` §2 D1. Sono le prove del **gate sul telefono** di UX-4, pensato prima della 0.4.0 e non fatto (la release è uscita senza, §7; resta utile a release uscita): runbook `docs/design/galleria-s13-ux4-gate-telefono.md` (D128) |
-| 22 | La **pagina delle impostazioni è in inglese, italiano, tedesco, francese, spagnolo e portoghese** (0.4.0) | `apps/galleria/i18n/messages.json` (**135 chiavi × 6 lingue** il 14/09/2026 — `python3 -c "import json; len(json.load(open('i18n/messages.json')))"` → 135, file **39.834 B** → `src/pkjs/i18n.js` **36.500 B** —, sorgente unica, ordine it, en, de, fr, es, pt) → `tools/build_i18n.py` → `src/pkjs/i18n.js`; `src/pkjs/config/page.html` e `page.js` non contengono più testi ma **chiavi** (`data-i18n`, `T(…)`), sostituite con indici da `tools/build_config_page.py`; `docs/design/galleria-s10-i18n.md` D35/D36 e `galleria-s11-lingue-es-pt.md` **D39/D42** (registro es «tú», pt «você»). Fino alla 0.1.0 la descrizione diceva «the settings page is in Italian», la 0.2.0 «English, Italian, German and French» |
+| 22 | La **pagina delle impostazioni è in inglese, italiano, tedesco, francese, spagnolo e portoghese** (0.4.0) | `apps/galleria/i18n/messages.json` (**135 chiavi × 6 lingue** il 14/09/2026, **134 dal 19/09/2026** — S14: via `font_prev`/`font_next` con le frecce, D137, dentro `opt_layout_a_bottom`, D136 — `python3 -c "import json; len(json.load(open('i18n/messages.json')))"` → 134, file **39.776 B** → `src/pkjs/i18n.js` **36.482 B** (erano 39.834 e 36.500), sorgente unica, ordine it, en, de, fr, es, pt) → `tools/build_i18n.py` → `src/pkjs/i18n.js`; `src/pkjs/config/page.html` e `page.js` non contengono più testi ma **chiavi** (`data-i18n`, `T(…)`), sostituite con indici da `tools/build_config_page.py`; `docs/design/galleria-s10-i18n.md` D35/D36 e `galleria-s11-lingue-es-pt.md` **D39/D42** (registro es «tú», pt «você»). Fino alla 0.1.0 la descrizione diceva «the settings page is in Italian», la 0.2.0 «English, Italian, German and French» |
 | 22b | La pagina **segue da sola la lingua dell'orologio**, e la si può scegliere a mano | `src/pkjs/index.js` `langAuto()` (D33: `getActiveWatchInfo().language` → `navigator.language` → `en`; log `[config] lang auto=…`); select «**Lingua (pagina e data)**» (`s_lang`, chiave `lbl_lang`) = **ultima riga visibile** della pagina, dentro `#misc` (`src/pkjs/config/page.html:76`), dopo l'Anteprima (`#wfPrev`, `:69-74`) e prima di «Altre impostazioni» (`#advBtn`, `:77`) — **UX-2/D49**; era la prima riga di `#settings` fino a UX-1 (D36). Impostazione `lang` al **byte 13** del blob (`src/c/settings.h:47`, `src/pkjs/album.js:78`, D31) |
 | 22c | Anche **la data sull'orologio** segue la lingua scelta | `src/c/datefmt.c` (tabelle identiche ai language pack, formati per lingua: en «Sat 5 Sep», it «Sab 5 Set», de «Sa, 5. Sep», fr «Sam 5 Sept.», **es «sá 5 sep», pt «Sáb 5 de Set»**; separatore delle migliaia en `,` it/de/**es/pt** `.` fr spazio — S11 **D40/D41**) chiamato da `src/c/ui_time.c`; con «Automatica» resta `strftime` del firmware (D34) |
 | 23 | Se l'avvio diventa lento dopo molte sostituzioni di foto: **Rimuovi (non Aggiorna) e reinstalla** | `src/pkjs/config/page.js:1055` (i quattro passi, chiavi `fix_step_1`…`fix_step_4` di `i18n/messages.json`: «apri l'app Pebble sul telefono», «tocca Galleria nell'elenco delle app», «rimuovi Galleria dall'orologio (non aggiornarla)», «reinstalla Galleria»); `README.md` §«Galleria si avvia lentamente?»; `docs/design/galleria.md` §2 D27 |
@@ -384,7 +427,7 @@ Ricerca completa (sorgente di `pebble publish` 5.0.40, riga per riga) in **`PUBL
 ```bash
 . ~/ProgettiClaude/Pebble/tools/pebble-env.sh
 cd ~/ProgettiClaude/Pebble/apps/galleria
-python3 ../../tools/build_i18n.py --check            # dizionario: 135 chiavi x 6 lingue (PRIMA di quello della pagina)
+python3 ../../tools/build_i18n.py --check            # dizionario: 134 chiavi x 6 lingue dopo S14 (PRIMA di quello della pagina)
 python3 ../../tools/build_config_page.py --check     # config page inlinata aggiornata
 make -C test                                         # test host + node + Python (~60 s; comprende pagecheck e i due --check qui sopra)
 pebble clean && pebble build                         # gate: emery + flint verdi, senza GALLERIA_DEFINES

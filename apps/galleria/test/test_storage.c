@@ -117,18 +117,19 @@ static int manifest_is_default(const GalManifest *m) {
   return storage_valid_slots() == 0;
 }
 
-static const uint16_t GAL_INTERVALS[7] = { 0, 5, 15, 30, 60, 180, 1440 };   /* settings_validate */
+/* S14 (D139): 9 intervalli ammessi (360 e 720 fra 180 e 1440); (D136): layout 0..2 (2 = «Ora in basso») */
+static const uint16_t GAL_INTERVALS[9] = { 0, 5, 15, 30, 60, 180, 360, 720, 1440 };   /* settings_validate */
 
 static void mk_settings(GalSettings *s, uint8_t seed) {
   memset(s, 0, sizeof(*s));
   s->schema       = 99;                      /* deve essere FORZATO a GAL_SETTINGS_SCHEMA */
-  s->layout       = (uint8_t)(seed % 2u);
+  s->layout       = (uint8_t)(seed % 3u);    /* S14: 0 A, 1 B, 2 A in basso (GAL_LAYOUT_LAST) */
   s->font         = (uint8_t)(seed % 4u);
   s->clock_mode   = (uint8_t)(seed % 3u);
   s->leading_zero = (uint8_t)((seed + 1u) % 3u);
   s->text_color   = (uint8_t)(seed % 5u);
   s->outline      = (uint8_t)((seed + 2u) % 3u);
-  s->interval_min = GAL_INTERVALS[seed % 7u];  /* schema 2: il record viene RILETTO da storage_init,
+  s->interval_min = GAL_INTERVALS[seed % 9u];  /* schema 2: il record viene RILETTO da storage_init,
                                                   che rimette i default se un campo e' fuori range */
   s->order        = (uint8_t)(seed & 1u);
   s->shake_next   = (uint8_t)((seed >> 1) & 1u);
@@ -2506,6 +2507,313 @@ static void test_settings_lang(void) {
   storage_flush();
 }
 
+
+/* ---- 20. S14 (D136 + D139): layout 2 «Ora in basso» e intervalli 360/720 ----
+ * Contratti: enum GalLayout 0/1/2 con GAL_LAYOUT_LAST = 2 (nessun byte nuovo, CRC dei default 0x7EE7
+ * invariato); settings_validate accetta ESATTAMENTE i layout 0..2 (3 e 255 no) ed ESATTAMENTE i 9
+ * intervalli {0, 5, 15, 30, 60, 180, 360, 720, 1440} (359/361/719/721/1439/1441/65535 no); round trip
+ * in persist di layout 2 e di 360/720 (record riletto da storage_init, settings_init lo rilegge);
+ * record con layout 3 o intervallo 361 e CRC valido -> impostazioni ai default MA slot e ordine
+ * conservati; chiave 10 legacy (schema 1) con layout 2 e 720 -> migrata e conservata; settings_apply
+ * con layout 3 rifiutata senza timer ne' scritture. */
+
+static void test_settings_s14(void) {
+  GalSettings def, out;
+  settings_set_defaults(&def);
+
+  /* enum e default */
+  CHECK_EQ(GAL_LAYOUT_A, 0);
+  CHECK_EQ(GAL_LAYOUT_B, 1);
+  CHECK_EQ(GAL_LAYOUT_A_BOTTOM, 2);
+  CHECK_EQ(GAL_LAYOUT_LAST, 2);
+  CHECK_EQ(GAL_LAYOUT_LAST, GAL_LAYOUT_A_BOTTOM);
+  CHECK(GAL_LAYOUT_A_BOTTOM != GAL_LAYOUT_B);
+  CHECK_EQ(def.layout, GAL_LAYOUT_A);
+  CHECK_EQ(def.interval_min, 30);
+  CHECK_EQ(offsetof(GalSettings, layout), 1);
+  CHECK_EQ(offsetof(GalSettings, interval_min), 7);
+  CHECK_EQ(crc16_ccitt((const uint8_t *)&def, (uint32_t)sizeof(GalSettings) - 2u), 0x7EE7);   /* invariato (D136) */
+
+  /* settings_validate: layout, esaustivo 0..255 -> esattamente 3 validi */
+  {
+    int ok = 0, bad = 0;
+    for (unsigned l = 0; l < 256u; l++) {
+      GalSettings s = def;
+      s.layout = (uint8_t)l;
+      if (settings_validate(&s)) { ok++; } else { bad++; }
+    }
+    CHECK_EQ(ok, 3);
+    CHECK_EQ(bad, 253);
+    GalSettings s = def;
+    s.layout = GAL_LAYOUT_A_BOTTOM;
+    CHECK(settings_validate(&s));
+    s.layout = GAL_LAYOUT_LAST;
+    CHECK(settings_validate(&s));
+    s.layout = (uint8_t)(GAL_LAYOUT_LAST + 1);            /* 3 */
+    CHECK(!settings_validate(&s));
+    s.layout = 3;
+    CHECK(!settings_validate(&s));
+    s.layout = 4;
+    CHECK(!settings_validate(&s));
+    s.layout = 0x80;
+    CHECK(!settings_validate(&s));
+    s.layout = 255;
+    CHECK(!settings_validate(&s));
+    /* layout 2 con ogni altro campo al limite alto: resta valido (nessuna interazione fra i campi) */
+    s = def;
+    s.layout = GAL_LAYOUT_A_BOTTOM;
+    s.font = GAL_FONT_COUNT - 1;
+    s.clock_mode = GAL_CLOCK_24H;
+    s.leading_zero = GAL_LZ_OFF;
+    s.text_color = GAL_TEXT_OXFORD;
+    s.outline = GAL_OUTLINE_NEVER;
+    s.digit_style = GAL_STYLE_FILL_3D;
+    s.lang = GAL_LANG_LAST;
+    s.interval_min = 1440;
+    s.order = GAL_ORDER_RANDOM;
+    s.shake_next = 1;
+    s.info_row = GAL_INFO_STEPS | GAL_INFO_BATTERY | GAL_INFO_DATE | GAL_INFO_BT;
+    memset(s.reserved, 0xFF, sizeof(s.reserved));
+    CHECK(settings_validate(&s));
+    s.layout = 3;
+    CHECK(!settings_validate(&s));
+  }
+
+  /* settings_validate: intervallo, esaustivo 0..65535 -> esattamente i 9 di GAL_INTERVALS */
+  {
+    uint32_t ok = 0;
+    uint32_t wrong = 0;
+    for (uint32_t v = 0; v < 65536u; v++) {
+      GalSettings s = def;
+      s.interval_min = (uint16_t)v;
+      int listed = 0;
+      for (size_t i = 0; i < sizeof(GAL_INTERVALS) / sizeof(GAL_INTERVALS[0]); i++) {
+        if (GAL_INTERVALS[i] == v) { listed = 1; }
+      }
+      const int valid = settings_validate(&s) ? 1 : 0;
+      if (valid) { ok++; }
+      if (valid != listed) {
+        wrong++;
+        printf("  interval %u: validate=%d, in lista=%d\n", (unsigned)v, valid, listed);
+      }
+    }
+    CHECK_EQ(ok, 9);
+    CHECK_EQ(wrong, 0);
+    static const uint16_t good[] = { 0, 5, 15, 30, 60, 180, 360, 720, 1440 };
+    static const uint16_t badv[] = { 1, 4, 6, 14, 16, 29, 31, 59, 61, 179, 181, 240, 359, 361, 480,
+                                     719, 721, 1080, 1439, 1441, 2880, 32768u, 65535u };
+    for (size_t i = 0; i < sizeof(good) / sizeof(good[0]); i++) {
+      GalSettings s = def;
+      s.interval_min = good[i];
+      CHECK(settings_validate(&s));
+      s.layout = GAL_LAYOUT_A_BOTTOM;                   /* combinato con il layout nuovo */
+      CHECK(settings_validate(&s));
+    }
+    for (size_t i = 0; i < sizeof(badv) / sizeof(badv[0]); i++) {
+      GalSettings s = def;
+      s.interval_min = badv[i];
+      if (settings_validate(&s)) {
+        printf("  intervallo %u accettato\n", (unsigned)badv[i]);
+      }
+      CHECK(!settings_validate(&s));
+    }
+    /* i byte dell'uint16 sul filo: 360 = 0x0168, 720 = 0x02D0 (little endian: 0x68 0x01 / 0xD0 0x02) */
+    GalSettings s = def;
+    s.interval_min = 360;
+    CHECK_EQ(((const uint8_t *)&s)[7], 0x68);
+    CHECK_EQ(((const uint8_t *)&s)[8], 0x01);
+    s.interval_min = 720;
+    CHECK_EQ(((const uint8_t *)&s)[7], 0xD0);
+    CHECK_EQ(((const uint8_t *)&s)[8], 0x02);
+    /* byte alto sporco: 360 + 256·k non e' un intervallo */
+    s.interval_min = (uint16_t)(360u + 256u);
+    CHECK(!settings_validate(&s));
+    s.interval_min = (uint16_t)(720u + 256u * 2u);
+    CHECK(!settings_validate(&s));
+  }
+
+  /* round trip in persist: layout 2 + 720 scritti dal debounce, riletti da storage_init e da settings_init */
+  fresh(QUOTA_OK);
+  settings_init();
+  {
+    GalSettings s = *settings_get();
+    s.layout = GAL_LAYOUT_A_BOTTOM;
+    s.interval_min = 720;
+    CHECK(settings_apply(&s));
+    CHECK(shim_timer_pending());
+    CHECK(shim_timer_fire());
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(settings_get()->interval_min, 720);
+    const uint8_t *man = key_bytes(GAL_KEY_MANIFEST);
+    CHECK_EQ(man[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)], 2);
+    CHECK_EQ(man[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min)], 0xD0);
+    CHECK_EQ(man[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min) + 1], 0x02);
+    CHECK(storage_init());                                /* "riavvio" */
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(out.interval_min, 720);
+    CHECK(settings_eq_payload(&out, &s));
+    settings_init();
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(settings_get()->interval_min, 720);
+    /* 360 e A_BOTTOM -> B -> A_BOTTOM: ogni passo e' una modifica vera (una scrittura ciascuno) */
+    s = *settings_get();
+    s.interval_min = 360;
+    CHECK(settings_apply(&s));
+    CHECK(shim_timer_fire());
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.interval_min, 360);
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    s.layout = GAL_LAYOUT_B;
+    CHECK(settings_apply(&s));
+    CHECK(shim_timer_fire());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_B);
+    s.layout = GAL_LAYOUT_A_BOTTOM;
+    CHECK(settings_apply(&s));
+    CHECK(shim_timer_fire());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    /* identiche (layout 2, 360): nessuna scrittura */
+    const int w = shim_write_count();
+    CHECK(settings_apply(&s));
+    CHECK(!shim_timer_pending());
+    CHECK_EQ(shim_write_count(), w);
+  }
+
+  /* settings_apply con layout 3 / intervallo 361 / 65535: rifiutate, RAM intatta, niente timer ne' scritture */
+  {
+    const int w = shim_write_count();
+    GalSettings bad = *settings_get();
+    bad.layout = 3;
+    CHECK(!settings_apply(&bad));
+    bad = *settings_get();
+    bad.layout = 255;
+    CHECK(!settings_apply(&bad));
+    bad = *settings_get();
+    bad.interval_min = 361;
+    CHECK(!settings_apply(&bad));
+    bad = *settings_get();
+    bad.interval_min = 719;
+    CHECK(!settings_apply(&bad));
+    bad = *settings_get();
+    bad.interval_min = 65535u;
+    CHECK(!settings_apply(&bad));
+    CHECK(!shim_timer_pending());
+    CHECK_EQ(shim_write_count(), w);
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(settings_get()->interval_min, 360);
+  }
+
+  /* record su disco con layout 3 (CRC del manifest valido): impostazioni ai default MA slot e ordine conservati */
+  build_valid_state();                                    /* foto in slot 3 */
+  {
+    GalSettings s = *settings_get();
+    settings_init();                                      /* record senza impostazioni: default in RAM */
+    s = *settings_get();
+    s.layout = GAL_LAYOUT_A_BOTTOM;
+    s.interval_min = 360;
+    s.font = GAL_FONT_BEBAS;
+    CHECK(settings_apply(&s));
+    CHECK(shim_timer_fire());
+    uint8_t rec[sizeof(GalManifest)];
+    memcpy(rec, key_bytes(GAL_KEY_MANIFEST), sizeof(rec));
+    CHECK_EQ(rec[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)], 2);
+    /* (a) rilettura pulita: layout 2 + 360 + font, slot 3 valido */
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(out.interval_min, 360);
+    CHECK_EQ(out.font, GAL_FONT_BEBAS);
+    CHECK_EQ(storage_valid_slots(), 1);
+    CHECK_EQ(storage_manifest()->slots[3].state, GAL_SLOT_VALID);
+    /* (b) layout 3 nel record (una build vecchia o un blob futuro): default, ma la foto resta */
+    uint8_t tmp[sizeof(GalManifest)];
+    memcpy(tmp, rec, sizeof(tmp));
+    tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)] = 3;
+    manifest_fix_crc(tmp);
+    CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK(settings_eq_payload(&out, &def));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A);
+    CHECK_EQ(out.interval_min, 30);
+    CHECK_EQ(storage_valid_slots(), 1);
+    CHECK_EQ(storage_manifest()->slots[3].state, GAL_SLOT_VALID);
+    CHECK_EQ(storage_manifest()->order[0], 3);
+    settings_init();
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A);
+    /* (c) intervallo 361 nel record: idem */
+    memcpy(tmp, rec, sizeof(tmp));
+    tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min)] = (uint8_t)(361u & 0xFFu);
+    tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min) + 1] = (uint8_t)(361u >> 8);
+    manifest_fix_crc(tmp);
+    CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK(settings_eq_payload(&out, &def));
+    CHECK_EQ(storage_valid_slots(), 1);
+    /* (d) record ripristinato (layout 2, 360): tutto torna */
+    CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, rec, sizeof(rec)), (int)sizeof(rec));
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(out.interval_min, 360);
+    CHECK_EQ(storage_valid_slots(), 1);
+    settings_init();
+    CHECK_EQ(settings_get()->layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(settings_get()->interval_min, 360);
+  }
+
+  /* chiave 10 legacy (schema 1) con layout 2 e 720: la migrazione le conserva (settings_validate le accetta) */
+  {
+    GalSettings old;
+    mk_settings(&old, 6);
+    old.layout = GAL_LAYOUT_A_BOTTOM;
+    old.interval_min = 720;
+    setup_v1(2, 0);
+    write_legacy_settings(&old, 0);
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(out.interval_min, 720);
+    CHECK(settings_eq_payload(&out, &old));
+    CHECK_EQ(storage_valid_slots(), 2);
+    storage_flush();                                      /* materializza il record 234 B */
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+    CHECK_EQ(out.interval_min, 720);
+    /* chiave 10 legacy con layout 3: default (la migrazione non porta valori fuori intervallo) */
+    old.layout = 3;
+    setup_v1(2, 0);
+    write_legacy_settings(&old, 0);
+    CHECK(storage_init());
+    CHECK(storage_read_settings(&out));
+    CHECK(settings_eq_payload(&out, &def));
+    CHECK_EQ(storage_valid_slots(), 2);
+  }
+
+  /* mk_settings copre davvero i 3 layout e i 9 intervalli (i test a seme non devono restare a 2/7) */
+  {
+    uint16_t layouts = 0, ivs = 0;
+    for (uint8_t seed = 0; seed < 63; seed++) {
+      GalSettings s;
+      mk_settings(&s, seed);
+      layouts |= (uint16_t)(1u << s.layout);
+      for (size_t i = 0; i < 9; i++) {
+        if (GAL_INTERVALS[i] == s.interval_min) { ivs |= (uint16_t)(1u << i); }
+      }
+      s.schema = GAL_SETTINGS_SCHEMA;
+      CHECK(settings_validate(&s));
+    }
+    CHECK_EQ(layouts, 0x7);
+    CHECK_EQ(ivs, 0x1FF);
+  }
+  storage_flush();
+}
+
 int main(void) {
   shim_set_log(getenv("GALLERIA_TEST_VERBOSE") != NULL);
   test_sizes();
@@ -2527,6 +2835,7 @@ int main(void) {
   test_timer_retries();
   test_init_edges();
   test_settings_lang();
+  test_settings_s14();
   printf("storage: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

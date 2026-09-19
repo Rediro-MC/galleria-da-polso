@@ -77,6 +77,7 @@ LABEL_LIMIT = 22           # `lbl_*` nella colonna da 9,5 em
 
 OPTIONS = {
     'opt_layout_a': OPTION_LIMIT,
+    'opt_layout_a_bottom': OPTION_LIMIT,       # S14 (D136): terza voce di «Disposizione»
     'opt_layout_b': OPTION_LIMIT,
     'opt_font_leco': OPTION_LIMIT_WIDE,        # dice anche in quale layout funziona
     'opt_style_solid': OPTION_LIMIT,
@@ -119,7 +120,7 @@ LABELS = dict.fromkeys((
 # Come si rende un segnaposto prima di misurarlo: il valore piu' lungo che page.js ci mette.
 RENDER_ARGS = {
     'opt_minutes': {'{0}': '60'},                    # page.js: 5 / 15 / 30 / 60
-    'opt_hours': {'{0}': '3'},                       # page.js: solo 3 (180 min)
+    'opt_hours': {'{0}': '12'},                      # page.js: 3 / 6 / 12 (S14, D139)
     'opt_lang_auto': {'{0}': 'Portugu\u00eas'},      # il piu' lungo dei sei endonimi
 }
 # …oppure il testo piu' lungo, NELLA STESSA LINGUA, fra altre chiavi del dizionario.
@@ -547,11 +548,12 @@ def selftest():
     # I casi qui sotto provano il COMPORTAMENTO della tripwire con liste di prova: senza questo
     # controllo si potrebbe alzare un limite o togliere una chiave dalle liste vere e il selftest
     # resterebbe verde. I numeri sono quelli del contratto D70 (28 / 36 / 22, 16 lbl) con le
-    # liste di UX-2: 29 option = 26 di UX-1 - `opt_auto` + le quattro «automatico» di U-11.
+    # liste di UX-2 piu' S14: 30 option = 26 di UX-1 - `opt_auto` + le quattro «automatico» di
+    # U-11 + `opt_layout_a_bottom` (D136).
     # Cambiarli e' una decisione, non una svista, e va fatta anche qui e in tools/README.md Sec.18.
     check('limiti e liste della tripwire D70',
           OPTION_LIMIT == 28 and OPTION_LIMIT_WIDE == 36 and LABEL_LIMIT == 22
-          and len(OPTIONS) == 29 and len(LABELS) == 16
+          and len(OPTIONS) == 30 and len(LABELS) == 16
           and sorted(k for k, v in OPTIONS.items() if v == OPTION_LIMIT_WIDE)
           == ['opt_font_leco', 'opt_lang_auto', 'opt_style_no_flint'],
           '%d option (%d a %d), %d etichette, limiti %d/%d/%d'

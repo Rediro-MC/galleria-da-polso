@@ -60,7 +60,8 @@ var DEFAULT_SETTINGS = [1, 0, 0, 0, 0, 0, 0, 30, 0, 0, 1, 15, 0, 0, 0, 0, 0, 0];
 /* S8/D21: il byte 12 e' `digit_style` (0 = pieno), ex primo dei sei `reserved`; il default resta 0,
  * quindi il blob e il CRC di un orologio appena azzerato non cambiano. La validazione del blob in
  * MSG.SETTINGS e' lo specchio di settings_validate() (src/c/settings.c): S8 alza il font a <= 5
- * (D22: 4 Francois One, 5 Staatliches) e aggiunge il controllo digit_style <= 3 (D21). */
+ * (D22: 4 Francois One, 5 Staatliches) e aggiunge il controllo digit_style <= 3 (D21); S14 alza
+ * layout a <= 2 (D136) e mette 360 e 720 nella lista degli intervalli (D139). */
 
 function FakeWatch(opts) {
   opts = opts || {};
@@ -251,12 +252,15 @@ FakeWatch.prototype._handle = function (d, msg) {
     case MSG.SETTINGS:
       blob = d[keys.SETTINGS];
       if (!blob || blob.length !== 20 || blob[0] !== 1) { return this._status(CODE.BAD_FORMAT); }
-      /* settings_validate() (settings.c): schema, layout <= 1, font < GAL_FONT_COUNT (S8/D22: 6),
-       * clock_mode <= 2, leading_zero <= 2, text_color <= 4, outline <= 2, interval nella lista,
-       * order <= 1, shake_next <= 1, info_row <= 15, digit_style <= GAL_STYLE_FILL_3D (S8/D21),
+      /* settings_validate() (settings.c): schema, layout <= GAL_LAYOUT_LAST (S14/D136: 2, la terza
+       * voce "ora in basso"), font < GAL_FONT_COUNT (S8/D22: 6), clock_mode <= 2, leading_zero <= 2,
+       * text_color <= 4, outline <= 2, interval nella lista (S14/D139: 360 = ogni 6 h e 720 = ogni
+       * 12 h fra 180 e 1440), order <= 1, shake_next <= 1, info_row <= 15,
+       * digit_style <= GAL_STYLE_FILL_3D (S8/D21),
        * lang <= GAL_LANG_LAST = 6 (S10/D31; S11/D39: es 5 e pt 6 in coda, 7 e' il primo non valido). */
-      if (blob[1] > 1 || blob[2] > 5 || blob[3] > 2 || blob[4] > 2 || blob[5] > 4 || blob[6] > 2 ||
-          [0, 5, 15, 30, 60, 180, 1440].indexOf(blob[7] | (blob[8] << 8)) < 0 || blob[9] > 1 || blob[10] > 1 ||
+      if (blob[1] > 2 || blob[2] > 5 || blob[3] > 2 || blob[4] > 2 || blob[5] > 4 || blob[6] > 2 ||
+          [0, 5, 15, 30, 60, 180, 360, 720, 1440].indexOf(blob[7] | (blob[8] << 8)) < 0 ||
+          blob[9] > 1 || blob[10] > 1 ||
           blob[11] > 15 || blob[12] > 3 || blob[13] > 6) {
         return this._status(CODE.BAD_FORMAT);
       }

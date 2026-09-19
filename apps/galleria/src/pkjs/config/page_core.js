@@ -5,7 +5,7 @@
   else { root.GalPageCore = factory(); }
 }(this, function () {
   'use strict';
-  var MAX_SLOTS = 12, MAX_THUMB_CHARS = 6000, MAX_NAME = 64, INTERVALS = [0, 5, 15, 30, 60, 180, 1440];
+  var MAX_SLOTS = 12, MAX_THUMB_CHARS = 6000, MAX_NAME = 64, INTERVALS = [0, 5, 15, 30, 60, 180, 360, 720, 1440];
   /* v1.9 (perf 04/09, revisione F04): OPEN_MS non misura solo l'apertura del file persist ma
    * anche la ricerca della chiave 0 (lo schema), e ogni ricerca e' una scansione lineare del
    * file: il tempo "normale" cresce quindi con il numero di foto tenute sull'orologio. La soglia
@@ -24,8 +24,10 @@
    * quarta foto. La pagina lo usa per spegnere «Aggiungi foto» PRIMA. */
   var NEXT_PHOTO_KB = { 1: 52, 2: 10 };
   /* [nome, min, max, default] = album.js / settings_validate(); S8-stile: font fino a 5 (4 e 5 = i due
-   * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21) */
-  var SETTINGS_FIELDS = [['layout', 0, 1, 0], ['font', 0, 5, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
+   * font nuovi) e digit_style in coda (0 pieno, 1 trasparente, 2 trasparente 3D, 3 pieno 3D; D21).
+   * S14/D136: layout fino a 2 (0 ora in alto, 1 ora grande, 2 ora in basso: e' il terzo valore del
+   * byte che c'e' gia', nessun campo nuovo nel blob). */
+  var SETTINGS_FIELDS = [['layout', 0, 2, 0], ['font', 0, 5, 0], ['clock_mode', 0, 2, 0], ['leading_zero', 0, 2, 0],
     ['text_color', 0, 4, 0], ['outline', 0, 2, 0], ['interval_min', 0, 1440, 30], ['order', 0, 1, 0],
     ['shake_next', 0, 1, 1], ['info_row', 0, 15, 15], ['digit_style', 0, 3, 0],
     /* S10 D31 + S11 D39: lang = 0 auto, 1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt (byte 13 di GalSettings) */
@@ -108,7 +110,7 @@
       s[f[0]] = (isInt(v) && v >= f[1] && v <= f[2]) ? v : f[3];
     }
     if (!has(INTERVALS, s.interval_min)) { s.interval_min = 30; }
-    /* LECO solo in layout A */
+    /* LECO solo nei layout A, in alto e in basso (S14/D136): lo esclude solo l'ora grande */
     if (s.font === 3 && s.layout === 1) { s.font = 0; }
     /* LECO: font di sistema, nessuno sprite (D21) */
     if (s.font === 3) { s.digit_style = 0; }

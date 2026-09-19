@@ -14,7 +14,7 @@
 #      make -C apps/galleria/test logstats        S8: autotest di tools/galleria_logstats.py (riepilogo dei log dell'orologio reale) + test_logstats.py
 #      make -C apps/galleria/test cards           S8: test_cards.py (tools/gen_test_cards.py --selftest e --check; salta se manca Pillow)
 #      make -C apps/galleria/test browsertest     S6: autotest del client WebDriver (Firefox headless via geckodriver; fuori da `all`)
-#      make -C apps/galleria/test mutants         S12 (D48): mutation testing di preview.js (test/mutants_preview.js: 31 mutanti su copie in build/, ~6 s; fuori da `all`)
+#      make -C apps/galleria/test mutants         S12 (D48): mutation testing di preview.js (test/mutants_preview.js: 37 mutanti su copie in build/, ~6 s; fuori da `all`)
 #      make -C apps/galleria/test clean ; EXTRA_CFLAGS="..." per flag in più
 # I test girano con cwd = questa cartella (fixture in fixtures/, generate da photo_prep.py --fixture).
 CC      = gcc
@@ -160,9 +160,15 @@ pagecheck:
 	  else cat $(OUT)/gen_digits_check.log; exit 1; fi; \
 	else echo "pagecheck: $(PEBBLE_PY) assente, gen_digits.py --check saltato (maschere non verificate)"; fi
 	@if [ -f $(GEN_PREVIEW_FIXTURE) ]; then $(PYTHON) $(GEN_PREVIEW_FIXTURE) --check; else echo "pagecheck: $(GEN_PREVIEW_FIXTURE) assente, saltato"; fi
+# S14 (D140): ui_time.c non si compila su host, quindi la sua copia della regola dell'alone automatico
+# (`>= LUMA_HALO_PCT` in prv_apply_text_style) non ha un test: tripwire testuale sulle due copie C
+# (quella di luma.c ha il suo pin in test_luma.c). Esce 1 se una delle due torna a `>`.
+	@if grep -qF ') >= LUMA_HALO_PCT;' $(SRC_DIR)/ui_time.c && grep -qF 'r->halo = r->bad_pct >= LUMA_HALO_PCT;' $(SRC_DIR)/luma.c; then \
+	  echo "pagecheck: alone automatico >= LUMA_HALO_PCT in ui_time.c e luma.c (D140)"; \
+	else echo "pagecheck: regola dell'alone (>= LUMA_HALO_PCT, D140) cambiata in ui_time.c o luma.c"; exit 1; fi
 
 # UX-4 (D132): tripwire del glossario. La tabella «viva» di docs/design/galleria-s10-i18n.md §3 deve
-# coprire TUTTE le 135 chiavi di i18n/messages.json con gli stessi testi, parola per parola: il tool
+# coprire TUTTE le 134 chiavi di i18n/messages.json con gli stessi testi, parola per parola: il tool
 # (solo stdlib) esce 1 elencando le chiavi mancanti o in piu', le righe che non si allineano alle
 # chiavi e le celle con parole diverse; le differenze di sola forma le stampa e basta. Il suo
 # --selftest sta in `pyselftest`. Uso e formato della tabella: tools/README.md §19.

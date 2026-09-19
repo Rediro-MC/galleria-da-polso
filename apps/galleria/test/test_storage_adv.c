@@ -47,18 +47,19 @@ static void fresh(uint32_t quota) {
   (void)storage_init();
 }
 
-static const uint16_t GAL_INTERVALS[7] = { 0, 5, 15, 30, 60, 180, 1440 };
+/* S14 (D139): 9 intervalli (360 e 720 fra 180 e 1440); (D136): layout 0..2 (2 = «Ora in basso») */
+static const uint16_t GAL_INTERVALS[9] = { 0, 5, 15, 30, 60, 180, 360, 720, 1440 };
 
 static void mk_settings(GalSettings *s, uint8_t seed) {
   memset(s, 0, sizeof(*s));
   s->schema       = 99;
-  s->layout       = (uint8_t)(seed % 2u);
+  s->layout       = (uint8_t)(seed % 3u);    /* S14: 0 A, 1 B, 2 A in basso */
   s->font         = (uint8_t)(seed % 4u);
   s->clock_mode   = (uint8_t)(seed % 3u);
   s->leading_zero = (uint8_t)((seed + 1u) % 3u);
   s->text_color   = (uint8_t)(seed % 5u);
   s->outline      = (uint8_t)((seed + 2u) % 3u);
-  s->interval_min = GAL_INTERVALS[seed % 7u];
+  s->interval_min = GAL_INTERVALS[seed % 9u];
   s->order        = (uint8_t)(seed & 1u);
   s->shake_next   = (uint8_t)((seed >> 1) & 1u);
   s->info_row     = (uint8_t)(seed & 0x0Fu);
@@ -1105,6 +1106,151 @@ static void test_read_without_record(void) {
   CHECK_EQ(back.crc16, 0);
 }
 
+
+/* ---- 15. S14 (D136/D139): layout 2 «Ora in basso» + 720 attraverso i percorsi difficili di storage.c ----
+ * album disabilitato (quota < 1 MiB: il record scritto conserva slot e ordine di s_backup E le
+ * impostazioni nuove), migrazione V1 con chiave 10 che porta layout 2 / 720, scrittura fallita alla
+ * scadenza del timer e ritentata dal flush, record con layout 3 letto con l'album disabilitato. */
+
+static void test_s14_layout2_paths(void) {
+  GalSettings s, out, def, old;
+  GalRotState rs;
+  settings_set_defaults(&def);
+
+  /* (a) record con foto in slot 3, impostazioni layout 2 + 720 + ordine casuale */
+  build_valid_state();
+  mk_settings(&s, 8);                       /* seed 8: layout 2, intervallo 1440 -> forzato a 720 */
+  CHECK_EQ(s.layout, GAL_LAYOUT_A_BOTTOM);
+  s.interval_min = 720;
+  s.order = GAL_ORDER_RANDOM;
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  memcpy(g_saved, key_bytes(GAL_KEY_MANIFEST), sizeof(g_saved));
+  CHECK_EQ(g_saved[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)], 2);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK_EQ(out.layout, 2);
+  CHECK_EQ(out.interval_min, 720);
+  CHECK_EQ(storage_valid_slots(), 1);
+
+  /* (b) stesso file con quota < 1 MiB: album disabilitato (slot nascosti in RAM) ma le impostazioni
+   *     si leggono lo stesse con layout 2; una modifica (layout 2 -> 720 -> 360) scrive un record che
+   *     conserva slot 3 e ordine (B1) INSIEME alle impostazioni nuove; con la quota tornata buona
+   *     rientrano foto e layout 2 */
+  storage_flush();
+  shim_set_quota(QUOTA_BAD);
+  CHECK(!storage_init());
+  CHECK_EQ(storage_valid_slots(), 0);
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(out.interval_min, 720);
+  s.interval_min = 360;
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  {
+    const uint8_t *rec = key_bytes(GAL_KEY_MANIFEST);
+    CHECK_EQ(rec[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)], 2);
+    CHECK_EQ(rec[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min)], 0x68);
+    CHECK_EQ(rec[offsetof(GalManifest, settings) + offsetof(GalSettings, interval_min) + 1], 0x01);
+    CHECK_EQ(rec[offsetof(GalManifest, slots) + 3u * sizeof(GalSlotMeta) + offsetof(GalSlotMeta, state)], GAL_SLOT_VALID);
+    CHECK_EQ(rec[offsetof(GalManifest, order)], 3);
+  }
+  storage_flush();
+  shim_set_quota(QUOTA_OK);
+  CHECK(storage_init());
+  CHECK_EQ(storage_valid_slots(), 1);
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.layout, GAL_LAYOUT_A_BOTTOM);
+  CHECK_EQ(out.interval_min, 360);
+  CHECK_EQ(out.order, GAL_ORDER_RANDOM);
+
+  /* (c) record con layout 3 letto con l'album disabilitato: impostazioni ai default, e il record scritto
+   *     dopo una modifica valida conserva slot 3 (non lo azzera per colpa delle impostazioni) */
+  {
+    uint8_t tmp[sizeof(GalManifest)];
+    memcpy(tmp, key_bytes(GAL_KEY_MANIFEST), sizeof(tmp));
+    tmp[offsetof(GalManifest, settings) + offsetof(GalSettings, layout)] = 3;
+    const uint16_t c = crc16_ccitt(tmp, (uint32_t)sizeof(GalManifest) - 2u);
+    memcpy(tmp + sizeof(GalManifest) - 2u, &c, sizeof(c));
+    CHECK_EQ(persist_write_data(GAL_KEY_MANIFEST, tmp, sizeof(tmp)), (int)sizeof(tmp));
+  }
+  storage_flush();
+  shim_set_quota(QUOTA_BAD);
+  CHECK(!storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &def));
+  CHECK_EQ(out.layout, GAL_LAYOUT_A);
+  mk_settings(&s, 2);                       /* layout 2, intervallo 15 */
+  CHECK_EQ(s.layout, 2);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  storage_flush();
+  shim_set_quota(QUOTA_OK);
+  CHECK(storage_init());
+  CHECK_EQ(storage_valid_slots(), 1);
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK_EQ(out.layout, 2);
+
+  /* (d) migrazione V1: chiave 10 con layout 2 e 720 -> conservate, shake migrato, record 234 B al timer */
+  mk_settings(&old, 4);
+  old.layout = GAL_LAYOUT_A_BOTTOM;
+  old.interval_min = 720;
+  setup_v1_full(1, 2, &old, 5);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK_EQ(out.layout, 2);
+  CHECK_EQ(out.interval_min, 720);
+  CHECK(storage_read_rotstate(&rs));
+  CHECK_EQ(rs.shake_offset, 5);
+  CHECK_EQ(storage_valid_slots(), 2);
+  CHECK(shim_timer_pending());
+  CHECK(shim_timer_fire());
+  CHECK_EQ(shim_key_len(GAL_KEY_MANIFEST), (int)sizeof(GalManifest));
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &old));
+  CHECK_EQ(storage_valid_slots(), 2);
+  /* chiave 10 V1 con 360 e layout 1 -> idem; con 361 -> default */
+  old.layout = GAL_LAYOUT_B;
+  old.interval_min = 360;
+  setup_v1_full(1, 2, &old, 0);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK_EQ(out.interval_min, 360);
+  CHECK_EQ(out.layout, GAL_LAYOUT_B);
+  old.interval_min = 361;
+  setup_v1_full(1, 2, &old, 0);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &def));
+  CHECK_EQ(storage_valid_slots(), 2);
+
+  /* (e) scrittura fallita alla scadenza del timer con layout 2: pendente, ritentata dal flush, conservata */
+  build_valid_state();
+  mk_settings(&s, 5);                       /* layout 2, intervallo 180 */
+  CHECK_EQ(s.layout, 2);
+  s.interval_min = 720;
+  shim_fail_writes_after(0);
+  storage_settings_changed(&s);
+  CHECK(shim_timer_fire());
+  CHECK(storage_read_settings(&out));      /* RAM gia' aggiornata */
+  CHECK_EQ(out.layout, 2);
+  shim_fail_writes_after(-1);
+  const int w = shim_write_count();
+  storage_flush();
+  CHECK_EQ(shim_write_count(), w + 1);
+  CHECK(storage_init());
+  CHECK(storage_read_settings(&out));
+  CHECK(settings_eq_payload(&out, &s));
+  CHECK_EQ(out.layout, 2);
+  CHECK_EQ(out.interval_min, 720);
+  CHECK_EQ(storage_valid_slots(), 1);
+  storage_flush();
+}
+
 int main(void) {
   shim_set_log(getenv("GALLERIA_TEST_VERBOSE") != NULL);
   test_migrate_half_failed();
@@ -1121,6 +1267,7 @@ int main(void) {
   test_shake_no_timer();
   test_migrate_then_ops_before_timer();
   test_read_without_record();
+  test_s14_layout2_paths();
   printf("test_storage_adv: %d ok, %d falliti\n", g_ok, g_fail);
   return g_fail ? 1 : 0;
 }

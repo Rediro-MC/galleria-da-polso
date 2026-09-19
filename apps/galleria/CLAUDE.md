@@ -2,9 +2,9 @@
 
 Watchface per Pebble Time 2 (`emery`) + Pebble 2 Duo (`flint`): foto dal telefono a rotazione come sfondo,
 ora grande e nitida, colore testo automatico. Valgono **tutte** le regole di `../../CLAUDE.md` (root); qui solo
-ciò che è specifico dell'app. I numeri qui sotto sono l'**ultima misura verificata (17/09/2026; stato dello store al
-19/09/2026)**: la fonte unica dei numeri, con la loro storia, sono `PIANO.md` §5 e `../../docs/design/galleria.md` §8,
-non questo file.
+ciò che è specifico dell'app. I numeri qui sotto sono l'**ultima misura verificata (S14, 19/09/2026 sera; stato dello
+store al 19/09/2026)**: la fonte unica dei numeri, con la loro storia, sono `PIANO.md` §5 e
+`../../docs/design/galleria.md` §8, non questo file.
 
 ## Da leggere a inizio sessione
 1. `PIANO.md` (piano a sessioni: fare la sessione indicata in §8 "Stato", una per volta) e `../../docs/CONTINUA-QUI.md`.
@@ -35,7 +35,8 @@ make -C test                                             # ~60 s, tutto: test ho
 #   OUT=<altra dir> RELATIVO a test/: il target run-% antepone ./) + pyselftest + jstest (b64, album, motore sync con orologio finto, smoke, index_retry,
 #   devstorage, devpage, pipeline, preview, page) + devtest (dev server --selftest) + dumbtest (dbm.dumb + SIGKILL) + pagecheck + glosscheck (UX-4/D132,
 #   tools/galleria_gloss_check.py: la tabella di docs/design/galleria-s10-i18n.md §3 deve coprire TUTTE le chiavi di messages.json con testi uguali parola
-#   per parola: ogni chiave nuova o riscritta vuole la sua riga nella tabella) + logstats (galleria_logstats.py --selftest + test_logstats.py) + cards (test_cards.py)
+#   per parola: ogni chiave nuova o riscritta vuole la sua riga nella tabella) + logstats (galleria_logstats.py --selftest + test_logstats.py) + cards (test_cards.py).
+#   S14/D140: in coda a `pagecheck` una tripwire testuale sull'alone automatico (`grep` di `>= LUMA_HALO_PCT` in ui_time.c e luma.c: ui_time.c non si compila su host)
 python3 test/gen_sync_fixture.py                         # rigenera test/fixture_photo.js (foto sintetica raw6/raw1 in base64url per i test node; --check la verifica)
 python3 ../../tools/galleria_devserver.py --album a.jpg b.jpg [--scenario seq|dup|crc|interrupt] [--settings '{"font":1}']
 #   S5b: dev server = config page dell'emulatore (porta 8765; tools/README.md §11; --dump-page/--dump-json per i test; fermarlo con il PID,
@@ -55,6 +56,7 @@ python3 ../../tools/photo_prep.py --out resources/photos --name demo_1 --stats -
 #   strip cifre + digit_metrics.h + MASCHERE per l'anteprima (S12/D45, 121.107 B: la stima di ~26 KB della spec valeva per UN font), comando
 #   CANONICO: --check con le stesse opzioni verifica tabella e modulo (dentro pagecheck); --selftest 63 controlli
 GALLERIA_DEFINES="GALLERIA_DEBUG_LAYOUT=1 GALLERIA_DEBUG_FONT=4 GALLERIA_DEBUG_STYLE=2" pebble build   # layout B con Francois One trasparente 3D
+#   GALLERIA_DEBUG_LAYOUT (S14/D136): 0 A «Ora in alto», 1 B «Ora grande», 2 A in basso «Ora in basso» (=2 per gli screenshot s14_*_l2_*);
 #   GALLERIA_DEBUG_FONT: 0 Anton, 1 Bebas, 2 Barlow, 3 LECO, 4 Francois One, 5 Staatliches; GALLERIA_DEBUG_STYLE (S8-stile): 0 pieno, 1 trasparente,
 #   2 trasparente 3D, 3 pieno 3D (su flint 2 vale 1 e 3 vale 0, D26); GALLERIA_DEBUG_LANG (S10/D31, S11/D39): 0 auto (strftime del firmware),
 #   1 en, 2 it, 3 de, 4 fr, 5 es, 6 pt → data da datefmt.c e separatore delle migliaia
@@ -63,7 +65,7 @@ GALLERIA_DEFINES="GALLERIA_LOG_VERBOSE=1 GALLERIA_DEBUG_HEAP=1 GALLERIA_DEBUG_TI
 #   Log di produzione (≤ 80 car.): `sync: end s= c= n= commit photo ch max avg heap`, `sync: msg= f= -> act= out= code= off= st= heap`,
 #   `photo: slot %u persist crc ok|MISMATCH %u ch %d ms heap u/f`, `luma(...): m= b= h= ph= w= bad=(w/b) mean= fg= halo=`,
 #   `ui_time: cs= bt= loc= WxH unob= lay= font= mode= band=`
-python3 ../../tools/build_i18n.py                        # i18n/messages.json (135 chiavi × 6 lingue it, en, de, fr, es, pt; 39.834 B) → src/pkjs/i18n.js (36.500 B)
+python3 ../../tools/build_i18n.py                        # i18n/messages.json (134 chiavi × 6 lingue it, en, de, fr, es, pt; 39.776 B) → src/pkjs/i18n.js (36.482 B)
 #   + test/fixture_i18n.js (ASCII, array nell'ORDINE del file); --check dentro pagecheck (PRIMA di quello della pagina) con la TRIPWIRE di lunghezza
 #   D70 (liste OPTIONS 28/36 e LABELS 22 sul testo renderizzato, nessuna eccezione); --selftest 32 (anche in `make -C test pyselftest`)
 python3 ../../tools/build_config_page.py                 # S6: inlina src/pkjs/config/ → src/pkjs/config_page.js (strip dei commenti; --check = make -C test pagecheck,
@@ -94,7 +96,8 @@ GALLERIA_DEFINES="GALLERIA_DEBUG_TIMING=1 GALLERIA_DEBUG_HEAP=1" pebble build   
 #   solo il .pbw del gate UX-4 con gli ELF in p040/ e i .pbw pubblicati 0.1.0 e 0.2.0): draw …info, tick, heap tick, sync: gap; MAI per la batteria.
 #   Perf 04/09: `init: open= man= sto= set= mod= win= syn= tot= ms` (open = apertura del file persist da parte del firmware + chiave 0) e `deinit: mod= fl= win= tot= ms`
 python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/galleria-gate/cards/) per soglie luma/LUT: nella config page Sfumature «nessuna»,
-#   Luminosita' 1, Schiarisci le ombre 0, Ottimizza OFF, «Riparti da capo» (il pulsante «Adatta» di S8 oggi si chiama cosi': `btn_fit`/`#fit`)
+#   Luminosita' 1, Schiarisci le ombre 0, Ottimizza OFF — S14/D138: la casella è spuntata DI SERIE, quindi va SPENTA a mano —, «Riparti da capo»
+#   (il pulsante «Adatta» di S8 oggi si chiama cosi': `btn_fit`/`#fit`)
 ```
 
 ## Vincoli specifici
@@ -107,11 +110,16 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   dell'utente: 794 car. = `store/description.txt`)); `author` **"Rediro"** (U2; finisce in `companyName` del `.pbw`);
   licenza del codice **MIT** (`LICENSE` in radice, U1; terze parti in `THIRD-PARTY-NOTICES.md`); `watchface: true`;
   `targetPlatforms ["emery","flint"]`; `capabilities ["configurable","health"]`; `sdkVersion "3"` non toccare.
-- Budget: statico ≤ 40 KB emery / ≤ 45 KB flint (**29.080 / 28.968 B** = `arm-none-eabi-size -A` .text+.data+.bss + 256,
-  raggiunti in S11, zero C da S12 in poi); risorse ≤ 256 KB; una sola foto in RAM (8Bit full-screen = 45.600 B su
-  emery); heap libero a regime ≥ 40 KB emery.
+- Budget: statico ≤ 40 KB emery / ≤ 45 KB flint (**29.300 / 29.188 B** = `arm-none-eabi-size -A` .text+.data+.bss + 256,
+  misurati in S14 con una build pulita senza define: **+220 B** su entrambe le piattaforme per «Ora in basso» e i due
+  intervalli nuovi, erano 29.080 / 28.968 da S11); risorse invariate (**176.668 / 50.596 B**, tetto 256 KB); una sola
+  foto in RAM (8Bit full-screen = 45.600 B su emery); heap libero a regime ≥ 40 KB emery (S14, dopo il primo render in
+  «Ora in basso» con Anton: **41.972 B** su emery, **24.692 B** su flint).
 - `MINUTE_UNIT` sempre; **mai secondi**; nessun timer continuo; rotazione foto legata al contatore dei minuti; animazioni: nessuna.
-- Ridisegno mirato: al tick solo la fascia dinamica (layout A: fascia dell'ora `[0,106)`; layout B: riga MM + "PM" `[118,228)`
+- Ridisegno mirato: al tick solo la fascia dinamica (layout A: fascia dell'ora `[0,106)`; **layout 2 «Ora in basso»
+  (S14/D136): la stessa fascia, alta uguale, ancorata al fondo dell'area non ostruita — `[122,228)` su emery
+  (`[118,228)` con ExtraLarge), `[92,168)` su flint — che con la Quick View SALE con l'area libera (`[63,169)` /
+  `[41,117)`) portandosi dietro riga info, cifre e icone**; layout B: riga MM + "PM" `[118,228)`
   — S8-stile: strip 100 righe da y 119; R10/U8: durante una sync anche il contatore in basso a sinistra della stessa fascia,
   cancellato dal repaint quando `index` torna 0). **S10 (D32): il contatore non ha più parole** — `prv_draw_sync_icon` (freccia
   circolare: `graphics_draw_arc` da 40 a 335 gradi + punta come `GPath` STATICO con i 3 vertici riscritti da `gpoint_from_polar`,
@@ -122,7 +130,18 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   `storage.c` (S4: persist), `sync.c` (S5a: trasporto AppMessage), `settings.c` (S8-stile: `font` 0..5 e `digit_style` — byte 12
   del blob, ex `reserved[0]` —, `gal_font_strip()` in `settings.h`; **S10/D31: `lang`** — byte 13, `enum GalLang` 0 auto / 1 en /
   2 it / 3 de / 4 fr / **5 es / 6 pt** (S11/D39, `GAL_LANG_LAST` = `GAL_LANG_PT`), `reserved[4]`, CRC dei default invariato
-  `0x7EE7`, `gal_lang_from_locale()` puro in `settings.h`).
+  `0x7EE7`, `gal_lang_from_locale()` puro in `settings.h`; **S14/D136: `enum GalLayout` ha il terzo valore
+  `GAL_LAYOUT_A_BOTTOM = 2` = `GAL_LAYOUT_LAST`** — nessun byte nuovo nel blob, CRC dei default ancora `0x7EE7`, i confronti
+  con `GAL_LAYOUT_B` restano validi (2 ≠ 1) — e `prv_interval_valid` accetta anche **360** e **720**, D139).
+  - `ui_time.c` (S14/D136): «Ora in basso» **non è una modalità nuova** — sono `MODE_A_LECO`/`MODE_A_SPRITE` più il flag
+    `s_lay.bottom` —, `prv_compute_layout` e `prv_strip_fits` sono **identiche** (il parser di `gen_preview_fixture.py` legge
+    la prima alla lettera) e ogni posizione passa da `prv_ay(y, h)` = `bottom ? band_y + band_h − y − h : y`, **specchio sul box
+    del RIEMPIMENTO** (non sulla strip: l'ultima riga del riempimento è sempre la 218 su emery e la 160 su flint —
+    `digits_bottom` 219 / 161 — con ogni font);
+    `s_lay.luma_y` = `band_y` porta la fascia **effettiva** a `prv_compute_luma` e le guardie delle icone (sync, BT) confrontano
+    `band_y + band_h`; in Quick View `prv_refresh_mode` rifà `prv_layout_time` e, in A, `prv_read_steps` + `prv_layout_info`
+    **anche quando cambia solo la fascia** (la modalità non cambia). Gate 19/09: emery fascia `[122,228)`, riga info 124..146,
+    inchiostro Anton 154..217 (specchio esatto delle righe 10..73 di «Ora in alto»); flint fascia `[92,168)`.
   - Logica pura senza `pebble.h`: `timefmt.c`, `luma.c`, `crc.c`, `photo_codec.c`, `rotation.c` (S4), `sync_proto.c` (S5a:
     macchina a stati della sync), **`datefmt.c`** (S10/D34 + S11/D40: data abbreviata con la lingua forzata — tabelle
     `WDAY[6][7][5]` + `MON[6][12][7]` = 714 B, identiche ai language pack, formato per lingua «Sat 5 Sep» / «Sab 5 Set» /
@@ -173,7 +192,10 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   (isteresi), `ui_time_style_changed()`/`ui_time_layout_changed()` per le impostazioni e **`ui_time_lang_changed()`** (S10/D37:
   chiamata da `sync_env_settings_changed` quando cambia `lang` — ricalcola il separatore delle migliaia, riformatta la data,
   ridisegna la fascia info; log `ui_time: lang= sep=`); mai nel tick; colore, contorno e **stile delle cifre** (`digit_style`)
-  diventano palette in `ui_time.c:prv_apply_text_style()` (S8-stile).
+  diventano palette in `ui_time.c:prv_apply_text_style()` (S8-stile). **S14/D140: l'alone automatico si accende già a
+  `bad_pct` ≥ 15 %** (`LUMA_HALO_PCT`, era `>`): **cinque** copie della stessa regola — `luma.c`, `ui_time.c`
+  (`prv_apply_text_style`), `preview.js`, `photo_prep.py`, `gen_test_cards.py` — cambiano insieme, e `pagecheck` ha la
+  tripwire `grep` sulle due copie C.
 - Cifre (S3): sprite `2BitPalette` da `resources/digits/` (generate da `tools/gen_digits.py --fit-width --no-colon-b --pack`
   dai TTF OFL in `resources/fonts/`: rigenerare strip **e** `digit_metrics.h` insieme, mai a mano).
   - S7: la taglia B ha 10 glifi, `ink[DIGITS_GLYPH_COLON] = {0,0}` e `ui_digits` tratta i glifi con `w == 0` come assenti,
@@ -189,7 +211,8 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
     `gal_font_strip()` (0 Anton, 1 Bebas, 2 Barlow, 3 Francois One, 4 Staatliches; LECO nessuna strip); i 4 **stili**
     (`digit_style`) sono **solo palette** (`ui_digits_set_palette(size, fill, ring, shadow)`), stessa risorsa e stesso blit.
   - **Layout B tiene solo la strip B** (S7, D16: la A viene caricata solo per la durata della Quick View in `prv_refresh_mode`,
-    mai in `update_proc`, e scaricata al `did_change` che la chiude; fallimento → LECO); LECO solo in A.
+    mai in `update_proc`, e scaricata al `did_change` che la chiude; fallimento → LECO); LECO solo in A — cioè con
+    «Ora in alto» **e** «Ora in basso» (S14/D136), mai con «Ora grande».
 - AppMessage (S5a): **una sola inbox** da 4.153 B (emery: 41 B di intestazioni + 16 di margine + chunk 4.096 = 16 chunk persist
   per messaggio; flint 3.129 B) aperta in `init()` e mai chiusa: `app_message_close()` **non è nell'SDK** (D9 rivista); outbox
   esatta **119 B** da `dict_calc_buffer_size` (v1.9 con `OPEN_MS`: `SYNC_HELLO_VALUE_BYTES` = 69 in `sync_proto.h`) con WARNING
@@ -222,13 +245,16 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
     `pebble build`). S7: `state.v` obbligatorio = 1, miniatura facoltativa, `title` sui nomi, `scrollIntoView` dell'editor,
     regola dei pulsanti disabilitati che deve VINCERE la cascata (`test_page.js` §4e ha un motore minimo di specificità: un
     pulsante nuovo vuole una voce in `FAM_BTN`).
-  - **Peso**: HTML inlinato **85.476 B** (modulo `config_page.js` 88.284 B); **tetto 96 KB = 98.304 B** (D43), **avviso soft**
-    oltre **84 KB = 86.016 B** → margine 12.828 B sul tetto, 540 B sotto l'avviso. Leva a costo zero: i commenti a fine riga di
+  - **Peso** (S14): HTML inlinato **85.058 B** (modulo `config_page.js` 87.832 B; erano 85.476 / 88.284 fino a UX-4: −418 B,
+    le frecce del font tolte da D137 meno «Ora in basso» e i due intervalli); **tetto 96 KB = 98.304 B** (D43), **avviso soft**
+    oltre **84 KB = 86.016 B** → margine 13.246 B sul tetto, **958 B** sotto l'avviso. Leva a costo zero: i commenti a fine riga di
     `page.js`/`page_core.js` su righe proprie (l'inliner toglie le righe di commento intere, NON i commenti in coda al codice:
-    38 spostati in UX-3 = −2.250 B); `preview.js` inlinato pesa 12.216 B. Il vincolo che lega davvero è la lunghezza dell'URL
+    38 spostati in UX-3 = −2.250 B); `preview.js` inlinato pesa 12.640 B. Il vincolo che lega davvero è la lunghezza dell'URL
     sul telefono: misurare la pagina a ogni aggiunta.
   - **URL `data:`** (D44): `data:text/html;charset=utf-8;base64,` + `b64.encodeUtf8Std(html)` + `#` + hash base64url (ripiego
-    per una WebView che non aprisse la forma base64 = una riga in `index.js`, commento sopra `showConfiguration`). Album vuoto:
+    per una WebView che non aprisse la forma base64 = una riga in `index.js`, commento sopra `showConfiguration`). Misure del
+    **14/09/2026**, con la pagina di allora (85.476 B) — in S14 la pagina cala di 418 B e la sua parte base64 passa da 113.968 a
+    **113.412** caratteri (pin di `test_index_retry.js`), quindi i totali qui sotto vanno rimisurati al prossimo gate. Album vuoto:
     **195.223 caratteri su emery / 171.556 su flint** (36 di prefisso + 113.968 di pagina + 1 + hash 81.218 / 57.551); **con 12
     foto e miniature vere 221.703 / 198.020, caso peggiore con miniature al tetto 292.908 / 269.225** (calcolo con i moduli veri
     in `~/galleria-gate/ux/ux4/mkurl12.js`, archivio locale fuori repo: il dev server non manda miniature e in emulatore il PKJS
@@ -236,14 +262,17 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
     06/09); iPhone aperto con 128–138 k il 06/09, **mai oltre**: gate zero D59 con 12 foto da fare dall'utente (runbook UX-4);
     se non regge, le leve sono l'RLE delle maschere (×2,86, −28 k) o mandare solo il font scelto. Hash =
     `b64.encodeUtf8(JSON(album.state()+{platform,fmt,cap_kb,dev}))` con `lang_auto`, `i18n` (**tutti e sei** i dizionari:
-    36.934 caratteri), `masks`, `preview_time`; payload delta `{v:1, settings, order, deleted, photos}` con **un solo formato
+    36.959 caratteri, S14), `masks`, `preview_time`; payload delta `{v:1, settings, order, deleted, photos}` con **un solo formato
     per foto** (quello dell'orologio); lo snapshot dell'HELLO si aggiorna con gli esiti della sync.
-  - **i18n** (S10 D35/D36, S11 D39, UX-3 D116): **135 chiavi × 6 lingue** in `i18n/messages.json`, `src/pkjs/i18n.js` 36.500 B
-    (cambio lingua istantaneo nella pagina). I sorgenti usano **chiavi** (`T('chiave')`, `T('chiave', a, b)` con `{0}`/`{1}`,
-    `data-i18n`/`data-i18n-title` su nodi di testo vuoti) e il passo i18n le sostituisce con l'**indice**: nessun testo e nessun
-    nome di chiave nell'artefatto, chiave inesistente = errore. ⚠️ **`T()` vuole la chiave LETTERALE nella chiamata**: il passo
-    converte solo `T('nome'` e `data-i18n="nome"`; `T(KEYS[k])` nell'artefatto non viene convertito e `GalI18nKeys` non esiste
-    → si vedrebbe il nome della chiave (tenere array di TESTI `[T('a'), T('b')]`); mai `T('nome')` in un commento a fine riga.
+  - **i18n** (S10 D35/D36, S11 D39, UX-3 D116, **S14 D137/D141**): **134 chiavi × 6 lingue** in `i18n/messages.json`
+    (39.776 B), `src/pkjs/i18n.js` = `test/fixture_i18n.js` **36.482 B** (cambio lingua istantaneo nella pagina; S14: fuori
+    `font_prev`/`font_next`, dentro `opt_layout_a_bottom`, riscritte `lbl_info_row` «Insieme all'ora», `preview_note_info`
+    «sopra o sotto l'ora» e `opt_font_leco` «Font di sistema (tranne Ora grande)»). I sorgenti usano **chiavi**
+    (`T('chiave')`, `T('chiave', a, b)` con `{0}`/`{1}`, `data-i18n`/`data-i18n-title` su nodi di testo vuoti) e il passo i18n
+    le sostituisce con l'**indice**: nessun testo e nessun nome di chiave nell'artefatto, chiave inesistente = errore. ⚠️
+    **`T()` vuole la chiave LETTERALE nella chiamata**: il passo converte solo `T('nome'` e `data-i18n="nome"`; `T(KEYS[k])`
+    nell'artefatto non viene convertito e `GalI18nKeys` non esiste → si vedrebbe il nome della chiave (tenere array di TESTI
+    `[T('a'), T('b')]`); mai `T('nome')` in un commento a fine riga.
     Chiavi solo dev/prova e `err_*` (nel `title` di `#msg`) cablate in inglese (D72, D83);
     lessico unico di S13 §2.2 e §12 («le tue foto», «Foto N» = posizione visibile, «Togli», mai
     slot/album/vetro/watchface), option minuscole (D68); i pin dei test passano da `Tit('chiave')` (U-02: mai testi italiani
@@ -266,12 +295,17 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   - **Maschere** (D45, `digit_masks.js` 121.107 B, solo il riempimento a 1 bit): nell'hash **solo la piattaforma collegata e solo
     i glifi di `preview_time`** più il solo `w` degli altri digit (`prv_grid_steps` misura la cifra più larga fra le 10: senza le
     larghezze flint Staatliches A sbaglia il passo di 1 px); modulo assente o malformato → `masks: null` e sola foto (un font
-    malformato non viaggia come sottoalbero vuoto). Bundle PKJS `build/pebble-js-app.js` **367.747 B** (la crescita rispetto a
-    S10 è tutta `digit_masks.js` + la pagina).
-  - Test (rieseguiti il 17/09/2026): `test_preview.js` **1.675** (fixture `test/fixture_preview.js` da `gen_preview_fixture.py`,
-    30 mutanti uccisi con `mutants_preview.js`), `test_page.js` **2.687 sorgenti / 2.712 inlinato**, `test_index_retry.js` **227**,
-    `test_b64.js` **2.729**, `build_config_page.py --selftest` **106**, `gen_digits.py --selftest` **63**,
-    `build_i18n.py --selftest` **32**.
+    malformato non viaggia come sottoalbero vuoto). Bundle PKJS `build/pebble-js-app.js` **367.502 B** (S14; la crescita
+    rispetto a S10 è tutta `digit_masks.js` + la pagina).
+  - Test (S14, `make -C test` intero verde in 61 s il 19/09/2026): `test_preview.js` **2.511** (era 1.675; fixture
+    `test/fixture_preview.js` da `gen_preview_fixture.py`, **37** mutanti uccisi con `mutants_preview.js`, erano 30),
+    `test_page.js` **2.694 sorgenti / 2.719 inlinato** (2.687 / 2.712), `test_album.js` **1.395** (1.341),
+    `test_devpage.js` **340** (333), `test_index_retry.js` **227**, `test_b64.js` **2.729**,
+    `build_config_page.py --selftest` **106**, `gen_digits.py --selftest` **63**, `build_i18n.py --selftest` **32**,
+    `galleria_gloss_check.py --selftest` **45**, `galleria_devserver.py --selftest` **266** (257),
+    `gen_test_cards.py --selftest` **435** (416) e `test_cards.py` **125** (91), `photo_prep.py --selftest` **65** (49).
+    Test C: `luma` **133** (99), `rotation` **711** (272), `storage` **1.703** (1.470), `storage_adv` **673** (579),
+    `sync` **1.983** / 2.163 con il timing (1.779 / 1.959), `sync_proto` **2.596** (2.561), `model` 398, `datefmt` 2.341.
 - **Regole della pagina che fanno sbagliare** (UX-2 D80–D103, UX-3 D104–D125; il comportamento completo è in S13 §13–§14):
   - `applyRules` DEVE girare dopo `applyLang`: `optTexts()` riscrive le option e cancella il suffisso `opt_style_no_flint`
     (su flint stili 2/3 e colori 3/4 = `disabled` **+ `hidden`** con rimappaggio `UNAVAIL`/`applyUnavailable`, D86).
@@ -311,12 +345,19 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
     workflow per `file:riga/5` fonde finding su righe adiacenti. Misure: pagina
     it con 3 foto a 400 px ≈ 1.895 px (1.959 a fine UX-2; il «≤ 1.500» del piano era una stima sbagliata, D100), editor aperto
     +520 px; `G.timing` resample 1–4 ms + encode 1–7 + render 0–4 su Firefox desktop.
-- **Stato (UX-4 14/09 + lettura pre-gate 17/09/2026; S13 §15, D126–D135)**: nella pagina solo G16 e `.chk { gap: 4px }` (+30 B),
-  zero C. Il **gate sul telefono** è da fare dall'utente con il runbook `docs/design/galleria-s13-ux4-gate-telefono.md` (518
-  righe, P01–P20; D134: un orologio e due telefoni, prima dell'iPhone svuotare l'album dall'Android; P09: le impostazioni
-  applicate senza riavvio si leggono da `sync: msg=10 … code=0` e `luma(band|style)`, perché `settings: persist` è scritta solo
-  in `settings_init`) con **`build_s8/galleria_p_0.4.0_ux4.pbw`** (ELF in `build_s8/p040/`; il `.pbw` **non è riproducibile al
-  byte**: `manifest.json` porta un timestamp); log `run_s13_ux4_<and|ios>_<NN>.log`, screenshot `docs/design/galleria/s13_ux4_*.png`,
+- **Stato (S14, 19/09/2026 sera; spec `../../docs/design/galleria-s14-feature-v1.md`, D136–D141)**: in repo ci sono le cinque
+  feature della v1.0 — F01 alone ≥ 15 % (D140), F03 «Ora in basso» = `layout` 2 (D136), F04 «Ottimizza» spuntata di serie
+  (D138, rovescia D6), F09 intervalli 6 h e 12 h (D139), F25 via le frecce del font (D137) — più il lessico delle tre
+  disposizioni (D141). `package.json` resta **0.4.0**: nello store c'è ancora la 0.4.0 del 18/09, **queste feature non sono
+  pubblicate** (la release, 0.5.0 o 1.0.0, la decide l'utente). Gate in emulatore fatto (screenshot `s14_*` in
+  `../../docs/design/galleria/`), gate sul telefono **no**.
+- **Stato precedente (UX-4 14/09 + lettura pre-gate 17/09/2026; S13 §15, D126–D135)**: nella pagina solo G16 e
+  `.chk { gap: 4px }` (+30 B), zero C. Il **gate sul telefono** è da fare dall'utente con il runbook
+  `docs/design/galleria-s13-ux4-gate-telefono.md` (518 righe, P01–P20; D134: un orologio e due telefoni, prima dell'iPhone
+  svuotare l'album dall'Android; P09: le impostazioni applicate senza riavvio si leggono da `sync: msg=10 … code=0` e
+  `luma(band|style)`, perché `settings: persist` è scritta solo in `settings_init`) con
+  **`build_s8/galleria_p_0.4.0_ux4.pbw`** (ELF in `build_s8/p040/`; il `.pbw` **non è riproducibile al byte**: `manifest.json`
+  porta un timestamp); log `run_s13_ux4_<and|ios>_<NN>.log`, screenshot `docs/design/galleria/s13_ux4_*.png`,
   mai foto personali nel repo; se l'iPhone non apre 12 foto → bisezione P15-bis e sessione RLE delle maschere a parte. Store:
   **0.4.0 pubblicata il 18/09/2026** su richiesta dell'utente **senza il gate P01–P20** (provata prima sul PT2 reale via
   Android: install + screenshot ok; `store/release_notes_0.4.0.txt`, `LISTING.md` §3.0/§6, `PUBLISH.md` in testa; le note
