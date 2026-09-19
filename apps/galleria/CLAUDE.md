@@ -101,7 +101,7 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
 ```
 
 ## Vincoli specifici
-- `package.json`: UUID `6f2dd646-a76a-44ff-8719-b012d04c79a4` **immutabile**; `version` **0.4.0** (UX-4/D126: una sola
+- `package.json`: UUID `6f2dd646-a76a-44ff-8719-b012d04c79a4` **immutabile**; `version` **1.0.0** (S14: **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, 506 caratteri, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica; prima, **0.4.0** — UX-4/D126: una sola
   release con es/pt di S11, l'anteprima di S12 e la pagina rifatta di UX-1…UX-3; **la 0.3.0 non è mai stata pubblicata**;
   prima di lei nello store: 0.2.0 «Galleria for Pebble», tag `v0.2.0`, e 0.1.0 beta, tag `v0.1.0-beta`, U7;
   la **0.4.0 è stata pubblicata il 18/09/2026**, tag `v0.4.0`, con `pebble publish` su richiesta dell'utente — il
@@ -348,7 +348,7 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
 - **Stato (S14, 19/09/2026 sera; spec `../../docs/design/galleria-s14-feature-v1.md`, D136–D141)**: in repo ci sono le cinque
   feature della v1.0 — F01 alone ≥ 15 % (D140), F03 «Ora in basso» = `layout` 2 (D136), F04 «Ottimizza» spuntata di serie
   (D138, rovescia D6), F09 intervalli 6 h e 12 h (D139), F25 via le frecce del font (D137) — più il lessico delle tre
-  disposizioni (D141). `package.json` resta **0.4.0**: nello store c'è ancora la 0.4.0 del 18/09, **queste feature non sono
+  disposizioni (D141). `package.json` **1.0.0** (20/09/2026): queste feature sono nello store dalla **1.0.0** (le righe che seguono descrivono lo stato di 30 minuti prima, quando **non erano
   pubblicate** (la release, 0.5.0 o 1.0.0, la decide l'utente). Gate in emulatore fatto (screenshot `s14_*` in
   `../../docs/design/galleria/`), gate sul telefono **no**.
 - **Stato precedente (UX-4 14/09 + lettura pre-gate 17/09/2026; S13 §15, D126–D135)**: nella pagina solo G16 e

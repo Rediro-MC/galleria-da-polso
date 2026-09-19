@@ -142,7 +142,9 @@ Sono l'**unico campo testuale che si aggiorna a ogni release** dalla CLI (`PUBLI
 > Restano valide le regole di forma: ASCII puro, nessuna virgoletta doppia, poche righe (5–6 finora),
 > `wc -m` annotato.
 
-### 3.S14 (BOZZA) Release notes della **prossima** release (S14: F01, F03, F04, F09, F25) — **non pubblicate**
+### 3.S14 Release notes 1.0.0 (S14: F01, F03, F04, F09, F25) — **pubblicate con la 1.0.0 il 20/09/2026 (00:14 locali)**
+
+> ✅ **20/09/2026**: **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, 506 caratteri, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica. Il file è `store/release_notes_1.0.0.txt` (il blocco qui sotto con `1.0.0` al posto di `X.Y.Z`). La nota storica che segue racconta lo stato della bozza del 19/09.
 
 > **Bozza del 19/09/2026, in attesa di due cose**: il **numero di versione** (**0.5.0 o 1.0.0**: lo decide
 > l'utente; `package.json` è ancora a **0.4.0**) e la pubblicazione, che lancia **l'utente** (§6, variante «nuova
@@ -453,8 +455,8 @@ pebble login --status                                # account: sulla VM non ris
 
 ```bash
 pebble publish --non-interactive --no-gif-all-platforms \
-  --version 0.4.0 \
-  --release-notes "$(cat store/release_notes_0.4.0.txt)"
+  --version 1.0.0 \
+  --release-notes "$(cat store/release_notes_1.0.0.txt)"   # lanciato il 20/09/2026 (1.0.0); per la 0.4.0 era --version 0.4.0 con release_notes_0.4.0.txt
 ```
 
 Subito **prima o dopo**, il `PATCH` di `PUBLISH.md` §0/§0.1 per le due cose che la CLI non tocca: il

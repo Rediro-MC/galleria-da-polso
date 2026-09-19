@@ -2,7 +2,7 @@
 
 > **English.** *Galleria* is a watchface for the Pebble Time 2 (`emery`, 200×228, 64 colours) and Pebble 2 Duo (`flint`, 144×168 B/W) that rotates **your own photos**, cropped on the phone, behind a big crisp clock whose colour adapts to the picture. Written in C (watch) + PebbleKit JS (phone), with a config page that crops/dithers the photos in the browser and streams them to the watch over AppMessage. This repository is the whole workspace: the app (`apps/galleria`), the tooling, the research notes and the session-by-session development plan. Everything below is in Italian.
 
-Questo repository è l'**area di lavoro completa** dei progetti Pebble: la watchface **Galleria** (`apps/galleria`, pubblicata: **0.1.0 beta** e **0.2.0** il 05/09/2026, **0.4.0** il 18/09/2026, con la pagina delle impostazioni rifatta e lo spagnolo e il portoghese), due app di prova usate per misurare la piattaforma (`apps/hello-emery`, `apps/heapprobe`), gli strumenti (`tools/`), la ricerca e i documenti di design (`docs/`) e il piano di sviluppo. È pensato per essere **clonato su qualsiasi computer** e ripreso da lì con Claude Code.
+Questo repository è l'**area di lavoro completa** dei progetti Pebble: la watchface **Galleria** (`apps/galleria`, pubblicata: **1.0.0 dal 20/09/2026**; prima **0.1.0 beta** e **0.2.0** il 05/09/2026, **0.4.0** il 18/09/2026, con la pagina delle impostazioni rifatta e lo spagnolo e il portoghese), due app di prova usate per misurare la piattaforma (`apps/hello-emery`, `apps/heapprobe`), gli strumenti (`tools/`), la ricerca e i documenti di design (`docs/`) e il piano di sviluppo. È pensato per essere **clonato su qualsiasi computer** e ripreso da lì con Claude Code.
 
 | emery (Pebble Time 2) | flint (Pebble 2 Duo) |
 |---|---|

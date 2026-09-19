@@ -459,7 +459,7 @@ che invecchiano.
 - **Codice dell'app**: **MIT** — decisione **U1** presa dall'autore il **05/09/2026**. Il testo integrale è in
   **`LICENSE`** nella radice del repository («Copyright (c) 2026 **Rediro**»); il repository
   (`https://github.com/Rediro-MC/galleria-da-polso`) è pubblico (decisione **U4**).
-- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **0.4.0**
+- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **1.0.0** (pubblicata il 20/09/2026; prima 0.4.0 del 18/09)
   (spagnolo e portoghese più la pagina delle impostazioni rifatta; la 0.2.0 è stata il multilingua
   di S10, la **0.3.0** è stata scritta ma non è mai stata pubblicata); la **0.1.0** è stata la
   prima release pubblica in **beta** (decisione **U7**; tag git `v0.1.0-beta`).
