@@ -25,7 +25,7 @@
   `README.md` e la nota di testa di `docs/design/galleria-s11-lingue-es-pt.md` allineati allo stato reale (più note
   datate 19/09 in `THIRD-PARTY-NOTICES.md`, `docs/design/README.md`, `docs/design/galleria/README.md`, nel runbook
   del gate, in `galleria-s9-pubblicazione.md` e in `galleria.md` §10). Zero C, zero pagina, zero `description.txt`;
-  nessun commit.
+  commit `3504762` + push su `main` il 19/09/2026 (richiesta dell'utente «carica su github ultimo aggiornamento»).
 - **18/09/2026 notte — screenshot extra dello store** (sessione non registrata, ricostruita il 19/09 dal diff e
   dai timestamp, file delle 01:13 e 01:21): su richiesta dell'utente 7 screenshot in più in `store/`
   (`emery_screenshot_2…6`, `flint_screenshot_2…3`; due nuovi dall'emulatore, `store040_*` in
@@ -33,7 +33,7 @@
   `apps/galleria/CLAUDE.md` e `docs/design/galleria/README.md` aggiornati; online il 19/09 **5 emery + 3 flint**
   (i 6 extra caricati dall'utente dalla dashboard), `emery_screenshot_6` no (unico con foto CC-BY-SA-4.0: decisione
   dell'utente, punto 2 del prossimo passo). **Regola nuova: le release notes dello store si scrivono solo in
-  inglese.** Nulla committato.
+  inglese.** Committata il 19/09/2026 con l'allineamento (`3504762`).
 - **Sessione 18/09/2026 — prova sull'orologio reale + release 0.4.0**: install del `.pbw` UX-4 sul PT2
   via Android (`--phone 192.168.188.29`, IP nuovo; ping/install/screenshot ok, log a riposo vuoti = attesi),
   poi su richiesta dell'utente commit `6e79f6f` + tag `v0.4.0` + push (145 file: S11, S12, UX-1…UX-4, pulizia)
@@ -50,11 +50,11 @@
   (build e test verdi), archivio di ciò che sparisce in `~/galleria-archivio-2026-09-17/`, rapporto e decisioni
   aperte in `~/ProgettiClaude/pulizia-2026-09-17/RAPPORTO.md`. **Su conferma dell'utente**: scambio delle cartelle,
   cancellazione della vecchia, commit e push (dettagli in `apps/galleria/PIANO.md` §4 «Pulizia del repo»).
-- **Committato e pushato fino al 18/09/2026 00:55**: commit `6e79f6f` + tag `v0.4.0` (chiesti dall'utente) e il
-  commit docs `79abb57` portano su GitHub tutto il lavoro da S11 alla pulizia del 17/09 e la release. **Dal 18/09
-  notte ci sono modifiche NON committate** (i 7 screenshot extra con `make_assets.py`, `store/README.md`,
-  `LISTING.md`, `apps/galleria/CLAUDE.md`, `docs/design/galleria/README.md`, i due `store040_*` e l'allineamento
-  dei documenti del 19/09). **Commit e push restano solo su richiesta esplicita.**
+- **Committato e pushato**: commit `6e79f6f` + tag `v0.4.0` (chiesti dall'utente) e il commit docs `79abb57`
+  del 18/09/2026 portano su GitHub tutto il lavoro da S11 alla pulizia del 17/09 e la release; **il commit
+  `3504762` del 19/09/2026** porta i 7 screenshot extra con `make_assets.py`, `store/README.md`, `LISTING.md`,
+  `apps/galleria/CLAUDE.md`, `docs/design/galleria/README.md`, i due `store040_*` e l'allineamento dei documenti
+  del 19/09. **Commit e push restano solo su richiesta esplicita.**
 - **CI**: 10 esecuzioni verdi fra il 30/08 e il 05/09/2026; il push del 18/09 era il primo passaggio in CI del
   lavoro da S11 in poi — **verde** (verificato il 19/09/2026: 3 run `success`, due su `6e79f6f` e uno su `79abb57`).
 
@@ -70,8 +70,8 @@
    lasciarlo fuori dallo store.
 3. Il **gate P01–P20** del runbook resta utile anche a release uscita (config page, flusso foto, P15 sull'iPhone
    con 12 foto): da fare quando l'utente vuole.
-4. **Commit** delle modifiche non committate (screenshot extra del 18/09 notte + allineamento del 19/09): solo su
-   richiesta dell'utente.
+4. **Commit**: fatto il 19/09/2026 (`3504762`, push su `main`), su richiesta dell'utente; i prossimi restano solo su
+   richiesta esplicita.
 
 ### Il gate sul telefono (runbook)
 
