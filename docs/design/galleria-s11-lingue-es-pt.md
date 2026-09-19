@@ -6,16 +6,23 @@
 > l'anteprima (S12), nome nello store **«Galleria»** e descrizione con «pensata per Pebble Time 2 (schermo a colori)».
 > Vale tutto di `galleria-s10-i18n.md` (D31–D38) salvo quanto esteso qui. Versione **0.3.0**.
 
-> 🔁 **Riletta il 17/09/2026** (come i blocchi di revisione di S10 e S12, D129). Le decisioni **D39–D42** sono vive e valgono come sono
-> scritte; il resto del documento è il contratto di quella sessione e resta come storia, con tre numeri da
+> 🔁 **Riletta il 17/09/2026** (come i blocchi di revisione di S10 e S12, D129; primo e terzo punto
+> aggiornati e quarto punto aggiunto il 19/09/2026). Le decisioni **D39–D42** sono vive e valgono come
+> sono scritte, salvo i punti qui sotto (versione, nome nello store e release notes di **D42**); il resto
+> del documento è il contratto di quella sessione e resta come storia, con tre numeri e una regola da
 > aggiornare quando si legge:
-> - **la versione non è la 0.3.0**: la 0.3.0 non è mai uscita e il lavoro di S11, S12 e UX-1…UX-4 esce in una
->   sola release **0.4.0** (**D126**; `apps/galleria/package.json` → `"version": "0.4.0"`);
+> - **la versione non è la 0.3.0**: la 0.3.0 non è mai uscita e il lavoro di S11, S12 e UX-1…UX-4 è uscito in
+>   una sola release **0.4.0**, pubblicata il 18/09/2026 (**D126**; `apps/galleria/package.json` →
+>   `"version": "0.4.0"`);
 > - **le chiavi non sono 121**: `apps/galleria/i18n/messages.json` ne ha **135** × 6 lingue (39.834 B), dopo le
 >   aggiunte e le fusioni di UX-1…UX-3 (**D116**);
-> - **il nome nello store è ancora «Galleria for Pebble»**: il «Galleria» di **D42** si applica con il
->   `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1 (`title=Galleria`), che l'utente lancia insieme alla
->   pubblicazione della 0.4.0, dopo il gate sul telefono.
+> - **il nome nello store è «Galleria»** (verificato il **19/09/2026**): il «Galleria» di **D42** è stato
+>   applicato dall'utente dalla dashboard, a 0.4.0 già pubblicata (18/09/2026); la descrizione nuova è
+>   invece **ancora da mandare**, con il `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1 (che porta
+>   comunque `title=Galleria`);
+> - **le release notes non hanno più una riga per lingua** (D42): dal 18/09/2026 si scrivono solo in
+>   inglese (`apps/galleria/store/LISTING.md` §3); le sei righe della 0.4.0 e quelle della 0.2.0 restano
+>   come storia.
 
 ## 0. Decisioni (D39–D42)
 

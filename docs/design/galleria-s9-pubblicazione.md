@@ -17,6 +17,12 @@
 > non è mai uscita) e l'`author` è **«Rediro»** (U2). Il listing vivo, con i testi e i comandi di oggi, è
 > `apps/galleria/store/LISTING.md`; la pubblicazione della 0.4.0 la lancia l'utente dopo il gate sul telefono
 > (`galleria-s13-ux4-gate-telefono.md` §5).
+>
+> → **19/09/2026**: la **0.4.0 è uscita il 18/09/2026** (tag `v0.4.0`) senza il gate sul telefono; il nome nello
+> store è **«Galleria»**, messo dall'utente dalla dashboard; resta il `PATCH` di `apps/galleria/store/PUBLISH.md`
+> §0.1 per la **sola descrizione** (online c'è ancora quella della 0.2.0 senza «Beta 0.2.0, »). Le frasi qui sopra
+> su «lo store è fermo lì», sul nome ancora «Galleria for Pebble» e sulla pubblicazione «dopo il gate» sono storia
+> del 17/09.
 
 ## 0. Cosa deve esserci alla fine
 

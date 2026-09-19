@@ -28,7 +28,7 @@ lettura pre-gate del 17/09 in §15 di `galleria-s13-ux-casual.md`; il gate sul t
 | `galleria-s11-lingue-es-pt.md` | S11 · 06/09/2026 | **vivo** (D39–D42) | Spagnolo e portoghese sull'orologio e nella pagina: enum delle lingue, date dei pack, separatore delle migliaia |
 | `galleria-s12-anteprima.md` | S12 · 06/09/2026 | **vivo** (D43–D48) | Anteprima della watchface dentro la config page: tetto della pagina, URL in base64, maschere delle cifre, che cosa mostra |
 | `galleria-s13-ux-casual.md` | S13 / UX-1…UX-4 · 12–17/09/2026 | **vivo** | Il rifacimento della pagina per un utente non tecnico: lessico (§2), struttura (§3), decisioni **D49–D135** e l'esecuzione di ogni sessione (§12–§15) |
-| `galleria-s13-ux4-gate-telefono.md` | UX-4 · 14/09/2026, riscritto il 17/09 | **vivo — è il prossimo passo** | Le venti prove P01–P20 sul telefono vero con la 0.4.0 (518 righe), da fare con l'utente; i risultati vanno in §3, poi in `PIANO.md` §8 |
+| `galleria-s13-ux4-gate-telefono.md` | UX-4 · 14/09/2026, riscritto il 17/09 | **vivo** (utile a release uscita: la 0.4.0 è uscita il 18/09/2026 senza il gate; il prossimo passo è in `docs/CONTINUA-QUI.md`) | Le venti prove P01–P20 sul telefono vero con la 0.4.0, da fare quando l'utente vuole; i risultati vanno in §3, poi in `PIANO.md` §8 |
 | `galleria/` | tutte | **vivo** | Gli screenshot citati per nome dai documenti, un set per gate. `galleria/README.md` ha la politica della cartella e le licenze delle immagini |
 
 Tolto il **17/09/2026**: `galleria-s9-r10-sync-b.diff`, la patch dell'indicatore di sync in layout B (R10), applicata

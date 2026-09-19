@@ -1,4 +1,4 @@
-# Asset per lo store — Galleria (S7 §2.12, sorgenti aggiornate in S9-prep)
+# Asset per lo store — Galleria (S7 §2.12, sorgenti aggiornate in S9-prep e il 18/09/2026)
 
 Immagini di presentazione dell'app (icone + screenshot) per la pubblicazione con
 `pebble publish`. **Generate**, mai ritoccate a mano: l'unica sorgente di verità è
@@ -6,13 +6,25 @@ Immagini di presentazione dell'app (icone + screenshot) per la pubblicazione con
 
 ## Provenienza
 
-Gli asset derivano dagli screenshot del **gate S9-prep** (05/09/2026, emulatore, build
-normale, layout A, font Anton, 24 h, album vuoto -> foto demo **CC0**):
+Gli asset derivano da screenshot in `docs/design/galleria/`: i due storici dal **gate
+S9-prep** (05/09/2026, emulatore, build normale, layout A, font Anton, 24 h, album vuoto
+-> foto demo **CC0**); i **sette in più** sono stati chiesti dall'utente nella **notte del
+18/09/2026**, a 0.4.0 già pubblicata: tre alle 01:13, quattro «ora a tutto schermo»
+alle 01:21, fra cui i due `store040_*` girati apposta con l'emulatore sulla build
+0.4.0 (e `emery_screenshot_6` da uno screenshot **S8-stile** del 04/09/2026, non dal
+gate S9-prep):
 
 | Sorgente | Piattaforma | Dimensioni | Cosa ne esce |
 |---|---|---|---|
 | `../../../docs/design/galleria/s9_emery_a_anton_scura.png` (demo 1, aurora sul fiordo: testo bianco, più leggibile nelle icone) | `emery` (Pebble Time 2) | 200x228 | `icon_144/80/48.png` + `emery_screenshot_1.png` |
 | `../../../docs/design/galleria/s9_flint_a_anton_chiara.png` (demo 2, Bryce Canyon: la scena si legge meglio in B/N) | `flint` (Pebble 2 Duo) | 144x168 | `flint_screenshot_1.png` |
+| `../../../docs/design/galleria/s9_emery_b_francois_trasparente3d_scura.png` (layout B, Francois One trasparente 3D; chiesto dall'utente il 18/09/2026) | `emery` | 200x228 | `emery_screenshot_2.png` |
+| `../../../docs/design/galleria/s9_emery_a_anton_chiara.png` (demo 2 chiara: mostra il colore del testo automatico, nero) | `emery` | 200x228 | `emery_screenshot_3.png` |
+| `../../../docs/design/galleria/s9_flint_a_anton_scura.png` (demo 1 scura su flint, testo bianco) | `flint` | 144x168 | `flint_screenshot_2.png` |
+| `../../../docs/design/galleria/store040_emery_b_anton_scura.png` (layout B «Ora grande», Anton pieno; emulatore, build 0.4.0 con `GALLERIA_DEBUG_LAYOUT=1`, 18/09/2026) | `emery` | 200x228 | `emery_screenshot_4.png` |
+| `../../../docs/design/galleria/s9_emery_b_francois_trasparente3d_chiara.png` (layout B, Francois One trasparente 3D su demo chiara) | `emery` | 200x228 | `emery_screenshot_5.png` |
+| `../../../docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (layout B, Staatliches trasparente; S8-stile 04/09/2026, foto di prova CC-BY-SA-4.0, non CC0) | `emery` | 200x228 | `emery_screenshot_6.png` |
+| `../../../docs/design/galleria/store040_flint_b_anton_chiara.png` (layout B su flint, Anton nero su demo chiara; emulatore, build 0.4.0, 18/09/2026) | `flint` | 144x168 | `flint_screenshot_3.png` |
 
 Le **icone** sono un ritaglio quadrato 200x200 dello screenshot emery, centrato
 verticalmente (`y` da 14 a 214, cioè `(228-200)/2`): comprende l'ora grande, la riga
@@ -20,9 +32,10 @@ di stato (batteria / passi / data) e la parte alta della foto. Il ritaglio viene
 ridimensionato con **LANCZOS** alle tre taglie richieste.
 
 Le due foto demo sono **CC0 1.0** (Wikimedia Commons, S9-prep): si possono usare senza
-problemi nelle immagini dello store. Provenienza, autori e verifica della licenza in
-[`../resources/photos/README.md`](../resources/photos/README.md). Se le demo o il gate
-cambiano, **questi asset vanno rigenerati** (`make_assets.py`).
+problemi nelle immagini dello store (vale per otto dei nove screenshot:
+`emery_screenshot_6.png` no, vedi «File prodotti»). Provenienza, autori e verifica
+della licenza in [`../resources/photos/README.md`](../resources/photos/README.md). Se
+le demo o il gate cambiano, **questi asset vanno rigenerati** (`make_assets.py`).
 
 ## Rigenerazione
 
@@ -42,12 +55,26 @@ sorgente manca o non ha le dimensioni attese.
 | `icon_48.png` | 48x48 | RGB | listing / anteprime e procedura Rebble (taglia del vecchio portale) |
 | `icon_80.png` | 80x80 | RGB | `pebble publish --icon-small` |
 | `icon_144.png` | 144x144 | RGB | `pebble publish --icon-large` |
-| `emery_screenshot_1.png` | 200x228 | RGB | screenshot Pebble Time 2 (`pebble publish --screenshots`) |
-| `flint_screenshot_1.png` | 144x168 | RGB | screenshot Pebble 2 Duo (`pebble publish --screenshots`) |
+| `emery_screenshot_1.png` | 200x228 | RGB | screenshot Pebble Time 2 (`pebble publish --screenshots`; online dal 05/09/2026) |
+| `flint_screenshot_1.png` | 144x168 | RGB | screenshot Pebble 2 Duo (`pebble publish --screenshots`; online dal 05/09/2026) |
+| `emery_screenshot_2.png` | 200x228 | RGB | layout B trasparente 3D: **online al 19/09/2026** (verificato), caricato dall'utente dalla dashboard fra il 18/09 e il 19/09/2026 (la CLI carica screenshot solo dentro una release: `PUBLISH.md` §5) |
+| `emery_screenshot_3.png` | 200x228 | RGB | layout A su foto chiara (testo nero automatico): **online al 19/09/2026**, dalla dashboard come sopra |
+| `flint_screenshot_2.png` | 144x168 | RGB | flint su foto scura: **online al 19/09/2026**, dalla dashboard come sopra |
+| `emery_screenshot_4.png` | 200x228 | RGB | layout B «Ora grande», Anton pieno su aurora: **online al 19/09/2026**, dalla dashboard come sopra |
+| `emery_screenshot_5.png` | 200x228 | RGB | layout B, Francois One trasparente 3D su demo chiara: **online al 19/09/2026**, dalla dashboard come sopra |
+| `emery_screenshot_6.png` | 200x228 | RGB | layout B, Staatliches trasparente: **NON online al 19/09/2026**; unico dei nove con una foto di prova **CC-BY-SA-4.0** (sorgente `s8stile_*` del 04/09/2026, `ubuntu-wallpapers`, attribuzione in `../../../docs/design/galleria/README.md`), non la demo CC0: caricarlo è una **decisione dell'utente** (attribuzione CC-BY-SA nel listing, oppure sorgente CC0 rigenerata in emulatore come i due `store040_*`, o lasciarlo fuori dallo store) |
+| `flint_screenshot_3.png` | 144x168 | RGB | layout B su flint, Anton nero su demo chiara: **online al 19/09/2026**, dalla dashboard come sopra |
 
-Gli screenshot conservano i pixel dello screenshot del gate (nessun ridimensionamento);
-l'unica differenza rispetto ai file di `docs/design/galleria/` è la conversione da
-RGBA a **RGB** (canale alfa opaco e inutile, rimosso).
+Gli screenshot conservano i pixel della sorgente in `docs/design/galleria/` (nessun
+ridimensionamento); l'unica differenza rispetto a quei file è la conversione da RGBA
+a **RGB** (canale alfa opaco e inutile, rimosso).
+
+Le copie **online** non sono gli stessi file (verificato il 19/09/2026): lo store
+**ri-codifica tutti i PNG in modalità palette** — gli emery (13-18 KB contro i 37-59 KB
+del repo) con pochi pixel diversi (differenza media 0,04-0,14 su 255, 19-24 colori
+online), i flint (2,8-3,1 KB) pixel-identici a 2 colori —, quindi **nessuno è
+byte-identico**. `make_assets.py --check` confronta con i **file del repo**, non con lo
+store.
 
 ### Nome degli screenshot
 

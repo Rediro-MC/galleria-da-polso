@@ -290,7 +290,9 @@ Gate per sessione in `apps/galleria/PIANO.md` §4; matrice `PIANO-SVILUPPO-PEBBL
 
 > Nota (17/09/2026): qui restano solo i punti **vivi**, ognuno con la prova che lo chiude; i chiusi sono in coda
 > («Chiusi», con la sessione che li ha chiusi). Il passo successivo del progetto è il **gate sul telefono U-18b**
-> (`galleria-s13-ux4-gate-telefono.md`, prove P01–P20, lo fa l'utente).
+> (`galleria-s13-ux4-gate-telefono.md`, prove P01–P20, lo fa l'utente). (19/09/2026: la 0.4.0 è uscita il
+> 18/09/2026 senza il gate, che resta utile a release uscita; il prossimo passo è il `PATCH` della descrizione,
+> `docs/CONTINUA-QUI.md`).
 
 1. **iOS**: 🔁 **primo giro fatto il 06/09/2026** (S8b, `galleria-s8-risultati.md`): la pagina `data:` si apre in
    WKWebView (4 aperture su 4, da 128.250 a **138.249** caratteri), il pannello file apre la libreria (2 foto
@@ -302,7 +304,8 @@ Gate per sessione in `apps/galleria/PIANO.md` §4; matrice `PIANO-SVILUPPO-PEBBL
    piano cade anche la Dev Connection, che sull'iPhone cade spesso comunque). Ricerca S8: nel codice dell'app iOS
    nessun limite alla lunghezza del close URL e `URL_DATA_PREFIX` dichiarato ma non usato; issue #297 sul file
    input, superata dalla prova del 06/09. Se l'iPhone non apre 12 foto: bisezione (runbook §4) e sessione **RLE
-   delle maschere** (≈ −28.000 caratteri) prima della release; piano B = campo URL (v1.1).
+   delle maschere** (≈ −28.000 caratteri) in una release successiva (la 0.4.0 è già uscita); piano B = campo
+   URL (v1.1).
 2. **Compattazione del persist durante una sync**: throughput BLE e costi del persist con file grande 🔁
    **misurati in S8** (§5 «Tempi attesi»; apertura del file 2.145 ms su file gonfio e 93–121 ms con 4 foto, D27),
    resta stimata solo la **compattazione mentre una sync è in corso** (coperta dal backoff di 45 s): se la

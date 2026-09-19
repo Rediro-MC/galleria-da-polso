@@ -6,9 +6,17 @@
 > comando di `LISTING.md` §6 (`pebble publish --non-interactive --no-gif-all-platforms --version 0.4.0
 > --release-notes …`; log locale `publish_040.log`: «Resolved existing appstore app ID … Release created
 > successfully»). Pre-check tutti verdi (test, clean build 29.080/28.968 B, `make_assets.py --check`, 795/697 B,
-> `versionLabel 0.4.0`). ⚠️ **Il `PATCH` di §0.1 NON è ancora stato lanciato** (bloccato dal permission mode di
-> Claude Code, «Create Public Surface»): `title` è ancora «Galleria for Pebble» e la descrizione è la vecchia —
-> il comando di §0.1 vale tale e quale, lo lancia l'utente.
+> `versionLabel 0.4.0`). Quel giorno il `PATCH` di §0.1 **non è stato lanciato** (bloccato dal permission mode di
+> Claude Code, «Create Public Surface»): alle 00:55 del 18/09 (commit `79abb57`) `title` era ancora «Galleria for
+> Pebble» e la descrizione era la vecchia.
+>
+> **Stato al 19/09/2026** (API pubblica `GET /api/v1/apps/id/cdf80cc3bf6745b1a310e4c8`): `title` è **«Galleria»**,
+> rinominata **dall'utente dalla dashboard** e **non** con il comando di §0.1; la **descrizione è ancora quella
+> vecchia** — il testo della 0.2.0 senza il prefisso «Beta 0.2.0, », **777 caratteri** (non è `store/description.txt`,
+> che ne ha 794) —, quindi il `PATCH` di §0.1 **resta da lanciare per la sola descrizione**. Screenshot online:
+> **5 emery + 3 flint** (`emery_screenshot_6.png` no: unico con foto CC-BY-SA-4.0, decisione dell'utente; lo store
+> ri-codifica tutti i PNG in palette, flint pixel-identici ed emery quasi: §5). CI di GitHub Actions **verde**
+> sui commit `6e79f6f` e `79abb57`.
 >
 > **Stato al 14/09/2026 (UX-4, D126)**, verificato sull'API pubblica `GET /api/v1/apps/id/cdf80cc3bf6745b1a310e4c8`:
 > `title` è **ancora «Galleria for Pebble»** e l'ultima release è **ancora la 0.2.0** (pubblicata il 05/09 alle 21:16).
@@ -55,6 +63,11 @@ creazione, §9): lo cambia il campo **`title`** di questo `PATCH`, che è **obbl
 ⚠️ Da qui in poi, ogni `PATCH` futuro deve portare `title=Galleria`: rimettere il vecchio testo rinominerebbe
 l'app all'indietro. `store/LISTING.md` §1 (riga «Nome nello store») e §5 (riga 30) sono già allineati al nome nuovo.
 
+**Nota del 19/09/2026**: il **titolo è già online** — l'app nello store si chiama «Galleria» perché l'utente l'ha
+rinominata **dalla dashboard**, non con questo comando. Il comando qui sotto resta **identico** (`title` è
+obbligatorio in ogni `PATCH`: il valore «Galleria» conferma quello che c'è già) e oggi serve **per la sola
+descrizione**, che online è ancora quella vecchia della 0.2.0 (777 caratteri).
+
 ```bash
 cd ~/ProgettiClaude/Pebble/apps/galleria
 APP=cdf80cc3bf6745b1a310e4c8                      # id dell'app (stampato dal publish, PUBLISH.md in testa)
@@ -69,7 +82,7 @@ TOK=$(~/.local/share/uv/tools/pebble-tool/bin/python -c \
 curl -sS -c "$JAR" -X POST "$API/api/auth/firebase/session" \
   -H 'Content-Type: application/json' --data-binary "{\"idToken\": \"$TOK\"}" >/dev/null
 
-# 3) PATCH multipart: title (obbligatorio, qui RINOMINA) + descrizione; i campi non inviati restano com'erano
+# 3) PATCH multipart: title (obbligatorio; al 19/09/2026 CONFERMA il nome gia' online) + descrizione; il resto non cambia
 curl -sS -b "$JAR" -X PATCH "$API/api/dashboard/apps/$APP" \
   --form-string "title=Galleria" \
   --form-string "description=$(cat store/description.txt)"
@@ -80,17 +93,19 @@ curl -sS "$API/api/v1/apps/id/$APP" | python3 -m json.tool | grep -m2 -E '"(titl
 rm -f "$JAR"                                       # via il cookie appena finito
 ```
 
-⚠️ **Comando scritto, non eseguito** (S11, 06/09/2026; ancora non eseguito il 14/09/2026, UX-4): lo lancia
-**l'utente** — o l'orchestratore su richiesta — **dopo il gate sul telefono**
-(`docs/design/galleria-s13-ux4-gate-telefono.md`, D128); non fa parte del gate. Atteso al punto 4:
-`"title": "Galleria"` e la descrizione nuova (le prime righe bastano; per contarla,
+⚠️ **Comando scritto, non eseguito** (S11, 06/09/2026; ancora non eseguito il 14/09/2026, UX-4; **bloccato dal
+permission mode il 18/09/2026**; **ancora non eseguito il 19/09/2026**): lo lancia **l'utente** — o l'orchestratore
+su richiesta — e **non è più legato al gate sul telefono** (`docs/design/galleria-s13-ux4-gate-telefono.md`,
+D128), che resta una cosa a parte. Atteso al punto 4: `"title": "Galleria"` (già così al 19/09/2026: rinominata
+dall'utente dalla dashboard) e la descrizione nuova (le prime righe bastano; per contarla,
 `wc -m store/description.txt` = **795** con il newline finale, **794** caratteri — ricontato il 14/09/2026).
 Le **icone** non vanno rimandate (sono gia' online dal 05/09);
 se servisse rifarle, si aggiungono allo stesso `PATCH` `-F "iconSmall=@store/icon_80.png;type=image/png"` e
 `-F "iconLarge=@store/icon_144.png;type=image/png"`. Il `PATCH` **non pubblica una release**: la **0.4.0** con
 `store/release_notes_0.4.0.txt` (**696** caratteri, 697 con il newline) la fa `pebble publish` (`LISTING.md` §6 e
 §3.0), e i due passi sono indipendenti — si fanno però **nello stesso giro**, perché è la stessa novità per chi
-legge la pagina dello store.
+legge la pagina dello store. Al 19/09/2026 il giro è a metà: la release 0.4.0 è uscita il 18/09, il `PATCH`
+della descrizione no.
 
 ## 1. Sintesi in cinque righe
 
@@ -117,7 +132,7 @@ legge la pagina dello store.
 | 3 | Account developer sullo store | Non serve crearlo a mano: se `/api/v1/developer/me` risponde `403 DEVELOPER_NOT_LINKED`, il tool chiama `/api/v1/developer/create` e ricontrolla **[F]** `publish.py:124-136`, `:350-360`. |
 | 4 | Progetto pronto | `pebble publish` **ricompila** con `BuildCommand` (equivalente di `pebble build`, `debug=False`) e nasconde l'output: lo mostra **solo se la build fallisce** **[F]** `publish.py:217-235`. Quindi: fare prima il gate (`pebble clean && pebble build`, `make -C test`, `python3 ../../tools/build_config_page.py --check`) e lanciare `publish` **con l'ambiente pulito, senza `GALLERIA_DEFINES`**. |
 | 5 | `.pbw` atteso | `build/galleria.pbw` (il nome viene dal **basename della cartella del progetto**) **[F]** `publish.py:237-239`. La build S8 in `build_s8/` non c'entra. |
-| 6 | Asset dello store | `python3 store/make_assets.py --check` verde **dopo** aver rigenerato gli screenshot con le foto demo nuove (P1/P6). Dimensioni attuali verificate con Pillow **[F]**: `icon_48.png` 48x48 RGB, `icon_80.png` 80x80 RGB, `icon_144.png` 144x144 RGB, `emery_screenshot_1.png` 200x228 RGB, `flint_screenshot_1.png` 144x168 RGB. |
+| 6 | Asset dello store | `python3 store/make_assets.py --check` verde **dopo** aver rigenerato gli screenshot con le foto demo nuove (P1/P6). Dimensioni attuali verificate con Pillow **[F]**: `icon_48.png` 48x48 RGB, `icon_80.png` 80x80 RGB, `icon_144.png` 144x144 RGB, `emery_screenshot_1.png` 200x228 RGB, `flint_screenshot_1.png` 144x168 RGB (19/09/2026: `--check` verde con 9 screenshot + 3 icone, elenco in `store/README.md`). |
 | 7 | Testi del listing | `store/LISTING.md` (P2), con i file di puro testo **gia' estratti**, cosi' i comandi sono riproducibili e la lunghezza si controlla con `wc -m` **[F]**. Oggi: `store/description.txt` **795 B con il newline finale = 794 caratteri** (riscritta il 06/09, chiusa con «Beta 0.4.0»; il tetto in vigore e' **800 caratteri**, chiesto dall'utente per la 0.4.0 — non i 1.500/1.600 della prima stesura, `LISTING.md` §2) e `store/release_notes_0.4.0.txt` **697 B = 696 caratteri**; restano anche `release_notes_0.2.0.txt` (473 B) e `release_notes_0.1.0.txt` (522 B; si chiamava `release_notes_1.0.0.txt` fino al 05/09 sera). |
 
 ---
@@ -224,7 +239,8 @@ versione del `.pbw` — e passato **anche** a `_upload_release` per un'app che e
 
 ⚠️ **La descrizione non passa dalla CLI** (§9): nella 0.2.0 e' stata caricata a parte (05/09, §0), e per la
 **0.4.0** c'e' il `PATCH` di §0.1, che con lo stesso comando rinomina l'app in «Galleria» e manda
-`store/description.txt`. I due passi — release e `PATCH` — sono indipendenti ma si fanno **nello stesso giro**.
+`store/description.txt`. I due passi — release e `PATCH` — sono indipendenti ma si fanno **nello stesso giro**
+(al 19/09/2026: il nome e' gia' online, la descrizione no).
 
 ---
 
@@ -235,13 +251,25 @@ versione del `.pbw` — e passato **anche** a `_upload_release` per un'app che e
 - Il nome del file **deve iniziare con il nome della piattaforma seguito da `_`**: il tool spezza il basename al primo
   underscore e usa la prima parte come piattaforma, costruendo il campo `screenshots_<piattaforma>`
   (`:369-375`, `:377-395`). Un file senza underscore → `ToolError: Could not infer platform from capture filename`.
-  I nostri `emery_screenshot_1.png` / `flint_screenshot_1.png` sono gia' corretti (vedi `store/README.md`).
+  I nostri `emery_screenshot_1..6.png` / `flint_screenshot_1..3.png` sono gia' corretti (vedi `store/README.md`).
 - Estensione `.gif` → trattato come GIF, tutto il resto → screenshot statico (`:457-458`). Il MIME viene indovinato
   dall'estensione (`.png` → `image/png`, verificato con `mimetypes` **[F]**).
 - Il tool **non controlla ne' dimensioni ne' peso**: valida solo che il file esista (`:454-456`).
 - Alla **creazione** di una nuova app almeno uno screenshot e' obbligatorio: senza, `ToolError: No screenshots were
   collected. Screenshot upload is required for publish.` (`:420-426`, `:459-464`).
 - Nessun flag per il **banner**: dalla CLI non si carica (per una watchface e' comunque facoltativo, vedi §10).
+- **Nota del 19/09/2026**: dalla CLI gli screenshot si caricano **solo dentro una release** (§9), ma dalla
+  **dashboard** si caricano anche fuori da una release: dei **7 PNG in piu'** preparati la notte del 18/09/2026
+  (`store/README.md`), **sei** (emery 2-5 e flint 2-3) li ha caricati **l'utente da li'**, fra il 18/09 e il
+  19/09/2026. Online oggi ci sono **5 screenshot emery** (`emery_screenshot_1..5.png`) e **3 flint**
+  (`flint_screenshot_1..3.png`); **`emery_screenshot_6.png` non e' online** (**[I]** la guida Rebble di §10,
+  punto 2, parla di un massimo di 5 screenshot per piattaforma, limite «indicativo» per lo store Core — nota in
+  coda a §10 —: spiegherebbe il sesto assente, ma il nesso non e' verificato sul server Core; e' comunque l'unico
+  dei nove con una foto di prova CC-BY-SA-4.0, sorgente S8-stile — `store/README.md` —, quindi caricarlo e' una
+  decisione dell'utente). Lo store **ri-codifica tutti i PNG in
+  modalita' palette**: gli emery (13-18 KB contro i 37-59 KB del repo) hanno pochi pixel diversi (differenza media
+  0,04-0,14 su 255), i flint (2,8-3,1 KB contro 4-5,5 KB) restano **pixel-identici**; nessuno e' byte-identico al
+  file del repo.
 
 **Icone [F]**
 
@@ -432,7 +460,8 @@ Fonti web (**[F]** = citazione dalla pagina, **[I]** = interpretazione):
 7. **Versione [decisa, D126 del 14/09/2026]**: si pubblica la **0.4.0** (`package.json` gia' a 0.4.0), non la 0.3.0,
    **mai lanciata**: ne resta solo il testo delle note in `LISTING.md` §3.1 (il file `store/release_notes_0.3.0.txt`
    e' uscito dal repo il 17/09/2026). Conferma finale dell'utente **dopo il gate sul telefono**
-   (`docs/design/galleria-s13-ux4-gate-telefono.md`).
+   (`docs/design/galleria-s13-ux4-gate-telefono.md`). **[chiuso 18/09/2026]**: la 0.4.0 e' uscita il 18/09/2026
+   (in testa al file) senza aspettare il gate; il gate P01-P20 del runbook resta utile a release uscita (19/09/2026).
 
 ---
 

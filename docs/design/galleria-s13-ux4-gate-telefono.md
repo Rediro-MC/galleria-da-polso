@@ -14,6 +14,14 @@
 > `docs/design/galleria/s13_ux4_*.png` possono mostrare solo le foto del gate o le demo CC0; se l'utente prova con
 > foto sue, lo screenshot resta sul suo telefono e la riga di risultato dice «screenshot privato» (precedente del
 > 05/09/2026: uno screenshot con una foto personale fu rimosso dal repo, `galleria-s8-risultati.md`).
+>
+> **19/09/2026**: la **0.4.0 è uscita il 18/09/2026** (tag `v0.4.0`) **senza questo gate** (scelta dell'utente) e il
+> titolo nello store è già **«Galleria»** (messo dall'utente dalla dashboard). Il gate resta utile a release uscita;
+> di §5 valgono il punto 1 (risultati) e, del punto 3, solo il `PATCH` di `apps/galleria/store/PUBLISH.md` §0.1 per
+> la **sola descrizione** (online c'è ancora quella della 0.2.0); i punti 2–3 sono superati e il punto 4 (verifica
+> finale) vale per la descrizione nuova. Sono superate anche la domanda 7 di §1.1 e la scelta (a)/(b) di §4: se
+> P15 non regge, l'RLE delle maschere va in una release successiva (o il limite «su iPhone fino a N foto» nel
+> listing).
 
 ## 0. Che cosa si prova e perché
 
@@ -500,6 +508,10 @@ listing** («su iPhone fino a N foto», N dalla bisezione), RLE in una release s
 ## 5. Dopo il gate
 
 Nell'ordine:
+
+> 19/09/2026: i punti 2–3 sono superati (0.4.0 pubblicata il 18/09, titolo «Galleria» online) e il punto 4 vale per
+> la descrizione nuova; resta il `PATCH`
+> della sola descrizione.
 
 1. **Risultati**: le righe di §3 in `apps/galleria/PIANO.md` §8 (tabella dei costi misurati) e il riassunto in
    `docs/design/galleria-s13-ux-casual.md` §15; i riepiloghi con `galleria_logstats.py --md run_s13_ux4_*.log`; gli

@@ -279,7 +279,9 @@ ogni collegamento col telefono.
   sotto l'ora, «PM», Quick View né il testo ingrandito; con il **Font di sistema** non disegna le
   cifre.
 - La pagina delle impostazioni è in **sei lingue** (en/it/de/fr/es/pt), ma il **listing dello store**
-  resta in inglese: lo store Pebble non è localizzato (le note di rilascio hanno una riga per lingua).
+  resta in inglese: lo store Pebble non è localizzato e, dal **18/09/2026**, anche le note di rilascio
+  si scrivono solo in inglese (quelle della 0.2.0 e della 0.4.0, con una riga per lingua, restano come
+  storia).
 - I passi sotto l'ora si aggiornano al **tick del minuto** (mai i secondi): un cambiamento appare
   entro un minuto.
 
@@ -388,8 +390,9 @@ python3 ../../tools/gen_test_cards.py --check                # 18 card in ~/gall
 ```
 
 Procedura passo passo, con cosa fa l'utente e cosa aspettarsi a ogni passo:
-`../../docs/design/galleria-s8-runbook-android.md`; il giro di prove da fare sul telefono prima di
-pubblicare la 0.4.0 è `../../docs/design/galleria-s13-ux4-gate-telefono.md` (Android e iPhone).
+`../../docs/design/galleria-s8-runbook-android.md`; il giro di prove sul telefono previsto prima di
+pubblicare la 0.4.0 è `../../docs/design/galleria-s13-ux4-gate-telefono.md` (Android e iPhone): la
+0.4.0 è uscita il 18/09/2026 senza quel gate, che al 19/09/2026 resta utile a release uscita.
 
 Hook di debug (`GALLERIA_DEFINES="..." pebble build`), rigenerazione delle cifre e comandi completi:
 `CLAUDE.md` di questa cartella.
@@ -431,18 +434,24 @@ localizzato**: nome e descrizione restano in inglese.
 
 **Aggiornamento 0.4.0 (spagnolo e portoghese, pagina delle impostazioni rifatta)**: stessa variante
 «nuova release» (`--version 0.4.0 --release-notes "$(cat store/release_notes_0.4.0.txt)"`, sei
-righe, una per lingua). ⚠️ La **0.3.0 non è mai uscita**: nello store l'ultima release pubblicata
-resta la **0.2.0** del 05/09/2026 e l'app si chiama ancora «Galleria for Pebble». Delle sue note
-di rilascio resta solo il testo, in `store/LISTING.md` §3.1: il file
-`store/release_notes_0.3.0.txt` è uscito dal repo il **17/09/2026**. Cambiano anche
-**nome e descrizione**: con la 0.4.0 l'app nello store si chiama
-**«Galleria»** (non più «Galleria for Pebble», decisione **D42**) e la descrizione dice «Designed
-for Pebble Time 2 (colour display); also runs on Pebble 2 Duo», «Settings page in English, Italian,
-German, French, Spanish and Portuguese» e «Photo upload tested on Android and iPhone». Nome e
-descrizione **non si cambiano dalla CLI**: si mandano insieme con il `PATCH` multipart di
-`store/PUBLISH.md` §0.1 (`--form-string "title=Galleria"` + `store/description.txt`, 794
-caratteri); da lì in poi **ogni** `PATCH` deve riportare `title=Galleria`, altrimenti l'app torna
-al nome vecchio.
+righe, una per lingua). La **0.4.0 è stata pubblicata il 18/09/2026** (tag `v0.4.0`) ed è l'ultima
+release nello store. ⚠️ La **0.3.0 non è mai uscita**: le sue novità sono uscite con la 0.4.0 e
+delle sue note di rilascio resta solo il testo, in `store/LISTING.md` §3.1 (il file
+`store/release_notes_0.3.0.txt` è uscito dal repo il **17/09/2026**).
+
+Cambiano anche **nome e descrizione**, ma non insieme. Il **nome è fatto**: l'app nello store si
+chiama **«Galleria»** (verificato il **19/09/2026**; non più «Galleria for Pebble», decisione
+**D42**), rinominata dall'utente **dalla dashboard**, non con il `PATCH`. La **descrizione è ancora
+da mandare**: online c'è quella della 0.2.0 (777 caratteri, senza il prefisso «Beta 0.2.0, »),
+mentre la nuova dice «Designed for Pebble Time 2 (colour display); also runs on Pebble 2 Duo»,
+«Settings page in English, Italian, German, French, Spanish and Portuguese» e «Photo upload tested
+on Android and iPhone». Nome e descrizione **non si cambiano dalla CLI**: il `PATCH` multipart di
+`store/PUBLISH.md` §0.1 li manda insieme (`--form-string "title=Galleria"` +
+`store/description.txt`, 794 caratteri) e **resta da lanciare per la sola descrizione**; **ogni**
+`PATCH` deve riportare `title=Galleria`, altrimenti l'app torna al nome vecchio.
+
+**Regola dal 18/09/2026**: le release notes dello store si scrivono **solo in inglese** (niente righe
+per lingua); le sei righe della 0.4.0 e quelle della 0.2.0 restano come storia.
 
 Il testo definitivo del listing non sta più qui: nome, descrizione, release notes, crediti e note per
 lo store sono in **`store/LISTING.md`** (la descrizione pronta da incollare anche in
@@ -456,7 +465,8 @@ U2 autore **Rediro**, U3 le due foto demo **CC0** restano, U4 repository **pubbl
 ≥ 4.32, D5 chiusa), U6 visibilità della prima release **gestita sul portale developer** (dalla CLI
 non si ottiene una release riservata), U7 versione **0.1.0 (beta)** con tag git `v0.1.0-beta`,
 U8 **indicatore di sync anche nel layout B** (R10, nella build della 0.1.0), U9 issue su PebbleOS
-**rimandata**. Restano il **gate sul telefono** (runbook
-`../../docs/design/galleria-s13-ux4-gate-telefono.md`, lo fa l'utente), `pebble login` e poi, nello
-stesso giro, il comando di `store/LISTING.md` §6 e il `PATCH` di `store/PUBLISH.md` §0.1 per nome e
-descrizione.
+**rimandata**. Al 19/09/2026 restano il **gate sul telefono** (runbook
+`../../docs/design/galleria-s13-ux4-gate-telefono.md`, lo fa l'utente quando vuole: la 0.4.0 è uscita
+senza, ma resta utile a release uscita) e il `PATCH` di `store/PUBLISH.md` §0.1 per la **descrizione**
+(il nome nello store è già «Galleria»); gli altri residui, fra cui la decisione sul sesto screenshot
+emery (`store/README.md`), sono in `../../docs/CONTINUA-QUI.md`.

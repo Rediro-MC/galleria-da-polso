@@ -2,16 +2,39 @@
 # -*- coding: utf-8 -*-
 """Genera gli asset per lo store di Galleria (S7 §2.12).
 
-Sorgenti (screenshot del gate S9-prep del 05/09/2026, gia' presenti nel repo; fino a S8 erano gli s7_* con le demo CC-BY-SA):
-  docs/design/galleria/s9_emery_a_anton_scura.png   200x228  (Pebble Time 2, layout A, Anton, demo 1 aurora sul fiordo, testo bianco)
-  docs/design/galleria/s9_flint_a_anton_chiara.png   144x168  (Pebble 2 Duo,  layout A, Anton, demo 2 Bryce Canyon, testo nero)
+Sorgenti (screenshot in docs/design/galleria/: i due storici dal gate S9-prep del 05/09/2026; fino a S8 erano gli
+s7_* con le demo CC-BY-SA; i sette "in piu'" sono stati chiesti dall'utente nella notte del 18/09/2026 (tre alle
+01:13, quattro alle 01:21), a 0.4.0 gia' pubblicata: quattro vengono dal gate S9-prep (foto demo CC0), i due
+store040_* sono screenshot NUOVI dell'emulatore (build 0.4.0, GALLERIA_DEBUG_LAYOUT=1, demo CC0) e l'unico
+s8stile_* viene dalla sessione S8-stile del 04/09/2026 con una foto di prova CC-BY-SA-4.0 (non CC0)):
+  docs/design/galleria/s9_emery_a_anton_scura.png               200x228  (PT2, layout A, Anton, demo 1 aurora sul fiordo, testo bianco)
+  docs/design/galleria/s9_flint_a_anton_chiara.png               144x168  (P2 Duo, layout A, Anton, demo 2 Bryce Canyon, testo nero)
+  docs/design/galleria/s9_emery_b_francois_trasparente3d_scura.png 200x228 (PT2, layout B, Francois One trasparente 3D, demo 1)
+  docs/design/galleria/s9_emery_a_anton_chiara.png               200x228  (PT2, layout A, Anton, demo 2 chiara, testo nero automatico)
+  docs/design/galleria/s9_flint_a_anton_scura.png                144x168  (P2 Duo, layout A, Anton, demo 1 scura, testo bianco)
+  docs/design/galleria/store040_emery_b_anton_scura.png          200x228  (PT2, layout B, Anton pieno, demo 1: emulatore, build 0.4.0)
+  docs/design/galleria/s9_emery_b_francois_trasparente3d_chiara.png 200x228 (PT2, layout B, Francois One trasparente 3D, demo 2 chiara)
+  docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png 200x228 (PT2, layout B, Staatliches trasparente,
+                                                                            foto di prova pre-S9, CC-BY-SA-4.0: NON la demo CC0)
+  docs/design/galleria/store040_flint_b_anton_chiara.png         144x168  (P2 Duo, layout B, Anton nero, demo 2: emulatore, build 0.4.0)
 
 Prodotti in apps/galleria/store/:
   icon_144.png / icon_80.png / icon_48.png  ritaglio quadrato 200x200 dello screenshot
                                             emery (y 14..214, centrato verticalmente),
                                             ridimensionato con LANCZOS
-  emery_screenshot_1.png (200x228)          copia esatta dello screenshot emery
-  flint_screenshot_1.png (144x168)          copia esatta dello screenshot flint
+  emery_screenshot_1.png (200x228)          copia esatta dello screenshot emery scuro (online dal 05/09/2026)
+  flint_screenshot_1.png (144x168)          copia esatta dello screenshot flint chiaro (online dal 05/09/2026)
+  emery_screenshot_2.png (200x228)          layout B trasparente 3D        } i sette in piu' della notte
+  emery_screenshot_3.png (200x228)          layout A su foto chiara        } del 18/09/2026; emery 2-5 e
+  flint_screenshot_2.png (144x168)          flint su foto scura            } flint 2-3 sono online al
+  emery_screenshot_4.png (200x228)          layout B, Anton pieno          } 19/09/2026 (verificato), caricati
+  emery_screenshot_5.png (200x228)          layout B trasp. 3D chiara      } dall'utente dalla dashboard (PUBLISH.md
+  emery_screenshot_6.png (200x228)          layout B Staatliches trasp.    } par. 5, LISTING.md par. 7); emery_screenshot_6
+  flint_screenshot_3.png (144x168)          layout B su flint, Anton nero  } NON e' online al 19/09/2026 (foto
+                                                                           } di prova CC-BY-SA-4.0): decisione
+                                                                           } dell'utente se caricarlo con
+                                                                           } attribuzione nel listing, rigenerarlo
+                                                                           } da sorgente CC0 o lasciarlo fuori
                                             (nome con la piattaforma come PRIMO token:
                                             formato richiesto da `pebble publish --screenshots`)
 
@@ -32,6 +55,17 @@ ROOT = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir, os.pardir))
 SRC_DIR = os.path.join(ROOT, "docs", "design", "galleria")
 SRC_EMERY = os.path.join(SRC_DIR, "s9_emery_a_anton_scura.png")   # gate S9-prep (17:15, demo 1 aurora CC0: testo bianco leggibile a 48 px)
 SRC_FLINT = os.path.join(SRC_DIR, "s9_flint_a_anton_chiara.png")  # gate S9-prep (demo 2 Bryce Canyon CC0: la scena si legge meglio in B/N)
+# Screenshot in piu' chiesti dall'utente nella notte del 18/09/2026, a 0.4.0 gia' pubblicata; i primi tre (01:13).
+SRC_EMERY_2 = os.path.join(SRC_DIR, "s9_emery_b_francois_trasparente3d_scura.png")  # 18/09: layout B, stile trasparente 3D
+SRC_EMERY_3 = os.path.join(SRC_DIR, "s9_emery_a_anton_chiara.png")                  # 18/09: colore del testo automatico (nero su chiara)
+SRC_FLINT_2 = os.path.join(SRC_DIR, "s9_flint_a_anton_scura.png")                   # 18/09: flint con la demo scura
+# Varianti "ora a tutto schermo" (layout B), chieste la stessa notte alle 01:21; le store040_* sono
+# screenshot NUOVI dell'emulatore con la build 0.4.0 (GALLERIA_DEBUG_LAYOUT=1, album vuoto -> demo CC0).
+# Fra parentesi in coda a queste quattro righe: l'ora mostrata sul quadrante nello screenshot.
+SRC_EMERY_4 = os.path.join(SRC_DIR, "store040_emery_b_anton_scura.png")             # B, Anton pieno bianco, demo 1 aurora (21:23)
+SRC_EMERY_5 = os.path.join(SRC_DIR, "s9_emery_b_francois_trasparente3d_chiara.png") # B, Francois trasparente 3D, demo 2 chiara (17:17)
+SRC_EMERY_6 = os.path.join(SRC_DIR, "s8stile_emery_b_staatliches_trasparente.png")  # B, Staatliches trasp., foto CC-BY-SA pre-S9 (22:57)
+SRC_FLINT_3 = os.path.join(SRC_DIR, "store040_flint_b_anton_chiara.png")            # B, Anton nero, demo 2 chiara (21:53)
 
 EMERY_SIZE = (200, 228)
 FLINT_SIZE = (144, 168)
@@ -87,6 +121,13 @@ def main(argv=None):
 
     emery = _load(SRC_EMERY, EMERY_SIZE)
     flint = _load(SRC_FLINT, FLINT_SIZE)
+    emery2 = _load(SRC_EMERY_2, EMERY_SIZE)
+    emery3 = _load(SRC_EMERY_3, EMERY_SIZE)
+    flint2 = _load(SRC_FLINT_2, FLINT_SIZE)
+    emery4 = _load(SRC_EMERY_4, EMERY_SIZE)
+    emery5 = _load(SRC_EMERY_5, EMERY_SIZE)
+    emery6 = _load(SRC_EMERY_6, EMERY_SIZE)
+    flint3 = _load(SRC_FLINT_3, FLINT_SIZE)
 
     square = emery.crop((0, CROP_TOP, 200, CROP_TOP + 200))
 
@@ -100,6 +141,13 @@ def main(argv=None):
     shots = (                      # nomi con la piattaforma come PRIMO token: `pebble publish --screenshots`
         ("emery_screenshot_1.png", emery),
         ("flint_screenshot_1.png", flint),
+        ("emery_screenshot_2.png", emery2),
+        ("emery_screenshot_3.png", emery3),
+        ("flint_screenshot_2.png", flint2),
+        ("emery_screenshot_4.png", emery4),
+        ("emery_screenshot_5.png", emery5),
+        ("emery_screenshot_6.png", emery6),
+        ("flint_screenshot_3.png", flint3),
     )
     for name, img in shots:
         ok &= _emit(os.path.join(HERE, name), _encode(img), args.check, report)

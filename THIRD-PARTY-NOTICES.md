@@ -187,9 +187,14 @@ essendo obbligatori. Dettagli, comandi di preparazione, CRC32 e verifiche in
 ## 5. Screenshot storici e foto di prova — CC-BY-SA-4.0
 
 **Nessuno di questi file entra nell'app pubblicata.** Dal **05/09/2026** l'app e gli asset dello
-store usano soltanto le foto CC0 della sezione 4. Restano però nel repository — e nella **storia
-git** — immagini di lavoro in cui compaiono, come foto **di prova**, wallpaper del pacchetto Debian/
-Ubuntu **`ubuntu-wallpapers`**, che sono sotto **CC-BY-SA-4.0**.
+store usano soltanto le foto CC0 della sezione 4. Fa eccezione, dal **18/09/2026**,
+`apps/galleria/store/emery_screenshot_6.png`: asset dello store generato da
+`docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (foto di prova CC-BY-SA-4.0), per il
+quale vale l'attribuzione di questa sezione; al 19/09/2026 **non è online** e resta fuori dallo store
+finché l'utente non decide (attribuzione nel listing, sorgente CC0 rigenerata, o lasciarlo fuori dallo
+store). Restano però nel
+repository — e nella **storia git** — immagini di lavoro in cui compaiono, come foto **di prova**,
+wallpaper del pacchetto Debian/Ubuntu **`ubuntu-wallpapers`**, che sono sotto **CC-BY-SA-4.0**.
 
 ### File interessati
 
@@ -206,6 +211,9 @@ Ubuntu **`ubuntu-wallpapers`**, che sono sotto **CC-BY-SA-4.0**.
     **demo_1 storica** (`mizuno-as-Big_Dipper.jpg`).
 
   La classificazione set per set è in [`docs/design/galleria/README.md`](docs/design/galleria/README.md).
+- `apps/galleria/store/emery_screenshot_6.png` — asset dello store generato il 18/09/2026 da
+  `docs/design/galleria/s8stile_emery_b_staatliches_trasparente.png` (screenshot S8-stile del
+  04/09/2026, prima delle foto demo CC0); al 19/09/2026 non è online.
 - **Non** rientrano: gli `s1_*` (nessuna foto); gli `s5a_*` e `s5b_*_fixture_*` (figura di prova
   sintetica a barre colorate); gli `s9_*`, gli scatti dell'orologio di `s10_*` e `s11_*` e i quattro
   `s13_ux*_emu_*` (foto demo e foto candidate **CC0 1.0**, fra cui `b01_densefog`…`b04_sprucefog`

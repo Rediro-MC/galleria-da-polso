@@ -14,12 +14,19 @@
 > con **una sola release 0.4.0** — nuova §3.0 con le release notes 0.4.0, §2 con «Beta 0.4.0» e la variante
 > «con anteprima» come alternativa, §5 ricontrollata **riga per riga** sui sorgenti di oggi, §6 e §7 riscritte
 > su quello che resta da lanciare (lo fa l'utente, dopo il gate sul telefono).
+>
+> **Stato al 19/09/2026**: la **0.4.0 è pubblicata** dal **18/09/2026** e il titolo nello store è **«Galleria»**
+> (rinominato **dall'utente dalla dashboard**, non con il `PATCH` di `PUBLISH.md` §0.1; verificato sull'API pubblica
+> il 19/09/2026). La **descrizione online è ancora quella della 0.2.0** — il testo del 05/09 senza il prefisso
+> «Beta 0.2.0, », **777 caratteri** —, quindi il testo di §2 (**794 caratteri**) **non è online** e il `PATCH` di
+> `PUBLISH.md` §0.1 **resta da lanciare per la sola descrizione**. Screenshot: **9 file in `store/`** (6 emery + 3
+> flint, `make_assets.py` esteso la notte del 18/09), **online 5 emery + 3 flint** (`emery_screenshot_6.png` no).
 
 ## 1. Identità dell'app
 
 | Campo | Valore | Fonte |
 |---|---|---|
-| Nome nello store | **Galleria** dalla **0.4.0** (decisione **D42** di S11, 06/09/2026: si rinomina con il `PATCH` di `PUBLISH.md` §0/§0.1, `--form-string "title=Galleria"`). ⚠️ **Oggi lo store mostra ancora «Galleria for Pebble»** anche a **0.4.0 pubblicata** (18/09/2026): il `PATCH` non è ancora stato lanciato (bloccato dal permission mode di Claude Code; lo lancia l'utente, `PUBLISH.md` §0.1). Il nome era stato messo da `--name` alla creazione | spec S9 §2 e `galleria-s11-lingue-es-pt.md` D42; `--name` è efficace **solo alla creazione** (`publish.py:806`, `:814`; `PUBLISH.md`, campo *name* e §9), quindi il nome si cambia solo via API/dashboard (`PUBLISH.md` §0) |
+| Nome nello store | **Galleria** dalla **0.4.0** (decisione **D42** di S11, 06/09/2026: si rinomina con il `PATCH` di `PUBLISH.md` §0/§0.1, `--form-string "title=Galleria"`). **Online «Galleria»** (verificato sull'API pubblica il 19/09/2026: rinominata **dall'utente dalla dashboard** fra il 18/09 e il 19/09, non con il `PATCH`, che resta da lanciare per la **descrizione**, `PUBLISH.md` §0.1). Il nome era stato messo da `--name` alla creazione | spec S9 §2 e `galleria-s11-lingue-es-pt.md` D42; `--name` è efficace **solo alla creazione** (`publish.py:806`, `:814`; `PUBLISH.md`, campo *name* e §9), quindi il nome si cambia solo via API/dashboard (`PUBLISH.md` §0) |
 | Nome sull'orologio | **Galleria** (`displayName`) | `package.json` → `pebble.displayName` |
 | Tipo | **watchface** (dedotto dal `.pbw`, non si dichiara) | `package.json` → `pebble.watchapp.watchface = true`; `PUBLISH.md`, campo *type* |
 | Categoria | **nessuna**: per una watchface la CLI non chiede e non invia il campo | `PUBLISH.md`, campo *category* (`publish.py:777-779`, `848`) — sul portale Rebble la categoria è richiesta per le app, non per le watchface |
@@ -34,9 +41,9 @@
 
 ## 2. Descrizione per lo store (testo unico, pronto da incollare)
 
-> **Riscritta il 06/09/2026** (allora per la 0.3.0, che non è mai uscita: il testo esce con la **0.4.0**, D126): **794 caratteri** ASCII (`wc -m store/description.txt` = 795 con il newline finale), sotto il tetto di **800** chiesto dall'utente. Rispetto alla stesura corta del 05/09 (789 caratteri, che è quella **online** dalle 23:27 di quel giorno, `PUBLISH.md` §0) cambiano quattro cose, tutte volute: (1) «**Designed for Pebble Time 2 (colour display); also runs on Pebble 2 Duo**» nel primo capoverso al posto della riga piatta «Pebble Time 2 and Pebble 2 Duo» del terzo; (2) «Photo upload tested on Android **and iPhone**» (prova del 06/09, `galleria-s8-risultati.md` §S8b); (3) «Settings page in English, Italian, German, French, **Spanish and Portuguese**»; (4) «**Beta 0.4.0**» (era «Beta 0.3.0» fino al 14/09: D126, unica modifica di UX-4 al testo — *variante minima*, `diff` con la sola riga 9 cambiata). Per far posto: «Pick and crop them on your phone» → «Crop them on the phone», «a shake skips to the next one» → «shake for the next one», «4 styles (solid, transparent, 3D)» → «4 digit styles», «PebbleOS 4.32 or newer» → «PebbleOS 4.32+», «Remove Galleria and install it again» → «Remove and reinstall Galleria».
+> **Riscritta il 06/09/2026** (allora per la 0.3.0, che non è mai uscita; per D126 il testo era destinato alla **0.4.0**, uscita il 18/09/2026 **senza** questo testo — al 19/09/2026 non è ancora online, vedi sotto): **794 caratteri** ASCII (`wc -m store/description.txt` = 795 con il newline finale), sotto il tetto di **800** chiesto dall'utente. Rispetto alla stesura corta del 05/09 (789 caratteri, che è quella **online** dalle 23:27 di quel giorno, `PUBLISH.md` §0 — al **19/09/2026** online c'è ancora quel testo, **senza il prefisso «Beta 0.2.0, »**: **777 caratteri**) cambiano quattro cose, tutte volute: (1) «**Designed for Pebble Time 2 (colour display); also runs on Pebble 2 Duo**» nel primo capoverso al posto della riga piatta «Pebble Time 2 and Pebble 2 Duo» del terzo; (2) «Photo upload tested on Android **and iPhone**» (prova del 06/09, `galleria-s8-risultati.md` §S8b); (3) «Settings page in English, Italian, German, French, **Spanish and Portuguese**»; (4) «**Beta 0.4.0**» (era «Beta 0.3.0» fino al 14/09: D126, unica modifica di UX-4 al testo — *variante minima*, `diff` con la sola riga 9 cambiata). Per far posto: «Pick and crop them on your phone» → «Crop them on the phone», «a shake skips to the next one» → «shake for the next one», «4 styles (solid, transparent, 3D)» → «4 digit styles», «PebbleOS 4.32 or newer» → «PebbleOS 4.32+», «Remove Galleria and install it again» → «Remove and reinstall Galleria».
 >
-> ⚠️ La descrizione **non si aggiorna dalla CLI** (`PUBLISH.md` §9): si manda con il `PATCH` multipart di `PUBLISH.md` §0 — **lo stesso comando che rinomina l'app in «Galleria»** (D42) — oppure si incolla in dashboard (https://appstore-api.repebble.com/dashboard). Da fare **insieme** alla release **0.4.0**.
+> ⚠️ La descrizione **non si aggiorna dalla CLI** (`PUBLISH.md` §9): si manda con il `PATCH` multipart di `PUBLISH.md` §0 — **lo stesso comando che porta `title=Galleria`** (D42; il nome è già online, verificato sull'API il 19/09/2026, §1) — oppure si incolla in dashboard (https://appstore-api.repebble.com/dashboard). La release **0.4.0** è uscita il **18/09/2026**, ma la descrizione **è ancora da mandare**: al 19/09/2026 online c'è quella della 0.2.0 (777 caratteri: nota di testa del documento e blockquote qui sopra).
 
 Lo store **non è localizzato**: un solo testo in inglese (la riga italiana della prima stesura è
 caduta con la riscrittura corta). **794 caratteri**, **tutto ASCII**, 5 capoversi: foto e rotazione
@@ -73,10 +80,10 @@ senza; tutto ASCII, nessuna virgoletta doppia).
 
 ### Alternativa per l'utente: la variante «con anteprima» (798 caratteri)
 
-> **Non scelta** (D126: per la 0.4.0 va in rete la *variante minima* qui sopra, cioè il testo del 06/09
-> con il solo «Beta 0.3.0» → «Beta 0.4.0»). Resta qui perché è l'unica alternativa preparata e l'utente
-> può sceglierla senza rifare il lavoro: basta incollarla in `store/description.txt` e nel blocco di §2,
-> e aggiungere a §5 la riga di fonte indicata sotto.
+> **Non scelta** (D126: con la 0.4.0 va in rete la *variante minima* qui sopra — **al 19/09/2026 ancora da
+> mandare**, §2 —, cioè il testo del 06/09 con il solo «Beta 0.3.0» → «Beta 0.4.0»). Resta qui perché è
+> l'unica alternativa preparata e l'utente può sceglierla senza rifare il lavoro: basta incollarla in
+> `store/description.txt` e nel blocco di §2, e aggiungere a §5 la riga di fonte indicata sotto.
 
 La novità più visibile della 0.4.0 — l'**anteprima della watchface dentro la pagina** — nel testo minimo
 non è nominata. Questa variante la dice con una frase, «*The settings page previews it on your photo.*»
@@ -126,6 +133,11 @@ scrivere la frase per esteso, invece di vivere con 2 caratteri di margine.
 Sono l'**unico campo testuale che si aggiorna a ogni release** dalla CLI (`PUBLISH.md`, campo
 *releaseNotes*, `publish.py:547`): nome, descrizione e icone no (§9 di `PUBLISH.md`).
 
+> **Regola dal 18/09/2026 (richiesta dell'utente): le release notes dello store si scrivono SOLO IN INGLESE.**
+> Niente più righe per lingua come nella 0.4.0 (§3.0) e nella 0.2.0 (§3.2): quelle restano come storia.
+> Restano valide le regole di forma: ASCII puro, nessuna virgoletta doppia, poche righe (5–6 finora),
+> `wc -m` annotato.
+
 ### 3.0 Release notes 0.4.0 (S11 + S12 + UX-1/UX-2/UX-3) — **pubblicate con la 0.4.0 il 18/09/2026**
 
 **696 caratteri** (`wc -m store/release_notes_0.4.0.txt` = 697 con il newline finale), **6 righe**,
@@ -149,9 +161,9 @@ lingue sono sei, la prima fa da titolo e porta l'inglese. Ogni riga dice **le st
 stesso ordine, e nessun'altra: (1) la **pagina delle impostazioni è più semplice** (è il lavoro di
 UX-1/UX-2/UX-3: «Aggiungi foto» in cima, «Altre impostazioni» ripiegate, ✕ a due tocchi); (2) c'è
 un'**anteprima con la tua foto e l'ora** (S12, D43–D48); (3) ci sono **spagnolo e portoghese** (S11,
-D39–D41) e l'app **si chiama Galleria** (D42, che arriva agli utenti solo adesso: il `PATCH` non è mai
-stato lanciato, §1). Le novità che l'utente **non vede** (statico invariato, tripwire, test) non
-entrano nelle note.
+D39–D41) e l'app **si chiama Galleria** (D42: il nome è online dal rinomino fatto dall'utente in
+dashboard fra il 18/09 e il 19/09/2026, non dal `PATCH`, mai lanciato — §1). Le novità che l'utente
+**non vede** (statico invariato, tripwire, test) non entrano nelle note.
 
 Il testo è la **variante A** («naturale») delle tre preparate dalla ricognizione di UX-4, scelta da
 **D126** perché in tutte e sei le lingue si legge come una frase e non come un telegramma. Le altre due
@@ -344,9 +356,9 @@ altrimenti).
 | 25 | Cifre: Anton, Bebas Neue, Barlow Condensed, Francois One, Staatliches, **SIL OFL 1.1** | `resources/fonts/README.md` (inventario con versione, dimensione e sha256; `OFL-*.txt` per ogni famiglia) |
 | 26 | Foto demo **CC0 (Wikimedia Commons)** | `resources/photos/README.md` (licenza verificata con l'API di Commons e con il wikitext della pagina `File:`, provenienza, SHA, CRC32); §4 di questo file; le due CC0 sono nei `.raw` del repo dal 05/09 (CRC32 ricontrollati con `zlib.crc32`) |
 | 27 | Release notes: provata su un **Pebble Time 2 con PebbleOS 4.36.2** | `docs/design/galleria-s8-risultati.md` §«Ambiente del test» (PT2, PebbleOS v4.36.2, board obelix) |
-| 28 | Release notes **della 0.1.0**: il build **Pebble 2 Duo** è controllato **solo in emulatore** e **iOS non è provato** | `PIANO.md` §7 (O11 non fatto: «da vedere sul Pebble 2 Duo vero»); `docs/design/galleria-s8-risultati.md` (ambiente del test: un solo orologio, PT2). ⚠️ **Storia, non stato di oggi**: le note 0.1.0 restano visibili nello store e dicono «iOS is untested», mentre la descrizione dice «tested on Android and iPhone» (riga 20, prova del 06/09). Sulla stessa pagina le due frasi si contraddicono: **le note 0.4.0 e la descrizione sono il testo che vale**, le 0.1.0 sono l'archivio della prima release. Il Pebble 2 Duo resta non provato su orologio vero |
+| 28 | Release notes **della 0.1.0**: il build **Pebble 2 Duo** è controllato **solo in emulatore** e **iOS non è provato** | `PIANO.md` §7 (O11 non fatto: «da vedere sul Pebble 2 Duo vero»); `docs/design/galleria-s8-risultati.md` (ambiente del test: un solo orologio, PT2). ⚠️ **Storia, non stato di oggi**: le note 0.1.0 restano visibili nello store e dicono «iOS is untested», mentre la descrizione dice «tested on Android and iPhone» (riga 20, prova del 06/09). Sulla stessa pagina le due frasi si contraddicono (da quando la descrizione di §2 sarà online: al 19/09/2026 lo store mostra ancora «Photo upload tested on Android.», nota di testa): **le note 0.4.0 e la descrizione sono il testo che vale**, le 0.1.0 sono l'archivio della prima release. Il Pebble 2 Duo resta non provato su orologio vero |
 | 29 | Release notes: durante il caricamento un **contatore delle foto** è visibile **sullo schermo** (0.2.0: **icona di sincronizzazione + «k/n»**, senza parole — D32, `src/c/ui_time.c` `prv_draw_sync_icon`, arco 40°–335° + punta su `GPath` statico) | `src/c/ui_time.h:51-57` (contratto di `ui_time_set_sync_progress`: icona di sincronizzazione + «index/count» al posto di passi/icona BT nel layout A, icona + «k/n» nella fascia MM in B); `src/c/ui_time.c:632` (`prv_draw_sync_icon`, arco + punta su `GPath` statico), `:1097-1099` (`snprintf(s_sync_buf, …, "%u/%u")`, `"%u"` senza totale: da S10/D32 **la parola «Foto» non c'è più**), `:798-802` (icona + «k/n» nella riga info del layout A), `:765-771` (**U8/R10**: lo stesso contatore nella fascia dinamica del **layout B**, `MODE_B_SPRITE`), `:438-440` (ridisegno al cambio layout / fine Quick View) e `:1108-1112` (`index` 0 → la fascia ridisegnata lo cancella); `src/c/sync_proto.h:34-35` (R01, 05/09: le foto saltate contano, il contatore arriva a `n/n`) |
-| 30 | Nome dello store **«Galleria»** (era «Galleria for Pebble»), versione **0.4.0** (prima release **0.1.0**, poi **0.2.0**) | spec S9 §2; `package.json` (`displayName` «Galleria», `version` **0.4.0**, verificato il 14/09/2026), decisione **U7** del 05/09/2026 per la 0.1.0, **D38** (S10) per la 0.2.0, **D42** (S11) per il nome e **D126** (UX-4) per la 0.4.0 al posto della 0.3.0 mai uscita; il nome **non si cambia dalla CLI** (`PUBLISH.md` §9) ma con il `PATCH` di `PUBLISH.md` §0/§0.1 (`--form-string "title=Galleria"`) — ⚠️ **non ancora lanciato**: oggi lo store mostra ancora «Galleria for Pebble» (§1) |
+| 30 | Nome dello store **«Galleria»** (era «Galleria for Pebble»), versione **0.4.0** (prima release **0.1.0**, poi **0.2.0**) | spec S9 §2; `package.json` (`displayName` «Galleria», `version` **0.4.0**, verificato il 14/09/2026), decisione **U7** del 05/09/2026 per la 0.1.0, **D38** (S10) per la 0.2.0, **D42** (S11) per il nome e **D126** (UX-4) per la 0.4.0 al posto della 0.3.0 mai uscita; il nome **non si cambia dalla CLI** (`PUBLISH.md` §9) ma con il `PATCH` di `PUBLISH.md` §0/§0.1 (`--form-string "title=Galleria"`) — ⚠️ il `PATCH` **non è ancora stato lanciato**, ma il nome **online è «Galleria»** (verificato sull'API pubblica il 19/09/2026: rinominato dall'utente dalla dashboard fra il 18/09 e il 19/09, §1); del `PATCH` resta da mandare la **descrizione** |
 | 31 | Descrizione e release notes: è una **beta 0.4.0** | `package.json` → `version` `0.4.0` (14/09/2026); resta una beta come la 0.1.0 (decisione **U7**, tag `v0.1.0-beta`) e la 0.2.0 (tag `v0.2.0`); la 0.3.0 non è mai stata pubblicata (D126): ne resta solo il testo delle note in §3.1 |
 | 32 | Descrizione: **open source, licenza MIT**, sorgente `github.com/Rediro-MC/galleria-da-polso` | `LICENSE` in radice del repo (MIT, «Copyright (c) 2026 Rediro»), decisione **U1**; repo reso **pubblico**, decisione **U4** (`git config --get remote.origin.url` → `https://github.com/Rediro-MC/galleria-da-polso.git`, `PUBLISH.md` §6) |
 
@@ -372,7 +384,9 @@ python3 ../../tools/build_config_page.py --check     # config page inlinata aggi
 make -C test                                         # test host + node + Python (~60 s; comprende pagecheck e i due --check qui sopra)
 pebble clean && pebble build                         # gate: emery + flint verdi, senza GALLERIA_DEFINES
 unzip -p build/galleria.pbw appinfo.json             # atteso: versionLabel = la versione da pubblicare (0.4.0), companyName Rediro (appinfo.json e' generato)
-python3 store/make_assets.py --check                 # icone e screenshot: --check e basta, NON si rigenerano (D131)
+#   0.4.0 e' quella pubblicata il 18/09/2026; per la prossima release il numero nuovo
+python3 store/make_assets.py --check                 # icone e screenshot: --check e basta, NON si rigenerano (D131);
+#   dal 18/09/2026 (notte) il check copre 9 screenshot (6 emery + 3 flint) e 3 icone: verde il 19/09/2026
 wc -m store/description.txt store/release_notes_0.4.0.txt   # 795 e 697 (con il newline finale)
 grep -n "0\.3\.0" README.md                          # deve trovare solo storia datata: la 0.3.0 non e' mai uscita
 pebble login --status                                # account: sulla VM non risulta collegato (nessun firebase_oauth_storage.json)
@@ -386,7 +400,8 @@ pebble login --status                                # account: sulla VM non ris
 
 **App già pubblicata**: dalla 0.2.0 in poi serve solo la variante «nuova release» — `--version` e
 `--release-notes`, niente nome/descrizione/icone, che dalla CLI non si aggiornano più
-(`PUBLISH.md` §4 e §9). Per la **0.4.0** (D126: si salta la 0.3.0, mai lanciata):
+(`PUBLISH.md` §4 e §9). Per la **0.4.0** (D126: si salta la 0.3.0, mai lanciata) — **lanciato il
+18/09/2026**, la 0.4.0 è online; per la prossima release cambiano solo `--version` e il file delle note:
 
 ```bash
 pebble publish --non-interactive --no-gif-all-platforms \
@@ -395,11 +410,14 @@ pebble publish --non-interactive --no-gif-all-platforms \
 ```
 
 Subito **prima o dopo**, il `PATCH` di `PUBLISH.md` §0/§0.1 per le due cose che la CLI non tocca: il
-**nome** («Galleria», D42 — ancora da fare: oggi lo store dice «Galleria for Pebble») e la
-**descrizione** nuova (794 caratteri, §2). Il comando è lì, con il cookie di sessione; qui basta
-ricordare che **`title` è obbligatorio in ogni `PATCH`** e che quindi lo stesso comando fa entrambe
-le cose. ⚠️ **Nessuno dei due si lancia in questa sessione** (D126): li lancia **l'utente** dopo il
-gate sul telefono (`docs/design/galleria-s13-ux4-gate-telefono.md`), confermando la versione.
+**nome** («Galleria», D42 — **fatto dall'utente dalla dashboard**, verificato sull'API il **19/09/2026**) e la
+**descrizione** nuova (794 caratteri, §2 — al 19/09/2026 **ancora da mandare**). Il comando è lì, con
+il cookie di sessione; qui basta ricordare che **`title` è obbligatorio in ogni `PATCH`** e che quindi
+lo stesso comando fa entrambe le cose: oggi `title=Galleria` non cambia più nulla, ma va passato
+ugualmente. ⚠️ La **release** 0.4.0 l'ha lanciata l'**orchestratore il 18/09/2026**, su richiesta
+dell'utente; resta da lanciare il solo `PATCH` della **descrizione** — lo fa **l'utente**, oppure
+l'orchestratore su richiesta esplicita — e **non è più legato al gate** sul telefono
+(`docs/design/galleria-s13-ux4-gate-telefono.md`), che resta utile a release uscita.
 
 ```bash
 # storico: la 0.3.0 e' stata SCRITTA ma MAI lanciata (06/09/2026 -> 14/09/2026, D126).
@@ -456,9 +474,10 @@ Da sapere prima di premere invio (tutto da `PUBLISH.md`):
   sopra);
 - `ffmpeg` **non c'è** in questa VM: senza `--no-gif-all-platforms` il tool proverebbe a girare gli emulatori per
   la GIF e fallirebbe (`which ffmpeg` → nessun risultato; `screenshot.py:154-160`);
-- i nomi degli screenshot **devono** cominciare con la piattaforma + `_` (i due file attuali vanno bene);
+- i nomi degli screenshot **devono** cominciare con la piattaforma + `_` (i nove file attuali vanno bene);
 - **trappola**: se il server risponde 400 citando «screenshot», il tool ricarica **senza** immagini stampando solo
-  un avviso giallo → controllare la riga finale `Uploaded screenshots: 2`;
+  un avviso giallo → controllare la riga finale `Uploaded screenshots: N`, con N = i file passati a
+  `--screenshots` (2 nel comando del 05/09; la variante «nuova release» non ne passa);
 - `--icon-small` vuole **80×80** secondo il prompt del tool 5.0.40 (`publish.py:759-760`) → `store/icon_80.png`
   (`store/README.md` §«Taglia delle icone» lo conferma; `icon_48.png` è la taglia del **vecchio** portale Rebble e
   resta buona per il listing, le anteprime e la procedura Rebble);
@@ -476,6 +495,8 @@ Da sapere prima di premere invio (tutto da `PUBLISH.md`):
 > 2. il `PATCH` di `PUBLISH.md` §0/§0.1, che **rinomina l'app in «Galleria»** (D42, mai fatto) e carica la descrizione di §2 (794 caratteri, sei lingue, «tested on Android and iPhone», «Beta 0.4.0»).
 >
 > **Li lancia l'utente**, non questa sessione (D126), **dopo il gate sul telefono** — runbook `docs/design/galleria-s13-ux4-gate-telefono.md` (D128) — ed è lui a confermare il numero di versione. Le note della 0.3.0 (§3.1) restano nel repo come storia; gli screenshot e le icone **non si rigenerano** (D131).
+>
+> **Stato al 19/09/2026**: il punto 1 è **fatto** — la **0.4.0 è stata pubblicata il 18/09/2026** dall'orchestratore, su richiesta dell'utente e **senza** il gate sul telefono. Il punto 2 è **a metà**: il **nome** è online («Galleria», rinominato **dall'utente dalla dashboard**, verificato sull'API il 19/09), mentre la **descrizione** di §2 **non è ancora stata mandata** — online c'è ancora quella della 0.2.0, 777 caratteri — quindi il `PATCH` di `PUBLISH.md` §0.1 **resta da lanciare**. Il **gate P01–P20 non è stato fatto** e resta utile a release uscita. **D131** valeva per la **release** del 18/09: la stessa notte sono stati aggiunti **7 screenshot in `store/`**, 6 dei quali poi caricati online dall'utente dalla dashboard (`emery_screenshot_6.png` no: punto 4 qui sotto).
 
 
 | # | Decisione | Risposta dell'utente | Applicata in |
@@ -506,12 +527,22 @@ Restano solo cose **non decidibili da qui** (il punto 3 si e' chiuso per un'altr
    online solo con il `PATCH`. Il dubbio di `PUBLISH.md` §5 («se rispondesse 400, il comando fallisce
    senza creare l'app») **non si è verificato**: nessun piano B da tenere pronto.
 4. **Asset dello store**: rigenerati il 05/09 alle 17:18 dagli screenshot del gate S9-prep
-   (`store/make_assets.py` righe 33-34 puntano a `docs/design/galleria/s9_emery_a_anton_scura.png` e
-   `s9_flint_a_anton_chiara.png`); `--check` **verde anche il 14/09/2026** (5 file: `icon_144`, `icon_80`,
-   `icon_48`, `emery_screenshot_1`, `flint_screenshot_1`). Per la 0.4.0 **restano questi** — **D131**: nessuno
-   screenshot della pagina delle impostazioni nello store, niente `--replace-screenshots`, `make_assets.py`
-   non si rilancia. Se un gate futuro rifà gli screenshot dell'orologio, allora sì: `python3 store/make_assets.py`
-   e di nuovo `--check`.
+   (`store/make_assets.py`, `SRC_EMERY`/`SRC_FLINT` — cercarli con `grep -n`: i numeri di riga si spostano a ogni
+   aggiunta al modulo, erano 33-34 fino al 18/09/2026 — puntano a `docs/design/galleria/s9_emery_a_anton_scura.png`
+   e `s9_flint_a_anton_chiara.png`); `--check` **verde anche il 14/09/2026** (5 file: `icon_144`, `icon_80`,
+   `icon_48`, `emery_screenshot_1`, `flint_screenshot_1`).
+   Per la 0.4.0 **restano questi** — **D131**: nessuno screenshot della pagina delle impostazioni nello store,
+   niente `--replace-screenshots`, `make_assets.py` non si rilancia. Se un gate futuro rifà gli screenshot
+   dell'orologio, allora sì: `python3 store/make_assets.py` e di nuovo `--check`.
+   **Nota del 19/09/2026**: D131 valeva per la **release** 0.4.0 del 18/09, pubblicata con gli asset di allora;
+   **dopo** la release, la stessa notte, `make_assets.py` è stato esteso a **9 screenshot** (6 emery + 3 flint) più
+   le 3 icone, e `--check` è **verde il 19/09/2026**. **Sei dei 7** screenshot in più (emery 2–5, flint 2–3) sono
+   stati caricati **dall'utente dalla dashboard** (la CLI carica screenshot solo dentro una release, `PUBLISH.md`
+   §5): online ci sono **5 emery** (`emery_screenshot_1` … `emery_screenshot_5`) e **3 flint**, mentre
+   **`emery_screenshot_6.png` non è online** ed è l'unico dei nove con una foto di prova **CC-BY-SA-4.0**
+   (sorgente S8-stile del 04/09/2026, `store/README.md`): caricarlo è una **decisione dell'utente**
+   (attribuzione CC-BY-SA nel listing, sorgente CC0 rigenerata in emulatore come i due `store040_*`, o lasciarlo
+   fuori dallo store).
 5. **`package.json` cambiato** (`author`, `version`): serve `pebble clean && pebble build` prima di pubblicare,
    perché `appinfo.json` (e quindi `companyName`/`versionLabel` nel `.pbw`) è generato.
 
