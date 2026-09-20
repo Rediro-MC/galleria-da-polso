@@ -12,7 +12,8 @@ solo** (bianco o nero, in base alla foto).
 
 Screenshot dal gate **S9-prep** (05/09/2026), con le due foto di esempio CC0 e nessuna foto tua;
 tutti gli altri sono in `../../docs/design/galleria/`. La **pagina delle impostazioni di oggi** è
-quella del gate del **14/09/2026**: `s13_ux4_page_it_editor_400.png` («Ritaglio» aperto, con la
+quella del gate **S14** del **19/09/2026** (qui sotto); del gate del **14/09/2026** resta la pagina
+com'era prima di quelle novità: `s13_ux4_page_it_editor_400.png` («Ritaglio» aperto, con la
 cornice e l'anteprima dell'orologio sotto) e `s13_ux4_page_it_adv_400.png` («Altre impostazioni»
 aperte). Dal gate della notte prima restano la pagina intera (`s13_ux3_page_it_400.png`), la tessera
 appena aggiunta (`s13_ux3_page_it_after_add_400.png`), la ✕ al primo tocco
@@ -49,9 +50,10 @@ rifacimento (`s10_page_*.png`, `s11_page_es_settings.png`, `s11_page_pt_settings
   l'orologio che rifiuta l'app con il popup «Incompatible SDK». Decisione **D5**: in S7 la build con
   SDK 4.17 è risultata identica (memoria, log, emulatori 4.17 e 4.33.2), ma in campo PebbleOS
   **4.32.0 è uscito il 29/07/2026** e **4.36.2 il 26/08/2026**, spinti dall'app al primo
-  abbinamento; la proposta aggiornata è quindi pubblicare con **SDK 4.33.1**, e si torna a 4.17 solo
-  se l'orologio dell'utente resta sotto 4.32. Conferma in S8 sull'orologio reale (`PIANO.md` §3 D5,
-  `../../docs/design/galleria-s8-hardware.md` §6).
+  abbinamento. **D5 è chiusa dal 05/09/2026** (risposta U5 dell'utente: «l'ultimo SDK, 4.33.1»):
+  tutte le release, dalla 0.1.0 beta alla **1.0.0**, sono compilate con **SDK 4.33.1** (fw ≥ 4.32)
+  e la build di prova con 4.17 resta solo di riferimento (`PIANO.md` §3 D5,
+  `../../docs/design/galleria.md` §2 D5).
 - **Telefono**, solo per caricare le foto: app Pebble per **Android ≥ 1.8.0.7** (04/08/2026), la
   prima che apre il selettore di file nella pagina di configurazione. Per lo sviluppo serve anche
   **≥ 1.10.0**, la prima con il receiver che il trasporto `--adb` del `pebble` CLI usa per aprire
@@ -199,9 +201,9 @@ Le foto partono **una alla volta, a pezzi**: durante l'invio l'orologio mostra n
 — sotto l'ora, o sopra con «Ora in basso» — una **freccia circolare** e «k/n» (nessuna parola: si
 legge in qualunque lingua). Il numero della foto in corso lo manda il telefono, quindi il contatore
 arriva a n/n anche quando qualche foto viene saltata (05/09/2026; unica eccezione: se a essere
-saltata è proprio l'ultima). Dopo Salva la pagina
-si chiude da sola e l'invio **continua** nell'app Pebble: **lasciala aperta** finché il contatore
-non arriva a n/n — è quello che la pagina stessa ti ricorda dopo Salva.
+saltata è proprio l'ultima). Dopo Salva la pagina si chiude da sola e l'invio **continua** nell'app
+Pebble: **lasciala aperta** finché il contatore non arriva a n/n — è quello che la pagina stessa ti
+ricorda dopo Salva.
 
 In cima alla pagina compare un **avviso** se l'orologio ha impiegato più del previsto ad avviarsi:
 la soglia cresce con il numero di foto che hai sull'orologio (0,4 s senza foto tue, più 0,1 s per
@@ -293,12 +295,14 @@ ogni collegamento col telefono.
   2 Duo (la tessera lo segnala con «da togliere e riaggiungere»).
 - **iOS provato solo in parte** (06/09/2026, `../../docs/design/galleria-s8-risultati.md` §S8b): la
   pagina si apre in WKWebView (URL di 128–138 k caratteri, tetto riconosciuto a 200 KB) e una foto è
-  arrivata sull'orologio, ma restano da fare il salvataggio con più foto, la prova con 12 foto e la
-  lingua forzata; la Dev Connection dell'app iOS cade spesso. Il percorso più collaudato resta Android.
+  arrivata sull'orologio, ma restano da fare il salvataggio con più foto, la prova con 12 foto, la
+  lingua forzata e, dal 19/09/2026, la tendina del font con il picker a ruota di iOS (le frecce
+  ‹ › non ci sono più); la Dev Connection dell'app iOS cade spesso. Il percorso più collaudato resta
+  Android.
   Con la pagina del **14/09/2026** (85.476 B) l'indirizzo era già di **195.223** caratteri senza foto
   tue su Pebble Time 2 e arrivava a **221.703** con 12 foto: molto oltre i 138 k che iOS ha aperto
   finora. La pagina di S14 è più corta di 418 B — la sua parte in base64 passa da 113.968 a **113.412**
-  caratteri (pin di `test/test_index_retry.js`) — ma l'ordine di grandezza non cambia: i due totali
+  caratteri (⌈85.058 / 3⌉ × 4) — ma l'ordine di grandezza non cambia: i due totali
   restano da rimisurare al prossimo gate. Vedi `PIANO.md` §7.
 - **La memoria dell'app non si rimpicciolisce mai da sola**: eliminare o sostituire foto non libera
   spazio nel file dell'orologio (il firmware lo ricompatta solo quando è quasi pieno). Se l'avvio
@@ -345,7 +349,8 @@ test/          test host in C (gcc) + test node + selftest Python; fixtures/ con
                digit_masks.js), build_config_page.py (inlina la config page), build_i18n.py
                (messages.json → i18n.js + fixture), galleria_gloss_check.py (glossario ↔ dizionario),
                galleria_devserver.py (config page dell'emulatore), galleria_browser.py,
-               galleria_logstats.py (riepilogo dei log dell'orologio)
+               galleria_logstats.py (riepilogo dei log dell'orologio), gen_test_cards.py (test card per
+               soglie luma e LUT)
 ```
 
 Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7),
@@ -353,7 +358,7 @@ Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7)
 (config page), `../../docs/design/galleria-s10-i18n.md` (multilingua),
 `../../docs/design/galleria-s11-lingue-es-pt.md` (spagnolo e portoghese) e
 `../../docs/design/galleria-s12-anteprima.md` (anteprima della watchface),
-`../../docs/design/galleria-s13-ux-casual.md` (la pagina delle impostazioni di oggi),
+`../../docs/design/galleria-s13-ux-casual.md` (il rifacimento della pagina delle impostazioni, D49–D135),
 `../../docs/design/galleria-s14-feature-v1.md` (le cinque feature del 19/09/2026),
 `i18n/README.md`, `CLAUDE.md` (regole di lavoro sull'app).
 
@@ -361,11 +366,11 @@ Documenti: `PIANO.md` (piano a sessioni, memoria in §5, problemi aperti in §7)
 
 Dietro le frasi di «Come si usa»: le altezze delle cifre (66/94 px su emery, 42/62 su flint) sono le
 righe disponibili al riempimento in `src/c/digit_metrics.h`, riempite per intero da Anton — Barlow
-Condensed e Francois One si fermano a 61 px con «Ora in alto», e contorno e ombra sporgono di
-qualche pixel in più; l'avviso di avvio lento nasce dai millisecondi di apertura del file che
-l'orologio dichiara nel messaggio di saluto, con la soglia «0,4 s + 0,1 s per foto» di
-`src/pkjs/config/page_core.js`; i tempi di avvio misurati su un Pebble Time 2 sono in `PIANO.md` §4,
-esito S8-perf (**2,7 s** su un file gonfio contro **0,31–0,36 s** dopo la reinstallazione).
+Condensed e Francois One si fermano a 61 px con «Ora in alto» e «Ora in basso», e contorno e ombra
+sporgono di qualche pixel in più; l'avviso di avvio lento nasce dai millisecondi di apertura del
+file che l'orologio dichiara nel messaggio di saluto, con la soglia «0,4 s + 0,1 s per foto» di
+`src/pkjs/config/page_core.js`; i tempi di avvio misurati su un Pebble Time 2 sono in `PIANO.md`
+§4, esito S8-perf (**2,7 s** su un file gonfio contro **0,31–0,36 s** dopo la reinstallazione).
 
 Dietro le novità del **19/09/2026** (sessione S14, cinque feature per la v1.0; spec
 `../../docs/design/galleria-s14-feature-v1.md`):
@@ -422,7 +427,7 @@ connection** (mostra l'IPv4 del telefono). Poi, con `IP` = quell'indirizzo:
 ```bash
 pebble ping --phone IP                              # "Pong!" = collegamento ok
 pebble ping --phone IP -vvv 2>&1 | grep -i watchversion   # firmware e modello dell'orologio
-pebble install build_s8/galleria_p_0.4.0_ux4.pbw --phone IP --logs  # installa e resta attaccato ai log (il .pbw PRIMA delle opzioni: con --adb un percorso dopo il flag diventerebbe il seriale)
+pebble install build/galleria.pbw --phone IP --logs # installa e resta attaccato ai log (il .pbw PRIMA delle opzioni: con --adb un percorso dopo il flag diventerebbe il seriale)
 pebble logs --phone IP                              # solo i log (Ctrl-C per chiudere)
 pebble screenshot --phone IP --no-open shot.png     # dallo schermo; --no-correction = colori nominali
 ```
@@ -445,7 +450,8 @@ python3 ../../tools/gen_test_cards.py --check                # 18 card in ~/gall
 Procedura passo passo, con cosa fa l'utente e cosa aspettarsi a ogni passo:
 `../../docs/design/galleria-s8-runbook-android.md`; il giro di prove sul telefono previsto prima di
 pubblicare la 0.4.0 è `../../docs/design/galleria-s13-ux4-gate-telefono.md` (Android e iPhone): la
-0.4.0 è uscita il 18/09/2026 senza quel gate, che al 19/09/2026 resta utile a release uscita.
+0.4.0 (18/09/2026) e la 1.0.0 (20/09/2026) sono uscite senza quel gate, che resta utile a release
+uscita.
 
 Hook di debug (`GALLERIA_DEFINES="..." pebble build`), rigenerazione delle cifre e comandi completi:
 `CLAUDE.md` di questa cartella.
@@ -459,10 +465,12 @@ che invecchiano.
 - **Codice dell'app**: **MIT** — decisione **U1** presa dall'autore il **05/09/2026**. Il testo integrale è in
   **`LICENSE`** nella radice del repository («Copyright (c) 2026 **Rediro**»); il repository
   (`https://github.com/Rediro-MC/galleria-da-polso`) è pubblico (decisione **U4**).
-- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **1.0.0** (pubblicata il 20/09/2026; prima 0.4.0 del 18/09)
-  (spagnolo e portoghese più la pagina delle impostazioni rifatta; la 0.2.0 è stata il multilingua
-  di S10, la **0.3.0** è stata scritta ma non è mai stata pubblicata); la **0.1.0** è stata la
-  prima release pubblica in **beta** (decisione **U7**; tag git `v0.1.0-beta`).
+- **Autore**: **Rediro** (decisione **U2**; `package.json` → `"author"`). **Versione**: **1.0.0**,
+  pubblicata il **20/09/2026** (le cinque novità di **S14**: vedi «Dettagli tecnici»); prima di lei
+  la **0.4.0** del **18/09/2026** (spagnolo e portoghese più la pagina delle impostazioni rifatta;
+  la 0.2.0 è stata il multilingua di S10, la **0.3.0** è stata scritta ma non è mai stata
+  pubblicata); la **0.1.0** è stata la prima release pubblica in **beta** (decisione **U7**; tag git
+  `v0.1.0-beta`).
 - **Font delle cifre**: Anton, Bebas Neue, Barlow Condensed Bold, Francois One e Staatliches, tutti
   **SIL Open Font License 1.1** (testo integrale e provenienza in `resources/fonts/`). I TTF non
   entrano nel `.pbw`: dell'app fanno parte solo le immagini delle cifre. Credito facoltativo per lo
@@ -487,21 +495,29 @@ localizzato**: nome e descrizione restano in inglese.
 
 **Aggiornamento 0.4.0 (spagnolo e portoghese, pagina delle impostazioni rifatta)**: stessa variante
 «nuova release» (`--version 0.4.0 --release-notes "$(cat store/release_notes_0.4.0.txt)"`, sei
-righe, una per lingua). La **0.4.0 è stata pubblicata il 18/09/2026** (tag `v0.4.0`) ed è l'ultima
-release nello store. ⚠️ La **0.3.0 non è mai uscita**: le sue novità sono uscite con la 0.4.0 e
-delle sue note di rilascio resta solo il testo, in `store/LISTING.md` §3.1 (il file
-`store/release_notes_0.3.0.txt` è uscito dal repo il **17/09/2026**).
+righe, una per lingua). La **0.4.0 è stata pubblicata il 18/09/2026** (tag `v0.4.0`); dal
+**20/09/2026** l'ultima release nello store è la **1.0.0**, qui sotto. ⚠️ La **0.3.0 non è mai
+uscita**: le sue novità sono uscite con la 0.4.0 e delle sue note di rilascio resta solo il testo,
+in `store/LISTING.md` §3.1 (il file `store/release_notes_0.3.0.txt` è uscito dal repo il
+**17/09/2026**).
+
+**Aggiornamento 1.0.0 (S14: «Ora in basso», intervalli «ogni 6 h» e «ogni 12 h», contorno
+automatico dal 15 %, «Ottimizza» spuntata di serie, via le frecce del font)**: stessa variante
+«nuova release» (`--version 1.0.0 --release-notes "$(cat store/release_notes_1.0.0.txt)"`, 506
+caratteri, **solo in inglese**). La **1.0.0 è stata pubblicata il 20/09/2026 alle 00:14** (tag
+`v1.0.0`, commit `dd628c0`).
 
 Sono cambiati anche **nome e descrizione**, ma non insieme. Il **nome è fatto**: l'app nello store si
 chiama **«Galleria»** (verificato il **19/09/2026**; non più «Galleria for Pebble», decisione
-**D42**), rinominata dall'utente **dalla dashboard**, non con il `PATCH`. La **descrizione nuova è
-online dal 19/09/2026 sera** (prima c'era quella della 0.2.0, 777 caratteri): dice «Designed for
-Pebble Time 2 (colour display); also runs on Pebble 2 Duo», «Settings page in English, Italian,
-German, French, Spanish and Portuguese» e «Photo upload tested on Android and iPhone». Nome e
-descrizione **non si cambiano dalla CLI**: il `PATCH` multipart di `store/PUBLISH.md` §0.1 li manda
-insieme (`--form-string "title=Galleria"` + `store/description.txt`, 794 caratteri) ed è stato
-**eseguito su richiesta dell'utente**; **ogni** `PATCH` deve riportare `title=Galleria`, altrimenti
-l'app torna al nome vecchio.
+**D42**), rinominata dall'utente **dalla dashboard**, non con il `PATCH`. La **descrizione online
+è quella della 1.0.0**, mandata con il `PATCH` del **20/09/2026** (dal 19/09/2026 sera c'era la
+riscrittura con «Beta 0.4.0», 794 caratteri; prima ancora quella della 0.2.0, 777): dice «Designed
+for Pebble Time 2 (colour display); also runs on Pebble 2 Duo», «Three layouts: time on top or at
+the bottom», «Settings page in English, Italian, German, French, Spanish and Portuguese» e «Photo
+upload tested on Android and iPhone». Nome e descrizione **non si cambiano dalla CLI**: il `PATCH`
+multipart di `store/PUBLISH.md` §0.1 li manda insieme (`--form-string "title=Galleria"` +
+`store/description.txt`, oggi 827 caratteri) ed è stato **eseguito su richiesta dell'utente**;
+**ogni** `PATCH` deve riportare `title=Galleria`, altrimenti l'app torna al nome vecchio.
 
 **Regola dal 18/09/2026**: le release notes dello store si scrivono **solo in inglese** (niente righe
 per lingua); le sei righe della 0.4.0 e quelle della 0.2.0 restano come storia.
@@ -509,7 +525,8 @@ per lingua); le sei righe della 0.4.0 e quelle della 0.2.0 restano come storia.
 Il testo definitivo del listing non sta più qui: nome, descrizione, release notes, crediti e note per
 lo store sono in **`store/LISTING.md`** (la descrizione pronta da incollare anche in
 `store/description.txt`, le note di rilascio in `store/release_notes_0.1.0.txt`,
-`store/release_notes_0.2.0.txt` e `store/release_notes_0.4.0.txt`), e la riga
+`store/release_notes_0.2.0.txt`, `store/release_notes_0.4.0.txt` e
+`store/release_notes_1.0.0.txt`), e la riga
 `pebble publish` con prerequisiti, limiti della CLI e passi Rebble è in **`store/PUBLISH.md`**.
 
 Le decisioni **U1–U9** sono state prese il **05/09/2026**: U1 licenza **MIT** (`LICENSE` in radice),
@@ -518,8 +535,10 @@ U2 autore **Rediro**, U3 le due foto demo **CC0** restano, U4 repository **pubbl
 ≥ 4.32, D5 chiusa), U6 visibilità della prima release **gestita sul portale developer** (dalla CLI
 non si ottiene una release riservata), U7 versione **0.1.0 (beta)** con tag git `v0.1.0-beta`,
 U8 **indicatore di sync anche nel layout B** (R10, nella build della 0.1.0), U9 issue su PebbleOS
-**rimandata**. Al 19/09/2026 resta il **gate sul telefono** (runbook
-`../../docs/design/galleria-s13-ux4-gate-telefono.md`, lo fa l'utente quando vuole: la 0.4.0 è uscita
-senza, ma resta utile a release uscita); nello store il nome è **«Galleria»** (verificato il
-19/09/2026) e la descrizione nuova è online dal **19/09/2026 sera**. Gli altri residui sono in
+**rimandata** (poi aperta il **20/09/2026**: `coredevices/PebbleOS#2106`,
+https://github.com/coredevices/PebbleOS/issues/2106). Al 20/09/2026 resta il **gate sul telefono**
+(runbook `../../docs/design/galleria-s13-ux4-gate-telefono.md`, lo fa l'utente quando vuole: la
+0.4.0 e la 1.0.0 sono uscite senza, ma resta utile a release uscita); nello store il nome è
+**«Galleria»**, l'ultima release è la **1.0.0 del 20/09/2026** e online c'è la sua descrizione
+(827 caratteri = `store/description.txt`). Gli altri residui sono in
 `../../docs/CONTINUA-QUI.md`.

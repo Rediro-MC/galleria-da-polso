@@ -254,7 +254,7 @@ python3 ../../tools/gen_test_cards.py --check              # S8: test card (~/ga
   - **URL `data:`** (D44): `data:text/html;charset=utf-8;base64,` + `b64.encodeUtf8Std(html)` + `#` + hash base64url (ripiego
     per una WebView che non aprisse la forma base64 = una riga in `index.js`, commento sopra `showConfiguration`). Misure del
     **14/09/2026**, con la pagina di allora (85.476 B) — in S14 la pagina cala di 418 B e la sua parte base64 passa da 113.968 a
-    **113.412** caratteri (pin di `test_index_retry.js`), quindi i totali qui sotto vanno rimisurati al prossimo gate. Album vuoto:
+    **113.412** caratteri (⌈85.058 / 3⌉ × 4), quindi i totali qui sotto vanno rimisurati al prossimo gate. Album vuoto:
     **195.223 caratteri su emery / 171.556 su flint** (36 di prefisso + 113.968 di pagina + 1 + hash 81.218 / 57.551); **con 12
     foto e miniature vere 221.703 / 198.020, caso peggiore con miniature al tetto 292.908 / 269.225** (calcolo con i moduli veri
     in `~/galleria-gate/ux/ux4/mkurl12.js`, archivio locale fuori repo: il dev server non manda miniature e in emulatore il PKJS

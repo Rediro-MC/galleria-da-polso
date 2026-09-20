@@ -1,6 +1,6 @@
 # CONTINUA QUI — stato lavori progetto Pebble
 
-> **Aggiornato: 20/09/2026, 00:20 (S14 pubblicata come 1.0.0).** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
+> **Aggiornato: 20/09/2026 (1.0.0 pubblicata, F28 = issue #2106, README allineati).** Questo file dice **dove siamo** e **qual è il passo successivo**, e si legge in un
 > minuto. Il dettaglio di ogni sessione (compiti per importanza, numeri, decisioni) sta in
 > `apps/galleria/PIANO.md` §8 (stato ed esiti) e §4 (sessione per sessione): qui resta una riga per sessione.
 
@@ -17,7 +17,28 @@
   permission mode) e **descrizione nuova online** (`PATCH` di `PUBLISH.md` §0.1 eseguito dall'orchestratore la
   sera del 19/09 su richiesta dell'utente: **794 caratteri = `store/description.txt`**, «Beta 0.4.0», sei lingue,
   «tested on Android and iPhone»); screenshot online **5 emery + 3 flint** = gli 8 di `store/`.
-- **20/09/2026, 00:14 — 1.0.0 PUBBLICATA**: **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, 506 caratteri, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica; poi questo commit docs. Restano aperti F11 (O5/O6) e F28.
+- **20/09/2026, 00:14 — 1.0.0 PUBBLICATA**: **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, 506 caratteri, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica; poi questo commit docs. Resta aperto F11 (O5/O6); **F28 fatta il 20/09/2026** (issue #2106, voce qui sotto).
+- **20/09/2026 — F28: issue #2106 su coredevices/PebbleOS pubblicata**: `https://github.com/coredevices/PebbleOS/issues/2106`,
+  account **Rediro-MC**, `gh issue create` sul template **Bug** e **senza label** (la label `RFC` non esiste nel repo,
+  l'account ha solo `pull`). L'issue dice che i settings file del persist sono aperti **senza page cache**, che l'apertura
+  costa **2–3 passate** complete sul file prima ancora della ricerca della chiave, che i record morti vengono scartati solo
+  quando una scrittura supera la soglia di spazio (**630.458 B** per un file cresciuto a 512 KiB) e propone **quattro**
+  rimedi (page cache all'apertura, una sola passata invece di due, compattazione a rapporto fuori dal percorso critico,
+  un'API per azzerare il proprio file persist). Bozza del 05/09/2026 **riverificata** il 20/09 con **9 agenti Fable**
+  (6 verificatori + 3 lenti): causa confermata, sette correzioni. In fondo al corpo, su richiesta dell'utente, la
+  dichiarazione che l'issue è stata **scritta da Claude**, non da un umano. Log grezzi archiviati in
+  `~/galleria-archivio-2026-09-17/logs-s8-persist/` (fuori repo); bozza pubblicata e correzioni in
+  `docs/design/galleria-s9-issue-pebbleos.md` (§«Verifica del 20/09/2026»). Commit e push restano su richiesta esplicita
+  dell'utente.
+- **20/09/2026 — README allineati alla 1.0.0** (richiesta «aggiorna README del repo Galleria su github»): `README.md` di
+  radice e `apps/galleria/README.md` corretti con un workflow di 63 agenti (7 lenti, 2 scettici per rilievo, un redattore
+  per file, 2 rilettori: 17 rilievi confermati + 5 residui applicati, zero errori introdotti; dettagli in `PIANO.md` §8).
+  Superati: «0.4.0 ultima release», «794 caratteri», U9 «rimandata», 171 screenshot, il `.pbw` 0.4.0 locale nel comando
+  di install, il «pin di `test_index_retry.js`» per 113.412 (corretto anche in `apps/galleria/CLAUDE.md`). Poi, su
+  richiesta dell'utente, anche **`store/LISTING.md` allineato alla 1.0.0** (secondo workflow, 83 agenti: testa e §7 con lo
+  «Stato al 20/09/2026», §1 1.0.0, §2 = testo della 1.0.0 da 827 caratteri byte-identico a `description.txt`, §3.S14
+  byte-identico a `release_notes_1.0.0.txt`, §5/§6 riportati a oggi; dettagli in `PIANO.md` §8). `make -C test` verde.
+  **Commit e push fatti su richiesta dell'utente** («carica tutto su github»).
 - **Sessione 19/09/2026 sera/notte — S14, cinque feature per la v1.0 ✅ al banco e sul PT2 reale**: dal
   pannello «nuove feature per una watchface minimale» (38 proposte, archivio locale `~/galleria-gate/feature-2026-09-19/`)
   e dalle risposte dell'utente: **F01** alone già al 15 % (`>=`, D140), **F03 «Ora in basso»** = terza disposizione
@@ -29,7 +50,7 @@
   `test_preview` 2.511, `test_page` 2.694/2.719, `make -C test` verde in 61 s; gate in emulatore e nel browser con 13
   screenshot `docs/design/galleria/s14_*.png` (inchiostro delle cifre alle righe 154..217, specchio esatto di «Ora in
   alto»; anteprima della pagina identica). Tre workflow (14 + 49 + 5 agenti; revisione 8 confermati / 22 refutati,
-  nessun difetto funzionale). F02 no, F11 (O5/O6) sospesa, P15 iPhone «mai probabilmente», F28 dopo la v1.0.
+  nessun difetto funzionale). F02 no, F11 (O5/O6) sospesa, P15 iPhone «mai probabilmente», F28 dopo la v1.0 (**fatta il 20/09/2026: issue #2106**).
   **Provata sul PT2 reale via Android** (23:48–23:54): «Ora in basso» con tre font, «ogni 12 h» (`int=720`), foto nuova in
   15 s, 5 foto a scosse, URL 206.331 caratteri, zero errori (12 h con «PM» provato; Quick View vista al riavvio delle 00:01 con la fascia a 63+106; cambio foto a mezzanotte con «ogni 12 h»).
   Poi commit `dd628c0` + tag `v1.0.0` + push e `pebble publish` 1.0.0 (sopra). Dettagli in `PIANO.md` §4 «S14», §5, §8.
@@ -86,7 +107,7 @@
 
 0. **Dopo S14 (20/09)**: (a) ~~commit/push e release~~ **fatti**: `dd628c0`, tag `v1.0.0`, 1.0.0 nello store con descrizione nuova;
    resta da provare la pagina su **iPhone** (tendina del font con il picker a ruota, URL con 5+ foto). (b) **O5/O6 (F11)** quando l'utente ha 2–3 h con il
-   PT2 alla luce del giorno: conferma o correzione di D138/D140. (c) **F28** issue a PebbleOS dopo la v1.0.
+   PT2 alla luce del giorno: conferma o correzione di D138/D140. (c) ~~**F28** issue a PebbleOS dopo la v1.0~~ **fatta il 20/09/2026: issue #2106** (`coredevices/PebbleOS#2106`).
 1. **Fatti il 19/09/2026 sera**: `PATCH` della descrizione (online **794 caratteri = `store/description.txt`**, titolo
    «Galleria») e `emery_screenshot_6.png` cancellato (`store/` = 8 screenshot, tutti online): nulla resta aperto
    sullo store.
