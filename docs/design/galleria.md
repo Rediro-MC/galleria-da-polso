@@ -329,7 +329,7 @@ Gate per sessione in `apps/galleria/PIANO.md` §4; matrice `PIANO-SVILUPPO-PEBBL
    piano cade anche la Dev Connection, che sull'iPhone cade spesso comunque). Ricerca S8: nel codice dell'app iOS
    nessun limite alla lunghezza del close URL e `URL_DATA_PREFIX` dichiarato ma non usato; issue #297 sul file
    input, superata dalla prova del 06/09. Se l'iPhone non apre 12 foto: bisezione (runbook §4) e sessione **RLE
-   delle maschere** (≈ −28.000 caratteri) in una release successiva (la 0.4.0 è già uscita); piano B = campo
+   delle maschere** (≈ −28.000 caratteri) in una release successiva (la 0.4.0 e la 1.0.0 sono già uscite, 18 e 20/09/2026); piano B = campo
    URL (v1.1).
 2. **Compattazione del persist durante una sync**: throughput BLE e costi del persist con file grande 🔁
    **misurati in S8** (§5 «Tempi attesi»; apertura del file 2.145 ms su file gonfio e 93–121 ms con 4 foto, D27),

@@ -503,9 +503,9 @@ in `store/LISTING.md` §3.1 (il file `store/release_notes_0.3.0.txt` è uscito d
 
 **Aggiornamento 1.0.0 (S14: «Ora in basso», intervalli «ogni 6 h» e «ogni 12 h», contorno
 automatico dal 15 %, «Ottimizza» spuntata di serie, via le frecce del font)**: stessa variante
-«nuova release» (`--version 1.0.0 --release-notes "$(cat store/release_notes_1.0.0.txt)"`, 506
-caratteri, **solo in inglese**). La **1.0.0 è stata pubblicata il 20/09/2026 alle 00:14** (tag
-`v1.0.0`, commit `dd628c0`).
+«nuova release» (`--version 1.0.0 --release-notes "$(cat store/release_notes_1.0.0.txt)"`, 505
+caratteri — 506 B con il newline finale —, **solo in inglese**). La **1.0.0 è stata pubblicata il 20/09/2026 alle 00:14** (tag
+`v1.0.0`, commit `dd628c0`; record completo della release in `store/PUBLISH.md`, in testa).
 
 Sono cambiati anche **nome e descrizione**, ma non insieme. Il **nome è fatto**: l'app nello store si
 chiama **«Galleria»** (verificato il **19/09/2026**; non più «Galleria for Pebble», decisione

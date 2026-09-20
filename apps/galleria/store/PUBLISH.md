@@ -1,6 +1,6 @@
 # Galleria — pubblicazione con `pebble publish` (S9, P3)
 
-> **RELEASE 1.0.0 PUBBLICATA il 20/09/2026** — **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, 506 caratteri, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica. Pre-check tutti verdi (make -C test, clean build 29.300/29.188 B, `make_assets.py --check`, `versionLabel 1.0.0`, `pebble login --status` collegato). Dettagli in `LISTING.md` §3.S14 e §6.
+> **RELEASE 1.0.0 PUBBLICATA il 20/09/2026** — **1.0.0 pubblicata il 20/09/2026 alle 00:14 locali** (API `published_date` 2026-09-19T22:14 UTC) con `pebble publish --non-interactive --no-gif-all-platforms --version 1.0.0 --release-notes …` (`store/release_notes_1.0.0.txt`, **505 caratteri** — 506 B con il newline finale, come gli 828 B = 827 caratteri della descrizione —, solo inglese; log locale `publish_100.log`: «Release created successfully»), su richiesta dell'utente «carica su github e su pebble store» dopo la prova sul PT2 reale; commit `dd628c0` + tag `v1.0.0` su GitHub; `PATCH` della descrizione (`PUBLISH.md` §0.1, HTTP 200): online **827 caratteri = `store/description.txt`** («Three layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica. Pre-check tutti verdi (make -C test, clean build 29.300/29.188 B, `make_assets.py --check`, `versionLabel 1.0.0`, `pebble login --status` collegato). Dettagli in `LISTING.md` §3.S14 e §6. **Questo paragrafo è il record unico della release 1.0.0** (dal 20/09/2026): `LISTING.md` §3.S14, `PIANO.md` §8, `docs/CONTINUA-QUI.md`, il `CLAUDE.md` dell'app e i README rimandano qui invece di copiarlo.
 >
 > **PUBBLICATA il 05/09/2026 alle 20:41** (0.1.0) e **release 0.2.0 la sera stessa** con la variante «nuova release» (`--release-notes` da `store/release_notes_0.2.0.txt`, log locale `publish_020.log`: «Resolved existing appstore app ID … Release created successfully»); con il comando di creazione (§4; testo intero in `LISTING.md` §6; esito in `apps/galleria/publish_010.log`, file locale): app **`cdf80cc3bf6745b1a310e4c8`**, pagina https://apps.rePebble.com/cdf80cc3bf6745b1a310e4c8, dashboard https://appstore-api.repebble.com/dashboard. Verificato via API (`/api/v1/apps/id/<id>`): title «Galleria for Pebble», type watchface, author «Rediro», category «Faces» (assegnata dal server), `visible: true`, release 0.1.0 con le note, `source` = repo GitHub, descrizione completa; **screenshot emery e flint online** (`hardware_platforms[].images.screenshot`); **`icon_image`/`list_image` vuoti** subito dopo la creazione (per una watchface lo store usa lo screenshot; da ricontrollare in dashboard dopo qualche minuto: il tool parlava di «icon generation may take ~2 min»). Il repo sorgente è **pubblico** dalla stessa sera (storia riscritta prima del push).
 >
@@ -60,17 +60,17 @@ Note: un `PATCH` con `Content-Type: application/json` dà 500 («Content-Type wa
 `GET /api/dashboard/apps/<id>` con il solo `Bearer` dà 401 (serve il cookie); `OPTIONS` sull'app elenca
 `GET, HEAD, OPTIONS, PATCH, DELETE`. Il cookie e il token sono credenziali: file temporanei fuori dal repo, da cancellare dopo l'uso.
 
-### 0.1 Comando pronto per la 0.4.0: nome «Galleria» + descrizione nuova
+### 0.1 Comando del `PATCH` (nome «Galleria» + descrizione): lanciato per la 0.4.0 il 19/09 e per la 1.0.0 il 20/09/2026
 
 > Scritto in S11 per la 0.3.0, **mai lanciato** (→ lanciato il 19/09/2026 sera, esito sotto); la 0.3.0 non è uscita,
 > quindi vale **tale e quale per la 0.4.0** (D126). Il corpo del comando **non cambia di una lettera**: cambiano
 > solo il numero della release che gli sta accanto (`pebble publish --version 0.4.0`, `LISTING.md` §6) e il testo
-> di `store/description.txt`, che oggi dice «Beta 0.4.0».
+> di `store/description.txt`, che allora diceva «Beta 0.4.0» (dal 20/09/2026 dice «Version 1.0.0», 827 caratteri).
 
 **Decisione D42** (`docs/design/galleria-s11-lingue-es-pt.md`): con la **0.4.0** l'app nello store si chiama
 **«Galleria»** e non più «Galleria for Pebble». Il nome **non si cambia dalla CLI** (`--name` vale solo alla
 creazione, §9): lo cambia il campo **`title`** di questo `PATCH`, che è **obbligatorio in ogni chiamata** — quindi
-**lo stesso comando** rinomina l'app *e* carica la descrizione nuova (`store/description.txt`, 794 caratteri).
+**lo stesso comando** rinomina l'app *e* carica la descrizione nuova (`store/description.txt`: 794 caratteri per la 0.4.0, **827 dal 20/09/2026**).
 ⚠️ Da qui in poi, ogni `PATCH` futuro deve portare `title=Galleria`: rimettere il vecchio testo rinominerebbe
 l'app all'indietro. `store/LISTING.md` §1 (riga «Nome nello store») e §5 (riga 30) sono già allineati al nome nuovo.
 
@@ -119,6 +119,11 @@ il newline) la fa `pebble publish` (`LISTING.md` §6 e §3.0), e i due passi son
 **nello stesso giro**, perché è la stessa novità per chi legge la pagina dello store. Il giro si è chiuso il
 **19/09/2026**: la release 0.4.0 il 18/09, il `PATCH` della descrizione la sera del 19/09.
 
+✅ **Rilanciato per la 1.0.0 la notte del 20/09/2026** dall'orchestratore, tale e quale, con il `description.txt` della 1.0.0
+(scelto dall'utente): sessione HTTP 200, `PATCH` HTTP 200; online **827 caratteri = `store/description.txt`** («Three
+layouts», «Version 1.0.0», niente «Beta»), titolo «Galleria» invariato, verificato sull'API pubblica. Record della release in
+testa a questo file.
+
 ## 1. Sintesi in cinque righe
 
 1. `pebble publish` **ricostruisce da solo** il progetto, carica `build/galleria.pbw` e — se l'UUID non e' gia' noto
@@ -145,7 +150,7 @@ il newline) la fa `pebble publish` (`LISTING.md` §6 e §3.0), e i due passi son
 | 4 | Progetto pronto | `pebble publish` **ricompila** con `BuildCommand` (equivalente di `pebble build`, `debug=False`) e nasconde l'output: lo mostra **solo se la build fallisce** **[F]** `publish.py:217-235`. Quindi: fare prima il gate (`pebble clean && pebble build`, `make -C test`, `python3 ../../tools/build_config_page.py --check`) e lanciare `publish` **con l'ambiente pulito, senza `GALLERIA_DEFINES`**. |
 | 5 | `.pbw` atteso | `build/galleria.pbw` (il nome viene dal **basename della cartella del progetto**) **[F]** `publish.py:237-239`. La build S8 in `build_s8/` non c'entra. |
 | 6 | Asset dello store | `python3 store/make_assets.py --check` verde **dopo** aver rigenerato gli screenshot con le foto demo nuove (P1/P6). Dimensioni attuali verificate con Pillow **[F]**: `icon_48.png` 48x48 RGB, `icon_80.png` 80x80 RGB, `icon_144.png` 144x144 RGB, `emery_screenshot_1.png` 200x228 RGB, `flint_screenshot_1.png` 144x168 RGB (19/09/2026 sera: `--check` verde con 8 screenshot + 3 icone, elenco in `store/README.md`). |
-| 7 | Testi del listing | `store/LISTING.md` (P2), con i file di puro testo **gia' estratti**, cosi' i comandi sono riproducibili e la lunghezza si controlla con `wc -m` **[F]**. Oggi: `store/description.txt` **795 B con il newline finale = 794 caratteri** (riscritta il 06/09, chiusa con «Beta 0.4.0»; il tetto in vigore e' **800 caratteri**, chiesto dall'utente per la 0.4.0 — non i 1.500/1.600 della prima stesura, `LISTING.md` §2) e `store/release_notes_0.4.0.txt` **697 B = 696 caratteri**; restano anche `release_notes_0.2.0.txt` (473 B) e `release_notes_0.1.0.txt` (522 B; si chiamava `release_notes_1.0.0.txt` fino al 05/09 sera). |
+| 7 | Testi del listing | `store/LISTING.md` (P2), con i file di puro testo **gia' estratti**, cosi' i comandi sono riproducibili e la lunghezza si controlla con `wc -m` **[F]**. Oggi (20/09/2026): `store/description.txt` **828 B con il newline finale = 827 caratteri** (testo della 1.0.0 scelto dall'utente, «Version 1.0.0», nessun «Beta»; il tetto degli **800 caratteri** chiesto dall'utente per la 0.4.0 — non i 1.500/1.600 della prima stesura — e' superato di 27; storia 789 → 777 → 794 → 827 in `LISTING.md` §2) e `store/release_notes_1.0.0.txt` **506 B = 505 caratteri**; restano anche `release_notes_0.4.0.txt` (697 B = 696 caratteri), `release_notes_0.2.0.txt` (473 B) e `release_notes_0.1.0.txt` (522 B; fino al 05/09 sera si chiamava `release_notes_1.0.0.txt`: omonimo del file di oggi, altro testo). |
 
 ---
 
